@@ -1,0 +1,176 @@
+export type AssetStatus = '운행중' | '대기' | '정비' | '매각';
+
+/**
+ * 자산(차량) 데이터 모델 — 자동차등록증 ① ~ ㉟ 전 항목 + 헤더/푸터 + 부가.
+ *
+ * 메인(등록증) — OCR로 자동 채워짐. 빈 칸은 그대로 비워둠.
+ * 부가(선택)   — 등록증에 없는 마케팅·운영 정보 (제조사·모델명·색상 등).
+ */
+export type Asset = {
+  id: string;
+
+  /* ─── 등록증 헤더 ─── */
+  documentNo?: string;        // 문서확인번호
+  firstRegistDate: string;    // 최초등록일
+  certIssueDate?: string;     // 등록증 발급일
+
+  /* ─── 본문 ① ~ ⑩ ─── */
+  plate: string;              // ① 자동차등록번호
+  vehicleClass: string;       // ② 차종
+  usage: string;              // ③ 용도
+  vehicleName: string;        // ④ 차명
+  modelType?: string;         // ⑤ 형식
+  manufactureDate?: string;   // ⑤ 제작연월
+  vin: string;                // ⑥ 차대번호
+  engineType?: string;        // ⑦ 원동기형식
+  ownerLocation?: string;     // ⑧ 사용본거지
+  ownerName: string;          // ⑨ 성명(명칭)
+  ownerRegNumber?: string;    // ⑩ 생년월일/법인등록번호
+
+  /* ─── 1. 제원 ⑪ ~ ㉔ ─── */
+  approvalNumber?: string;    // ⑪ 제원관리번호(형식승인번호)
+  length?: number;            // ⑫ 길이  (mm)
+  width?: number;             // ⑬ 너비  (mm)
+  height?: number;            // ⑭ 높이  (mm)
+  totalWeight?: number;       // ⑮ 총중량 (kg)
+  capacity?: number;          // ⑯ 승차정원
+  maxLoad?: number;           // ⑰ 최대적재량 (kg)
+  displacement?: number;      // ⑱ 배기량 / 구동축전지 용량 (cc)
+  ratedOutput?: string;       // ⑲ 정격출력 (Ps/rpm)
+  cylinders?: string;         // ⑳ 기통수 / 정격전압 / 최고출력
+  fuelType?: string;          // ㉑ 연료종류
+  fuelEfficiency?: number;    // ㉑ 연료소비율 (km/L)
+  batteryMaker?: string;      // ㉒ 구동축전지 셀 제조사 (전기차)
+  batteryShape?: string;      // ㉓ 구동축전지 셀 형태   (전기차)
+  batteryMaterial?: string;   // ㉔ 구동축전지 셀 주요원료(전기차)
+
+  /* ─── 2. 등록번호판 교부 ㉕ ~ ㉗ ─── */
+  plateIssueType?: string;    // ㉕ 구분
+  plateIssueDate?: string;    // ㉖ 번호판 발급일
+  plateIssueAgent?: string;   // ㉗ 발급대행자확인
+
+  /* ─── 3. 저당권등록사실 ㉘ ~ ㉙ ─── */
+  mortgageType?: string;      // ㉘ 구분 (저당설정/말소)
+  mortgageDate?: string;      // ㉙ 날짜
+
+  /* ─── 4. 검사 유효기간 ㉚ ~ ㉟ ─── */
+  inspectionFrom?: string;    // ㉚ 연월일부터
+  inspectionTo?: string;      // ㉛ 연월일까지
+  inspectionPlace?: string;   // ㉜ 검사시행장소
+  mileage?: number;           // ㉝ 주행거리
+  inspectionAuthority?: string;// ㉞ 검사책임자확인
+  inspectionType?: string;    // ㉟ 검사구분
+
+  /* ─── 기타 (등록증 푸터) ─── */
+  acquisitionPrice?: number;  // 자동차 출고(취득)가격 (부가세 제외)
+
+  /* ─── 부가 (선택입력 — 등록증에 없음) ─── */
+  maker?: string;             // 제조사
+  modelName?: string;         // 모델명
+  detailModel?: string;       // 세부모델
+  detailTrim?: string;        // 세부트림
+  options?: string[];         // 선택옵션
+  exteriorColor?: string;     // 외부색상
+  interiorColor?: string;     // 내부색상
+  driveType?: '전륜' | '후륜' | '4륜' | 'AWD'; // 구동방식
+
+  /* ─── 운영 상태 ─── */
+  status: AssetStatus;
+};
+
+export const SAMPLE_ASSETS: Asset[] = [
+  // ── 1번: 첨부된 등록증 (01도9893 모닝) 그대로 ──
+  {
+    id: 'a-001',
+    documentNo: '7836830517987332',
+    firstRegistDate: '2017-09-21',
+    certIssueDate: '2025-12-22',
+    plate: '01도9893',
+    vehicleClass: '경형 승용',
+    usage: '자가용',
+    vehicleName: '모닝',
+    modelType: 'JA51BA-T6-P',
+    manufactureDate: '2017-09',
+    vin: 'KNAB5511BHT151725',
+    engineType: 'G3LA',
+    ownerLocation: '경기도 연천군 전곡읍 은천로 97',
+    ownerName: '스위치플랜(주)',
+    ownerRegNumber: '110111-8596368',
+    approvalNumber: 'A01-1-00062-0019-1416',
+    length: 3595, width: 1595, height: 1485,
+    totalWeight: 1280, capacity: 5, maxLoad: 0,
+    displacement: 998, ratedOutput: '76/6200', cylinders: '3',
+    fuelType: '휘발유(무연)', fuelEfficiency: 14.7,
+    mortgageType: '저당설정', mortgageDate: '2024-10-21',
+    inspectionFrom: '2024-08-21', inspectionTo: '2026-08-20',
+    mileage: 50199, inspectionType: '종합검사(경과)',
+    acquisitionPrice: 14386363,
+    // 부가
+    maker: '기아', modelName: '올뉴 모닝', detailModel: 'JA',
+    detailTrim: '디럭스 스페셜', exteriorColor: '시그널 레드', interiorColor: '블랙',
+    driveType: '전륜',
+    status: '운행중',
+  },
+  {
+    id: 'a-002',
+    plate: '34나5678',
+    firstRegistDate: '2022-08-02',
+    vehicleClass: '중형 승용',
+    usage: '자가용',
+    vehicleName: 'K5',
+    modelType: 'DL3A-G24-P',
+    manufactureDate: '2022-07',
+    vin: 'KNAGT4111234ABCDE',
+    engineType: 'G2FA',
+    ownerName: 'JPK렌터카(주)',
+    maker: '기아', modelName: 'K5 (DL3)', detailTrim: '시그니처',
+    exteriorColor: '판테라 메탈', driveType: '전륜',
+    status: '운행중',
+  },
+  {
+    id: 'a-003',
+    plate: '56다7890',
+    firstRegistDate: '2024-01-22',
+    vehicleClass: '대형 승용',
+    usage: '자가용',
+    vehicleName: '그랜저',
+    modelType: 'GN7A-G35-P',
+    manufactureDate: '2024-01',
+    vin: 'KMHGX22LAEEU98765',
+    engineType: 'G6DG',
+    ownerName: 'JPK렌터카(주)',
+    maker: '현대', modelName: '디 올 뉴 그랜저 (GN7)', detailTrim: '캘리그래피',
+    exteriorColor: '아틀라스 화이트', interiorColor: '브라운', driveType: '전륜',
+    status: '대기',
+  },
+  {
+    id: 'a-004',
+    plate: '78라1234',
+    firstRegistDate: '2021-06-10',
+    vehicleClass: '대형 승합',
+    usage: '자가용',
+    vehicleName: '카니발',
+    modelType: 'KA4A-D22-P',
+    manufactureDate: '2021-05',
+    vin: 'KNAMC817BBBB12345',
+    engineType: 'D4HE',
+    ownerName: 'JPK렌터카(주)',
+    maker: '기아', modelName: '카니발 (KA4)', driveType: '전륜',
+    status: '정비',
+  },
+  {
+    id: 'a-005',
+    plate: '90마5432',
+    firstRegistDate: '2020-04-01',
+    vehicleClass: '소형 승용',
+    usage: '자가용',
+    vehicleName: '아반떼',
+    modelType: 'CN7A-G16-P',
+    manufactureDate: '2020-03',
+    vin: 'KMHD841CALU555444',
+    engineType: 'G4FL',
+    ownerName: 'JPK렌터카(주)',
+    maker: '현대', modelName: '아반떼 (CN7)', driveType: '전륜',
+    status: '매각',
+  },
+];
