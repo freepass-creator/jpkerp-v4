@@ -1,4 +1,4 @@
-export type AssetStatus = '운행중' | '대기' | '정비' | '매각';
+export type AssetStatus = '등록예정' | '대기' | '운행중' | '정비' | '매각';
 
 /**
  * 자산(차량) 데이터 모델 — 자동차등록증 ① ~ ㉟ 전 항목 + 헤더/푸터 + 부가.
@@ -8,6 +8,9 @@ export type AssetStatus = '운행중' | '대기' | '정비' | '매각';
  */
 export type Asset = {
   id: string;
+
+  /* ─── 운영 식별자 ─── */
+  companyCode: string;        // 회사코드 (CP01~CP99) — 차량번호와 묶여 unique key
 
   /* ─── 등록증 헤더 ─── */
   documentNo?: string;        // 문서확인번호
@@ -82,6 +85,7 @@ export const SAMPLE_ASSETS: Asset[] = [
   // ── 1번: 첨부된 등록증 (01도9893 모닝) 그대로 ──
   {
     id: 'a-001',
+    companyCode: 'CP01',
     documentNo: '7836830517987332',
     firstRegistDate: '2017-09-21',
     certIssueDate: '2025-12-22',
@@ -113,6 +117,7 @@ export const SAMPLE_ASSETS: Asset[] = [
   },
   {
     id: 'a-002',
+    companyCode: 'CP02',
     plate: '34나5678',
     firstRegistDate: '2022-08-02',
     vehicleClass: '중형 승용',
@@ -129,6 +134,7 @@ export const SAMPLE_ASSETS: Asset[] = [
   },
   {
     id: 'a-003',
+    companyCode: 'CP02',
     plate: '56다7890',
     firstRegistDate: '2024-01-22',
     vehicleClass: '대형 승용',
@@ -145,6 +151,7 @@ export const SAMPLE_ASSETS: Asset[] = [
   },
   {
     id: 'a-004',
+    companyCode: 'CP03',
     plate: '78라1234',
     firstRegistDate: '2021-06-10',
     vehicleClass: '대형 승합',
@@ -160,6 +167,7 @@ export const SAMPLE_ASSETS: Asset[] = [
   },
   {
     id: 'a-005',
+    companyCode: 'CP02',
     plate: '90마5432',
     firstRegistDate: '2020-04-01',
     vehicleClass: '소형 승용',
@@ -172,5 +180,21 @@ export const SAMPLE_ASSETS: Asset[] = [
     ownerName: 'JPK렌터카(주)',
     maker: '현대', modelName: '아반떼 (CN7)', driveType: '전륜',
     status: '매각',
+  },
+  // 등록예정 — 견적서로 미리 등록한 신차 (등록증 미발급)
+  {
+    id: 'a-006',
+    companyCode: 'CP02',
+    plate: '',
+    firstRegistDate: '',
+    vehicleClass: '',
+    usage: '자가용',
+    vehicleName: '캐스퍼',
+    vin: '',
+    ownerName: 'JPK렌터카(주)',
+    maker: '현대', modelName: '캐스퍼 일렉트릭', detailTrim: '인스퍼레이션',
+    exteriorColor: '화이트', interiorColor: '검정', driveType: '전륜',
+    acquisitionPrice: 27000000,
+    status: '등록예정',
   },
 ];

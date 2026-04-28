@@ -14,8 +14,10 @@ export function downloadContractTemplate(asset: Asset) {
   const basic = [
     ['항목', '값', '비고'],
     ['계약번호', '', '비워두면 자동생성'],
+    ['회사코드', asset.companyCode, '(자동)'],
     ['자산 차량번호', asset.plate, '(자동)'],
-    ['자산 차종', asset.carType, '(자동)'],
+    ['자산 차종', asset.vehicleClass, '(자동)'],
+    ['자산 차명', asset.vehicleName, '(자동)'],
     ['자산 차대번호', asset.vin, '(자동)'],
     ['고객명', '', '직접 입력'],
     ['고객 연락처', '', ''],
@@ -28,7 +30,7 @@ export function downloadContractTemplate(asset: Asset) {
     ['특약', '', ''],
   ];
   const basicSheet = XLSX.utils.aoa_to_sheet(basic);
-  basicSheet['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 26 }];
+  basicSheet['!cols'] = [{ wch: 18 }, { wch: 30 }, { wch: 26 }];
   XLSX.utils.book_append_sheet(wb, basicSheet, '계약기본');
 
   // [2] 현재 미수 (한 칸이면 A안 자동 역산)

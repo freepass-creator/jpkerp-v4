@@ -1,10 +1,218 @@
-import { Placeholder } from '@/components/layout/placeholder';
+'use client';
 
-export default function ContractPage() {
+import { useState, useMemo } from 'react';
+import { PencilSimple, Copy, Trash, Plus } from '@phosphor-icons/react';
+import { PageShell } from '@/components/layout/page-shell';
+import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { SAMPLE_ASSETS } from '@/lib/sample-assets';
+import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
+import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
+import { cn } from '@/lib/cn';
+
+const CONTRACT_FIELDS: FieldDef[] = [
+  { key: 'companyCode',    label: '회사코드',  placeholder: 'CP01', required: true },
+  { key: 'contractNo',     label: '계약번호',  placeholder: 'C-2026-NNNN', required: true },
+  { key: 'plate',          label: '차량번호',  required: true },
+  { key: 'customerName',   label: '고객명',    required: true },
+  { key: 'customerKind',   label: '신분',      type: 'select', options: ['개인', '사업자'] },
+  { key: 'customerPhone',  label: '연락처' },
+  { key: 'startDate',      label: '시작일',    type: 'date' },
+  { key: 'endDate',        label: '만기일',    type: 'date' },
+  { key: 'monthlyAmount',  label: '월 청구액', type: 'number' },
+  { key: 'deposit',        label: '보증금',    type: 'number' },
+];
+
+export default function ContractListPage() {
+  const [contracts, setContracts] = useState<Contract[]>(SAMPLE_CONTRACTS);
+  const [selected, setSelected] = useState<Contract | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
+
+  const totals = useMemo(() => {
+    const totalAssets = SAMPLE_ASSETS.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
+    const active = contracts.filter((c) => c.status === '운행중').length;
+    return { totalAssets, active, idle: totalAssets - active };
+  }, [contracts]);
+
+  function fromForm(d: Record<string, string>): Contract {
+    return {
+      id: `c-${Date.now()}`,
+      companyCode: d.companyCode || 'CP01',
+      contractNo: d.contractNo || `C-${new Date().getFullYear()}-NEW`,
+      plate: d.plate || '',
+      customerName: d.customerName || '',
+      customerKind: (d.customerKind as '개인' | '사업자') || '개인',
+      customerPhone: d.customerPhone,
+      startDate: d.startDate || new Date().toISOString().slice(0, 10),
+      endDate: d.endDate || '',
+      monthlyAmount: Number(d.monthlyAmount) || 0,
+      deposit: Number(d.deposit) || 0,
+      status: '운행중',
+      events: [],
+    };
+  }
+
+  function handleCreate(d: Record<string, string>) {
+    setContracts((prev) => [fromForm(d), ...prev]);
+    setRegisterOpen(false);
+  }
+
+  function handleUpdate(d: Record<string, string>) {
+    if (!selected) return;
+    const updated: Contract = { ...selected, ...fromForm(d), id: selected.id, events: selected.events };
+    setContracts((prev) => prev.map((c) => (c.id === selected.id ? updated : c)));
+    setSelected(updated);
+    setEditOpen(false);
+  }
+
+  function handleDuplicate(d: Record<string, string>) {
+    setContracts((prev) => [fromForm(d), ...prev]);
+    setDuplicateOpen(false);
+  }
+
+  function handleDelete() {
+    if (!selected) return;
+    if (!confirm(`${selected.contractNo} 계약을 삭제할까요?`)) return;
+    setContracts((prev) => prev.filter((c) => c.id !== selected.id));
+    setSelected(null);
+  }
+
+  const editInitial: Record<string, string> = selected ? {
+    companyCode: selected.companyCode,
+    contractNo: selected.contractNo,
+    plate: selected.plate,
+    customerName: selected.customerName,
+    customerKind: selected.customerKind ?? '개인',
+    customerPhone: selected.customerPhone ?? '',
+    startDate: selected.startDate,
+    endDate: selected.endDate,
+    monthlyAmount: String(selected.monthlyAmount),
+    deposit: String(selected.deposit ?? 0),
+  } : {};
+
+  // 복사용 — unique 필드 비움
+  const dupInitial: Record<string, string> = selected ? {
+    ...editInitial,
+    contractNo: '',
+    customerName: '',
+    customerPhone: '',
+    plate: '',
+  } : {};
+
+  function buildCtxItems(): ContextMenuItem[] {
+    return [
+      { label: '수정',     icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
+      { label: '복사',     icon: <Copy size={12} weight="bold" />,         onClick: () => setDuplicateOpen(true) },
+      { label: '삭제',     icon: <Trash size={12} weight="bold" />,        onClick: handleDelete, danger: true },
+      { label: '', divider: true, onClick: () => {} },
+      { label: '계약등록', icon: <Plus size={12} weight="bold" />,         onClick: () => setRegisterOpen(true) },
+    ];
+  }
+
   return (
-    <Placeholder
-      title="계약"
-      hint="자산 페이지에서 [계약 템플릿 다운로드] → 채워서 업로드 → 자동 생성"
-    />
+    <>
+      <PageShell
+        subTabs={CONTRACT_SUBTABS}
+        subTabPending={CONTRACT_SUBTAB_PENDING}
+        footerLeft={
+          <>
+            <span className="stat-item">전체 자산 <strong>{totals.totalAssets}</strong></span>
+            <span className="stat-item">계약중 <strong>{totals.active}</strong></span>
+            <span className="stat-item">휴차 <strong>{totals.idle}</strong></span>
+            <span className="stat-divider" />
+            <span className="stat-item">전체 계약 <strong>{contracts.length}</strong></span>
+            {selected && (
+              <>
+                <span className="stat-divider" />
+                <span className="stat-item">선택 <strong className="mono">{selected.contractNo}</strong></span>
+              </>
+            )}
+          </>
+        }
+        footerRight={
+          <>
+            <button className="btn">엑셀</button>
+            <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}>
+              <PencilSimple size={14} weight="bold" /> 수정
+            </button>
+            <button className="btn" disabled={!selected} onClick={() => setDuplicateOpen(true)}>
+              <Copy size={14} weight="bold" /> 복사
+            </button>
+            <button className="btn" disabled={!selected} onClick={handleDelete}>
+              <Trash size={14} weight="bold" /> 삭제
+            </button>
+            <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}>
+              <Plus size={14} weight="bold" /> 계약등록
+            </button>
+          </>
+        }
+      >
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>회사코드</th>
+                <th>차량번호</th>
+                <th>계약번호</th>
+                <th>고객명</th>
+                <th>고객 신분</th>
+                <th>고객 연락처</th>
+                <th className="date">시작일</th>
+                <th className="date">만기일</th>
+                <th className="num">월 청구액</th>
+                <th className="num">보증금</th>
+                <th className="center">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contracts.map((c) => (
+                <tr
+                  key={c.id}
+                  className={cn(selected?.id === c.id && 'selected')}
+                  onClick={() => setSelected(c)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setSelected(c);
+                    setCtxMenu({ open: true, x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  <td className="plate">{c.companyCode}</td>
+                  <td className="plate">{c.plate}</td>
+                  <td className="mono text-medium">{c.contractNo}</td>
+                  <td>{c.customerName}</td>
+                  <td className="dim">{c.customerKind ?? '-'}</td>
+                  <td className="mono dim">{c.customerPhone ?? '-'}</td>
+                  <td className="date">{c.startDate}</td>
+                  <td className="date">{c.endDate}</td>
+                  <td className="num">{c.monthlyAmount.toLocaleString('ko-KR')}</td>
+                  <td className="num">{c.deposit?.toLocaleString('ko-KR') ?? '-'}</td>
+                  <td className="center">
+                    <span className={cn('badge', c.status === '운행중' ? 'badge-green' : c.status === '만기' ? 'badge-orange' : 'badge')}>
+                      {c.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </PageShell>
+
+      <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
+        onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })}
+        items={selected ? buildCtxItems() : []} />
+
+      <EntityFormDialog open={registerOpen} onOpenChange={setRegisterOpen}
+        title="계약 등록" fields={CONTRACT_FIELDS} onSubmit={handleCreate} />
+      <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
+        title="계약 수정" fields={CONTRACT_FIELDS} initial={editInitial}
+        submitLabel="수정" onSubmit={handleUpdate} />
+      <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
+        title="계약 복사 (스펙 복제)" fields={CONTRACT_FIELDS} initial={dupInitial}
+        onSubmit={handleDuplicate} />
+    </>
   );
 }

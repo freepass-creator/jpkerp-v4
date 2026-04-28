@@ -1,26 +1,48 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, FileXls, Pencil, Plus } from '@phosphor-icons/react';
-import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
+import { Upload, FileXls, Pencil, Plus, FilePdf, Image as ImageIcon, X, CheckCircle } from '@phosphor-icons/react';
+import { Dialog, DialogTrigger, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { cn } from '@/lib/cn';
+import { RegistrationForm } from './registration-form';
 import type { Asset } from '@/lib/sample-assets';
 
 type Props = {
   onCreate: (asset: Partial<Asset>) => void;
+  /** 외부 컨트롤 — controlled mode. 미제공 시 내부 상태 사용 */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** 트리거 버튼 표시 여부 (기본 true) */
+  showTrigger?: boolean;
 };
 
-export function AssetRegisterDialog({ onCreate }: Props) {
-  const [open, setOpen] = useState(false);
-  const [parsed, setParsed] = useState<Partial<Asset> | null>(null);
+type ParsedItem = {
+  id: string;
+  fileName: string;
+  data: Partial<Asset>;
+};
 
-  // OCR stub — 첨부된 등록증(01도9893 모닝)을 파싱한 듯한 결과
-  function handleFileUpload(_file: File) {
-    setParsed({
+export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
+  const [openInner, setOpenInner] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : openInner;
+  const setOpen = (v: boolean) => {
+    if (!isControlled) setOpenInner(v);
+    onOpenChange?.(v);
+  };
+  const [certQueue, setCertQueue] = useState<File[]>([]);
+  const [parsedList, setParsedList] = useState<ParsedItem[]>([]);
+  const [parsing, setParsing] = useState(false);
+
+  function ocrStub(file: File): Partial<Asset> {
+    // 실제 OCR API 연동 전 stub — 첨부 등록증(01도9893 모닝) 파싱 결과 흉내
+    return {
+      companyCode: 'CP01',
       documentNo: '7836830517987332',
       firstRegistDate: '2017-09-21',
       certIssueDate: '2025-12-22',
-      plate: '01도9893',
+      plate: `${file.name.slice(0, 2)}도${Math.floor(1000 + Math.random() * 9000)}`,
       vehicleClass: '경형 승용',
       usage: '자가용',
       vehicleName: '모닝',
@@ -40,23 +62,78 @@ export function AssetRegisterDialog({ onCreate }: Props) {
       inspectionFrom: '2024-08-21', inspectionTo: '2026-08-20',
       mileage: 50199, inspectionType: '종합검사(경과)',
       acquisitionPrice: 14386363,
+      maker: '기아', modelName: '모닝',
+      status: '대기',
+    };
+  }
+
+  async function runOcr() {
+    if (certQueue.length === 0) return;
+    setParsing(true);
+
+    // 실제 OCR이라면 Promise.all로 병렬 처리. 지금은 stub이라 짧은 delay만.
+    await new Promise((r) => setTimeout(r, 400 + 200 * certQueue.length));
+
+    const items: ParsedItem[] = certQueue.map((f, i) => ({
+      id: `p-${Date.now()}-${i}`,
+      fileName: f.name,
+      data: ocrStub(f),
+    }));
+    setParsedList(items);
+    setCertQueue([]);
+    setParsing(false);
+  }
+
+  function addCertFiles(files: FileList | File[]) {
+    setCertQueue((prev) => [...prev, ...Array.from(files)]);
+  }
+
+  function removeCertAt(i: number) {
+    setCertQueue((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function removeParsedAt(id: string) {
+    setParsedList((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function reset() {
+    setCertQueue([]);
+    setParsedList([]);
+    setParsing(false);
+  }
+
+  function registerOne(item: ParsedItem) {
+    onCreate(item.data);
+    setParsedList((prev) => {
+      const next = prev.filter((p) => p.id !== item.id);
+      if (next.length === 0) {
+        setOpen(false);
+        setTimeout(reset, 100);
+      }
+      return next;
     });
   }
 
-  function handleSubmit() {
-    if (!parsed) return;
-    onCreate(parsed);
+  function registerAll() {
+    parsedList.forEach((p) => onCreate(p.data));
     setOpen(false);
-    setParsed(null);
+    setTimeout(reset, 100);
+  }
+
+  function handleClose(o: boolean) {
+    setOpen(o);
+    if (!o) reset();
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button className="btn btn-primary">
-          <Plus size={14} weight="bold" /> 자산등록
-        </button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleClose}>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <button className="btn btn-primary">
+            <Plus size={14} weight="bold" /> 자산등록
+          </button>
+        </DialogTrigger>
+      )}
 
       <DialogContent title="자산 등록 (자동차등록증 기준)" size="xl">
         <Tabs defaultValue="ocr">
@@ -73,15 +150,27 @@ export function AssetRegisterDialog({ onCreate }: Props) {
           </TabsList>
 
           <TabsContent value="ocr">
-            {parsed ? (
-              <RegistrationForm data={parsed} onSubmit={handleSubmit} />
+            {parsedList.length > 0 ? (
+              <ParsedListView
+                items={parsedList}
+                onRemove={removeParsedAt}
+                onRegisterAll={registerAll}
+                onRegisterOne={registerOne}
+                onCancelAll={() => { setOpen(false); setTimeout(reset, 100); }}
+              />
             ) : (
-              <DropZone onUpload={handleFileUpload} />
+              <UploadStage
+                certQueue={certQueue}
+                onCertAdd={addCertFiles}
+                onCertRemove={removeCertAt}
+                parsing={parsing}
+                onAnalyze={runOcr}
+              />
             )}
           </TabsContent>
 
           <TabsContent value="manual">
-            <RegistrationForm data={{}} onSubmit={(d) => { onCreate(d); setOpen(false); }} />
+            <RegistrationForm data={{}} onSubmit={(d) => { onCreate(d); setOpen(false); reset(); }} />
           </TabsContent>
 
           <TabsContent value="sheet">
@@ -95,172 +184,301 @@ export function AssetRegisterDialog({ onCreate }: Props) {
   );
 }
 
-function DropZone({ onUpload }: { onUpload: (f: File) => void }) {
-  return (
-    <label className="block border border-dashed py-12 text-center cursor-pointer hover:bg-stripe">
-      <input
-        type="file"
-        accept="image/*,.pdf"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onUpload(f);
-        }}
-      />
-      <Upload size={28} className="mx-auto text-weak" />
-      <div className="mt-2 text-sub">자동차등록증 이미지 / PDF를 드롭하거나 클릭</div>
-      <div className="mt-1 text-weak">JPG / PNG / PDF</div>
-    </label>
-  );
-}
-
-/* ─── Registration form ─── */
-
-function RegistrationForm({
-  data,
-  onSubmit,
+/* ─── 1. 업로드 단계 — 등록증 다중 선택 → 목록 → [분석 시작] ─── */
+function UploadStage({
+  certQueue,
+  onCertAdd,
+  onCertRemove,
+  parsing,
+  onAnalyze,
 }: {
-  data: Partial<Asset>;
-  onSubmit: (d: Partial<Asset>) => void;
+  certQueue: File[];
+  onCertAdd: (files: FileList | File[]) => void;
+  onCertRemove: (i: number) => void;
+  parsing: boolean;
+  onAnalyze: () => void;
 }) {
-  // 완성된 폼 제출은 실데이터 연결 시점에 — 지금은 받은 data 그대로 전달
   return (
-    <>
-      <div className="form-stack">
+    <div className="space-y-3">
+      <CertMultiSlot files={certQueue} onAdd={onCertAdd} onRemove={onCertRemove} />
 
-        <Section title="등록증 헤더">
-          <F label="문서확인번호"   value={data.documentNo} />
-          <F label="최초등록일"     value={data.firstRegistDate} />
-          <F label="등록증 발급일"  value={data.certIssueDate} />
-        </Section>
-
-        <Section title="본문">
-          <F label="자동차등록번호"  value={data.plate} />
-          <F label="차종"           value={data.vehicleClass} />
-          <F label="용도"           value={data.usage} />
-          <F label="차명"           value={data.vehicleName} />
-          <F label="형식"           value={data.modelType} />
-          <F label="제작연월"       value={data.manufactureDate} />
-          <F label="차대번호"       value={data.vin} colSpan={2} />
-          <F label="원동기형식"     value={data.engineType} />
-          <F label="사용본거지"     value={data.ownerLocation} colSpan={3} />
-          <F label="성명/명칭"      value={data.ownerName} colSpan={2} />
-          <F label="법인등록번호"   value={data.ownerRegNumber} colSpan={2} />
-        </Section>
-
-        <Section title="1. 제원">
-          <F label="제원관리번호"   value={data.approvalNumber} colSpan={2} />
-          <F label="길이 (mm)"      value={num(data.length)} />
-          <F label="너비 (mm)"      value={num(data.width)} />
-          <F label="높이 (mm)"      value={num(data.height)} />
-          <F label="총중량 (kg)"    value={num(data.totalWeight)} />
-          <F label="승차정원"       value={num(data.capacity)} />
-          <F label="최대적재량"     value={num(data.maxLoad)} />
-          <F label="배기량 (cc)"    value={num(data.displacement)} />
-          <F label="정격출력"       value={data.ratedOutput} />
-          <F label="기통수"         value={data.cylinders} />
-          <F label="연료종류"       value={data.fuelType} />
-          <F label="연료소비율 (km/L)" value={num(data.fuelEfficiency)} />
-          <F label="셀 제조사 (전기차)"  value={data.batteryMaker} />
-          <F label="셀 형태 (전기차)"    value={data.batteryShape} />
-          <F label="셀 주요원료 (전기차)" value={data.batteryMaterial} colSpan={2} />
-        </Section>
-
-        <Section title="2. 등록번호판 교부">
-          <F label="구분"           value={data.plateIssueType} />
-          <F label="발급일"         value={data.plateIssueDate} />
-          <F label="발급대행자확인" value={data.plateIssueAgent} colSpan={2} />
-        </Section>
-
-        <Section title="3. 저당권등록사실">
-          <F label="구분"           value={data.mortgageType} />
-          <F label="날짜"           value={data.mortgageDate} />
-        </Section>
-
-        <Section title="4. 검사 유효기간">
-          <F label="부터"           value={data.inspectionFrom} />
-          <F label="까지"           value={data.inspectionTo} />
-          <F label="시행장소"       value={data.inspectionPlace} colSpan={2} />
-          <F label="주행거리 (km)"  value={num(data.mileage)} />
-          <F label="책임자확인"     value={data.inspectionAuthority} />
-          <F label="검사구분"       value={data.inspectionType} colSpan={2} />
-        </Section>
-
-        <Section title="기타">
-          <F label="자동차 출고(취득)가격" value={num(data.acquisitionPrice)} colSpan={2} />
-        </Section>
-
-        <Section title="부가 — 선택입력 (등록증에 없음)">
-          <F label="제조사"            value={data.maker}            placeholder="예: 기아" />
-          <F label="모델명"            value={data.modelName}        placeholder="예: 올뉴 모닝" />
-          <F label="세부모델"          value={data.detailModel}      placeholder="예: JA" />
-          <F label="세부트림"          value={data.detailTrim}       placeholder="예: 디럭스 스페셜" />
-          <F label="외부색상"          value={data.exteriorColor} />
-          <F label="내부색상"          value={data.interiorColor} />
-          <SF label="구동방식"         value={data.driveType} options={['전륜', '후륜', '4륜', 'AWD']} />
-          <F label="선택옵션"          value={data.options?.join(', ')} placeholder="선루프, 내비게이션, ..." />
-        </Section>
+      <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+        {certQueue.length === 0 && <span className="text-weak">자동차등록증을 먼저 올려주세요</span>}
+        {certQueue.length > 0 && (
+          <span className="text-sub">{certQueue.length}장 — 분석 시작 누르면 한꺼번에 OCR 처리</span>
+        )}
+        <button
+          className="btn btn-primary"
+          disabled={certQueue.length === 0 || parsing}
+          onClick={onAnalyze}
+        >
+          {parsing ? '분석 중...' : '분석 시작'}
+        </button>
       </div>
-
-      <DialogFooter>
-        <DialogClose asChild>
-          <button className="btn">취소</button>
-        </DialogClose>
-        <button className="btn btn-primary" onClick={() => onSubmit(data)}>등록</button>
-      </DialogFooter>
-    </>
-  );
-}
-
-function num(n?: number): string {
-  return typeof n === 'number' ? String(n) : '';
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="form-section">
-      <div className="form-section-title">{title}</div>
-      <div className="form-grid">{children}</div>
     </div>
   );
 }
 
-function F({
-  label,
-  value,
-  placeholder,
-  colSpan = 1,
+/* ─── 2. 분석 결과 미리보기 — 행별 등록/제거 (개별입력 폼 안 띄움) ───
+   상세 수정이 필요하면 일단 등록 후 수정 버튼으로 처리. */
+function ParsedListView({
+  items,
+  onRemove,
+  onRegisterAll,
+  onRegisterOne,
+  onCancelAll,
 }: {
-  label: string;
-  value?: string;
-  placeholder?: string;
-  colSpan?: 1 | 2 | 3 | 4;
+  items: ParsedItem[];
+  onRemove: (id: string) => void;
+  onRegisterAll: () => void;
+  onRegisterOne: (item: ParsedItem) => void;
+  onCancelAll: () => void;
 }) {
-  const span = colSpan === 1 ? '' : colSpan === 2 ? 'col-span-2' : colSpan === 3 ? 'col-span-3' : 'col-span-4';
   return (
-    <label className={`block ${span}`}>
-      <span className="label">{label}</span>
-      <input className="input w-full" defaultValue={value ?? ''} placeholder={placeholder} />
-    </label>
+    <div className="space-y-3">
+      <div className="alert alert-info">
+        <CheckCircle size={14} className="mt-0.5 flex-shrink-0" />
+        <div>
+          <strong>{items.length}장</strong> 분석 완료. 내용 확인 후 등록하세요. 정정 필요한 자산은 등록 후 [수정] 버튼으로 편집.
+        </div>
+      </div>
+
+      <div className="border" style={{ borderColor: 'var(--border)', overflowX: 'auto' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              {/* 파일명 + 식별자 */}
+              <th>파일명</th>
+              <th>회사코드</th>
+
+              {/* 등록증 ① ~ ⑩ */}
+              <th>차량번호</th>
+              <th>차종</th>
+              <th>용도</th>
+              <th>차명</th>
+              <th>형식</th>
+              <th className="date">제작연월</th>
+              <th>차대번호</th>
+              <th>원동기형식</th>
+              <th>사용본거지</th>
+              <th>성명(명칭)</th>
+              <th>생년월일(법인등록번호)</th>
+
+              {/* 1. 제원 ⑪ ~ ㉔ */}
+              <th>제원관리번호</th>
+              <th className="num">길이</th>
+              <th className="num">너비</th>
+              <th className="num">높이</th>
+              <th className="num">총중량</th>
+              <th className="num">승차정원</th>
+              <th className="num">최대적재량</th>
+              <th className="num">배기량/구동축전지 용량</th>
+              <th>정격출력</th>
+              <th>기통수</th>
+              <th>연료종류</th>
+              <th className="num">연료소비율</th>
+              <th>구동축전지 셀 제조사</th>
+              <th>구동축전지 셀 형태</th>
+              <th>구동축전지 셀 주요원료</th>
+
+              {/* 2. 등록번호판 교부 ㉕ ~ ㉗ */}
+              <th>구분</th>
+              <th className="date">번호판 발급일</th>
+              <th>발급대행자확인</th>
+
+              {/* 3. 저당권 ㉘ ~ ㉙ */}
+              <th>구분(설정/말소)</th>
+              <th className="date">날짜</th>
+
+              {/* 등록증 메타 */}
+              <th>문서확인번호</th>
+              <th className="date">최초등록일</th>
+              <th className="date">등록증 발급일</th>
+              <th className="num">자동차 출고(취득)가격</th>
+
+              {/* 부가 (선택입력) */}
+              <th>제조사</th>
+              <th>모델명</th>
+              <th>세부모델</th>
+              <th>세부트림</th>
+              <th>선택옵션</th>
+              <th>외부색상</th>
+              <th>내부색상</th>
+              <th className="center">구동방식</th>
+
+              {/* 동작 — sticky 우측 */}
+              <th className="center" style={{ width: 110, position: 'sticky', right: 0, background: 'var(--bg-header)' }}>동작</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p) => {
+              const d = p.data;
+              return (
+                <tr key={p.id}>
+                  {/* 파일명 + 식별자 */}
+                  <td className="mono dim truncate" style={{ maxWidth: 160 }} title={p.fileName}>{p.fileName}</td>
+                  <td className="plate">{v(d.companyCode)}</td>
+
+                  {/* 등록증 ① ~ ⑩ */}
+                  <td className="plate text-medium">{v(d.plate)}</td>
+                  <td className="dim">{v(d.vehicleClass)}</td>
+                  <td className="dim">{v(d.usage)}</td>
+                  <td>{v(d.vehicleName)}</td>
+                  <td className="mono">{v(d.modelType)}</td>
+                  <td className="date">{v(d.manufactureDate)}</td>
+                  <td className="mono dim">{v(d.vin)}</td>
+                  <td className="mono">{v(d.engineType)}</td>
+                  <td className="dim">{v(d.ownerLocation)}</td>
+                  <td>{v(d.ownerName)}</td>
+                  <td className="mono dim">{v(d.ownerRegNumber)}</td>
+
+                  {/* 1. 제원 */}
+                  <td className="mono dim">{v(d.approvalNumber)}</td>
+                  <td className="num">{n(d.length)}</td>
+                  <td className="num">{n(d.width)}</td>
+                  <td className="num">{n(d.height)}</td>
+                  <td className="num">{n(d.totalWeight)}</td>
+                  <td className="num">{n(d.capacity)}</td>
+                  <td className="num">{n(d.maxLoad)}</td>
+                  <td className="num">{n(d.displacement)}</td>
+                  <td className="mono">{v(d.ratedOutput)}</td>
+                  <td>{v(d.cylinders)}</td>
+                  <td>{v(d.fuelType)}</td>
+                  <td className="num">{n(d.fuelEfficiency)}</td>
+                  <td>{v(d.batteryMaker)}</td>
+                  <td>{v(d.batteryShape)}</td>
+                  <td>{v(d.batteryMaterial)}</td>
+
+                  {/* 2. 등록번호판 교부 */}
+                  <td>{v(d.plateIssueType)}</td>
+                  <td className="date">{v(d.plateIssueDate)}</td>
+                  <td>{v(d.plateIssueAgent)}</td>
+
+                  {/* 3. 저당권 */}
+                  <td>{v(d.mortgageType)}</td>
+                  <td className="date">{v(d.mortgageDate)}</td>
+
+                  {/* 메타 */}
+                  <td className="mono dim">{v(d.documentNo)}</td>
+                  <td className="date">{v(d.firstRegistDate)}</td>
+                  <td className="date">{v(d.certIssueDate)}</td>
+                  <td className="num">{n(d.acquisitionPrice)}</td>
+
+                  {/* 부가 */}
+                  <td>{v(d.maker)}</td>
+                  <td>{v(d.modelName)}</td>
+                  <td>{v(d.detailModel)}</td>
+                  <td>{v(d.detailTrim)}</td>
+                  <td>{v(d.options?.join(', '))}</td>
+                  <td>{v(d.exteriorColor)}</td>
+                  <td>{v(d.interiorColor)}</td>
+                  <td className="center">{v(d.driveType)}</td>
+
+                  {/* 동작 — sticky 우측 */}
+                  <td className="center" style={{ position: 'sticky', right: 0, background: 'var(--bg-card)' }}>
+                    <div className="flex items-center gap-1 justify-center">
+                      <button className="btn btn-sm btn-primary" onClick={() => onRegisterOne(p)} title="이 차량만 등록">
+                        등록
+                      </button>
+                      <button className="btn btn-sm" onClick={() => onRemove(p.id)} title="목록에서 제외">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+        <span className="text-sub">{items.length}건 대기 중</span>
+        <button className="btn" onClick={onCancelAll}>
+          <X size={12} weight="bold" /> 전체 취소
+        </button>
+        <button className="btn btn-primary" onClick={onRegisterAll}>
+          <CheckCircle size={14} weight="bold" /> 전체 등록
+        </button>
+      </div>
+    </div>
   );
 }
 
-function SF({
-  label,
-  value,
-  options,
+/* 등록증 다중 업로드 슬롯 — 여러 장 누적 + 항목별 제거 */
+function CertMultiSlot({
+  files,
+  onAdd,
+  onRemove,
 }: {
-  label: string;
-  value?: string;
-  options: string[];
+  files: File[];
+  onAdd: (files: FileList | File[]) => void;
+  onRemove: (i: number) => void;
 }) {
+  if (files.length === 0) {
+    return (
+      <label className="block border border-dashed py-12 text-center cursor-pointer hover:bg-stripe">
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          className="hidden"
+          multiple
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              onAdd(e.target.files);
+              e.target.value = '';
+            }
+          }}
+        />
+        <Upload size={28} className="mx-auto text-weak" />
+        <div className="mt-2 text-medium">자동차등록증 <span className="text-red">*</span></div>
+        <div className="mt-1 text-weak">JPG / PNG / PDF — 여러 장 동시 업로드 가능</div>
+      </label>
+    );
+  }
+
   return (
-    <label className="block">
-      <span className="label">{label}</span>
-      <select className="input w-full" defaultValue={value ?? ''}>
-        <option value="">-</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </label>
+    <div className="border p-3 flex flex-col" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-medium">자동차등록증 <span className="text-sub">· {files.length}장</span></span>
+        <label className="btn btn-sm cursor-pointer">
+          <Plus size={12} weight="bold" /> 추가
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            multiple
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                onAdd(e.target.files);
+                e.target.value = '';
+              }
+            }}
+          />
+        </label>
+      </div>
+      <div className="flex-1 max-h-48 overflow-y-auto space-y-1">
+        {files.map((f, i) => {
+          const isImage = f.type.startsWith('image/');
+          const isPdf = f.type === 'application/pdf';
+          return (
+            <div key={`${f.name}-${i}`} className={cn('flex items-center gap-2 p-2 bg-stripe')}>
+              {isImage ? <ImageIcon size={16} className="text-sub" /> : isPdf ? <FilePdf size={16} className="text-sub" /> : <Upload size={16} className="text-sub" />}
+              <div className="flex-1 min-w-0">
+                <div className="truncate">{f.name}</div>
+                <div className="text-weak">{(f.size / 1024).toFixed(1)} KB</div>
+              </div>
+              <button className="btn-ghost btn btn-sm" onClick={() => onRemove(i)} title="제거">
+                <X size={11} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
+
+/* 셀 헬퍼 — 빈 값은 빈 문자열, 숫자는 ko-KR 포맷 */
+function v(s?: string): string { return s ?? ''; }
+function n(num?: number): string { return num === undefined || num === null ? '' : num.toLocaleString('ko-KR'); }

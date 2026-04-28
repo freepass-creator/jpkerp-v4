@@ -1,13 +1,14 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
 import { SAMPLE_ASSETS } from '@/lib/sample-assets';
 
 export default function AssetInsurancePage() {
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
+      subTabPending={ASSET_SUBTAB_PENDING}
       footerLeft={<span className="stat">전체 <strong>{SAMPLE_ASSETS.length}</strong></span>}
       footerRight={<button className="btn btn-primary">+ 보험 등록</button>}
     >
@@ -15,6 +16,7 @@ export default function AssetInsurancePage() {
         <table className="table">
           <thead>
             <tr>
+              <th>회사코드</th>
               <th>차량번호</th>
               <th>보험사</th>
               <th className="date">가입일</th>
@@ -26,6 +28,7 @@ export default function AssetInsurancePage() {
           <tbody>
             {SAMPLE_ASSETS.map((a) => (
               <tr key={a.id}>
+                <td className="plate">{a.companyCode}</td>
                 <td className="plate">{a.plate}</td>
                 <td className="dim">미가입</td>
                 <td className="date dim">-</td>

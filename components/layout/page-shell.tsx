@@ -21,6 +21,8 @@ export type SubTab = { href: string; label: string };
 
 type Props = {
   subTabs?: SubTab[];
+  /** Sub-tab href별 미결 개수. 0보다 크면 우상단에 빨간 dot 표시. */
+  subTabPending?: Record<string, number>;
   children: React.ReactNode;
   filterbar?: React.ReactNode;
   footerLeft?: React.ReactNode;
@@ -29,6 +31,7 @@ type Props = {
 
 export function PageShell({
   subTabs,
+  subTabPending,
   children,
   filterbar,
   footerLeft,
@@ -43,9 +46,11 @@ export function PageShell({
         <nav className="tabs">
           {subTabs.map((t) => {
             const active = pathname === t.href;
+            const pending = subTabPending?.[t.href] ?? 0;
             return (
               <Link key={t.href} href={t.href} className={cn('tab', active && 'active')}>
                 {t.label}
+                {pending > 0 && <span className="tab-pending-dot" title={`미결 ${pending}건`} />}
               </Link>
             );
           })}

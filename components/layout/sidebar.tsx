@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Fragment } from 'react';
-import { CaretRight } from '@phosphor-icons/react';
+import { Gear } from '@phosphor-icons/react';
 import { MENU, type MenuItem } from '@/lib/menu';
 import { cn } from '@/lib/cn';
 
@@ -18,11 +18,8 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sb-brand">
-        <div className="sb-brand-mark">JPK</div>
-        <div className="sb-brand-name">
-          <div className="text-medium">JPK ERP</div>
-          <div className="text-weak">v4 · 장기렌터카</div>
-        </div>
+        {/* 로그인한 사용자의 회사명 — 추후 auth context에서 주입 */}
+        <div className="sb-company-name">스위치플랜(주)</div>
       </div>
 
       <nav className="sb-nav">
@@ -30,7 +27,6 @@ export function Sidebar() {
           <Fragment key={section.label}>
             {idx > 0 && <div className="sb-divider" />}
             <div className="sb-section">
-              <div className="sb-section-label">{section.label}</div>
               {section.items.map((item) => (
                 <SidebarItem key={item.href} item={item} active={isActive(pathname, item.href)} />
               ))}
@@ -40,14 +36,13 @@ export function Sidebar() {
       </nav>
 
       <div className="sb-foot">
-        <div className="sb-user">
-          <div className="sb-user-avatar">N</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-medium truncate">담당자</div>
-            <div className="text-weak truncate">staff@jpk.local</div>
-          </div>
-          <CaretRight size={12} className="text-weak" />
-        </div>
+        <Link
+          href="/settings"
+          className={cn('sb-item', isActive(pathname, '/settings') && 'active')}
+        >
+          <Gear size={15} />
+          <span>설정</span>
+        </Link>
       </div>
     </aside>
   );

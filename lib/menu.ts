@@ -5,10 +5,8 @@ import {
   Car,
   FileText,
   Bank,
-  Buildings,
-  UsersThree,
-  ClockClockwise,
-  CalendarBlank,
+  Wrench,
+  Warning,
 } from '@phosphor-icons/react';
 
 export type MenuItem = {
@@ -19,6 +17,7 @@ export type MenuItem = {
 };
 
 export type MenuSection = {
+  /** 섹션 라벨 — 사이드바엔 표시하지 않고 divider 그룹화에만 사용 */
   label: string;
   items: MenuItem[];
 };
@@ -34,18 +33,16 @@ export const MENU: MenuSection[] = [
   {
     label: '데이터',
     items: [
-      { href: '/asset',    label: '자산', icon: Car },
-      { href: '/contract', label: '계약', icon: FileText },
-      { href: '/finance',  label: '재무', icon: Bank },
+      { href: '/asset',    label: '자산관리', icon: Car },
+      { href: '/contract', label: '계약관리', icon: FileText },
+      { href: '/finance',  label: '재무관리', icon: Bank },
     ],
   },
   {
-    label: '일반관리',
+    label: '관리',
     items: [
-      { href: '/admin/company',    label: '회사정보', icon: Buildings },
-      { href: '/admin/staff',      label: '직원',     icon: UsersThree },
-      { href: '/admin/attendance', label: '근태',     icon: ClockClockwise },
-      { href: '/admin/leave',      label: '휴가',     icon: CalendarBlank },
+      { href: '/admin',   label: '일반관리',    icon: Wrench },
+      { href: '/penalty', label: '과태료 업무', icon: Warning },
     ],
   },
 ];

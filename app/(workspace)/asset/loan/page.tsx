@@ -1,12 +1,13 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
 
 export default function AssetLoanPage() {
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
+      subTabPending={ASSET_SUBTAB_PENDING}
       footerLeft={<span className="stat">전체 <strong>0</strong></span>}
       footerRight={<button className="btn btn-primary">+ 할부 등록</button>}
     >
@@ -14,6 +15,7 @@ export default function AssetLoanPage() {
         <table className="table">
           <thead>
             <tr>
+              <th>회사코드</th>
               <th>차량번호</th>
               <th>할부사</th>
               <th className="date">시작일</th>
@@ -24,7 +26,7 @@ export default function AssetLoanPage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={6} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={7} className="center dim" style={{ padding: '24px 0' }}>
                 할부 데이터 없음
               </td>
             </tr>
