@@ -3,6 +3,7 @@
 import { useMemo, type Ref } from 'react';
 import { ItemTable, type ItemRow } from './item-table';
 import { EvidenceUploader, type EvidenceUploaderHandle } from './evidence-uploader';
+import { PlaceField } from './place-field';
 import { cn } from '@/lib/cn';
 
 /**
@@ -83,6 +84,19 @@ export function PcForm({ data, setData, uploaderRef }: Props) {
           ))}
         </div>
       </div>
+
+      {/* 작업한 곳 — 모든 subkind 공통 (종류 선택 후 표시) */}
+      {sub && (
+        <PlaceField
+          label="작업한 곳"
+          namespace={`pc-vendor-${sub}`}
+          required
+          colSpan={4}
+          value={data.vendor ?? ''}
+          onChange={(v) => set('vendor', v)}
+          placeholder="정비소·도색업체·세차장·주유소·열쇠집 등"
+        />
+      )}
 
       {/* 정비 — ItemTable 세로 stack + 다음정비예정 + 합계 */}
       {sub === '정비' && (

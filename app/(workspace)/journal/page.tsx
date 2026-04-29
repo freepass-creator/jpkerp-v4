@@ -340,9 +340,30 @@ export default function JournalPage() {
     if (all.length === 0) return null;
     const active = all.find((c) => c.status === '운행중');
     if (active) return active;
-    // fallback: 가장 최근 endDate
     return [...all].sort((a, b) => (b.endDate ?? '').localeCompare(a.endDate ?? ''))[0] ?? null;
   }, [matchedAsset, contracts]);
+
+  // 차량 현재 위치 — 그 차량의 가장 최근 journal entry 의 vendor(작업한곳) 또는 to(도착지)
+  const currentLocation = useMemo(() => {
+    const target = (usesCommonPlate ? plate : data.plate ?? '').trim();
+    if (!target) return null;
+    const sorted = entries
+      .filter((e) => (e.data?.plate ?? '').trim() === target)
+      .sort((a, b) => b.at.localeCompare(a.at));
+    for (const e of sorted) {
+      const loc = e.data?.vendor || e.data?.to;
+      if (loc) return { place: loc, at: e.at, kind: e.kind };
+    }
+    return null;
+  }, [entries, plate, data.plate, usesCommonPlate]);
+
+  // 입출고 출발지 자동 prefill — 비어있고 현재 위치 있으면 채움
+  useEffect(() => {
+    if (kind !== 'ioc') return;
+    if (data.from) return;
+    if (!currentLocation) return;
+    setData((d) => (d.from ? d : { ...d, from: currentLocation.place }));
+  }, [kind, currentLocation, data.from]);
 
   // 입력된 차량의 계약자 후보 — 현재 계약자 + 과거 계약자 (계약 + 업무일지 entries 에서 누적)
   const plateContractors = useMemo(() => {
@@ -427,7 +448,7 @@ export default function JournalPage() {
   const requiredKeys = fields.filter((f) => f.required).map((f) => f.key);
   // 카테고리 전용 폼 (PcForm/IocForm) 은 외부에서 자체 필수 필드 명시
   const customRequired: Record<string, string[]> = {
-    pc: ['subkind'],
+    pc: ['subkind', 'vendor'],
     ioc: ['subkind', 'to', 'mileage'],
   };
   const customKeys = customRequired[kind] ?? [];
@@ -585,6 +606,14 @@ export default function JournalPage() {
                           </>
                         ) : (
                           <span style={{ color: 'var(--text-weak)' }}>· 계약 이력 없음</span>
+                        )}
+                        {currentLocation && (
+                          <>
+                            <span style={{ color: 'var(--text-weak)' }}>·</span>
+                            <span className="badge badge-green" style={{ fontSize: 11 }}>현재 위치</span>
+                            <span style={{ fontWeight: 500 }}>{currentLocation.place}</span>
+                            <span style={{ color: 'var(--text-weak)', fontSize: 11 }}>({currentLocation.at})</span>
+                          </>
                         )}
                       </>
                     ) : (
