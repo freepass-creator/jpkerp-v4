@@ -647,45 +647,11 @@ export default function JournalPage() {
                 {/* 카테고리별 폼 — 구분선 후 */}
                 <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
               </>
-            ) : (
-              <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--text-weak)' }}>
-                미납·계약위반·검사미수검 차량 자동 추출 예정 (0건)
-                <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
-              </div>
-            )}
+            ) : null}
 
             {/* 카테고리별 폼 */}
             <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px 12px' }}>
-              {!usesCommonPlate && (
-                <>
-                  <div className="block" style={{ gridColumn: 'span 1' }}>
-                    <span className="label label-required">날짜</span>
-                    <input
-                      className="input w-full mono"
-                      type="date"
-                      value={atDate}
-                      onChange={(e) => setAtDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="block" style={{ gridColumn: 'span 1' }}>
-                    <span className="label">시각 <span style={{ color: 'var(--text-weak)', fontWeight: 400 }}>(선택)</span></span>
-                    <input
-                      className="input w-full mono"
-                      type="time"
-                      value={atTime}
-                      step={600}
-                      onChange={(e) => {
-                        // 10분 단위로 스냅 (사용자가 직접 타이핑한 경우 대비)
-                        const v = e.target.value;
-                        if (!v) return setAtTime('');
-                        const [h, m] = v.split(':').map(Number);
-                        const snapped = Math.round((m ?? 0) / 10) * 10;
-                        setAtTime(`${String(h ?? 0).padStart(2, '0')}:${String(snapped % 60).padStart(2, '0')}`);
-                      }}
-                    />
-                  </div>
-                </>
-              )}
+              {/* 시동제어는 날짜/시각 불필요 — 액션 시각으로 자동 기록 */}
 
               {/* 처리현황 — 시동제어 제외, 모든 카테고리 공통 */}
               {kind !== 'ignition' && (
