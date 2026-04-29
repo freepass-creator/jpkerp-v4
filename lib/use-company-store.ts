@@ -1,74 +1,93 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { ref, set, onValue, get } from 'firebase/database';
+import { getRtdb } from './firebase/client';
 import type { Company } from './sample-companies';
 
 /**
- * 회사정보 영구 저장소 (모듈 레벨 캐시 + pub/sub).
+ * 회사정보 영구 저장소 — Firebase RTDB.
  *
- * 같은 탭의 다른 컴포넌트(/admin/company, /finance, …)가 같은 데이터를 즉시 보도록
- * - module-scoped cache 가 진실의 원천
- * - 어느 인스턴스가 set 하면 모든 구독자에게 즉시 알림 → 모두 동기화
- * - localStorage 즉시 write (작은 데이터라 디바운스 불필요)
- * - cross-tab 동기화는 'storage' 이벤트 (다른 탭 전용)
+ *  - 모듈 레벨 캐시 + pub/sub: 같은 탭 모든 컴포넌트가 같은 데이터 즉시 공유
+ *  - onValue 구독: 다른 사용자/디바이스가 변경하면 실시간 반영
+ *  - localStorage 마이그레이션: RTDB 가 비어있고 localStorage 에 있으면 1회 push 후 삭제
  */
-const KEY = 'jpkerp-v4:companies';
+const RTDB_PATH = 'companies';
+const LOCAL_KEY_LEGACY = 'jpkerp-v4:companies';
 
-let cache: Company[] | null = null;
+let cache: Company[] = [];
 const listeners = new Set<(v: Company[]) => void>();
+let subscribed = false;
 
-function load(): Company[] {
-  if (cache !== null) return cache;
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Company[];
-      if (Array.isArray(parsed)) {
-        cache = parsed;
-        return parsed;
-      }
+function asArray(val: unknown): Company[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter((x): x is Company => x != null && typeof x === 'object');
+  if (typeof val === 'object') return Object.values(val as Record<string, Company>);
+  return [];
+}
+
+/** RTDB 는 undefined 거부 — 재귀 strip. 빈 배열/객체는 보존. */
+function stripUndef<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (val !== undefined) out[k] = stripUndef(val);
     }
-  } catch {}
-  cache = [];
-  return cache;
+    return out as T;
+  }
+  return v;
 }
 
-function persist(next: Company[]) {
-  cache = next;
-  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
-  listeners.forEach((l) => l(next));
+async function migrateLocalToRtdb() {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY_LEGACY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Company[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return;
+    const snap = await get(ref(getRtdb(), RTDB_PATH));
+    if (snap.exists() && asArray(snap.val()).length > 0) {
+      // RTDB 가 이미 있음 — local 만 정리
+      localStorage.removeItem(LOCAL_KEY_LEGACY);
+      return;
+    }
+    await set(ref(getRtdb(), RTDB_PATH), stripUndef(parsed));
+    localStorage.removeItem(LOCAL_KEY_LEGACY);
+  } catch (e) {
+    console.warn('[company-store] migrate failed', e);
+  }
 }
 
-// cross-tab — 다른 탭에서 localStorage 바뀌면 동기화
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key !== KEY) return;
-    try {
-      const parsed = e.newValue ? JSON.parse(e.newValue) as Company[] : [];
-      if (Array.isArray(parsed)) {
-        cache = parsed;
-        listeners.forEach((l) => l(parsed));
-      }
-    } catch {}
+function ensureSubscription() {
+  if (subscribed || typeof window === 'undefined') return;
+  subscribed = true;
+  void migrateLocalToRtdb().finally(() => {
+    onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
+      const v = asArray(snap.val());
+      cache = v;
+      listeners.forEach((l) => l(v));
+    });
   });
 }
 
 export function useCompanyStore() {
-  const [companies, setLocal] = useState<Company[]>(() => load());
+  const [companies, setLocal] = useState<Company[]>(() => cache);
 
   useEffect(() => {
+    ensureSubscription();
     const fn = (v: Company[]) => setLocal(v);
     listeners.add(fn);
-    // 마운트 시 최신 캐시로 동기화 (다른 인스턴스가 그동안 set 했을 수 있음)
-    setLocal(load());
+    setLocal(cache);
     return () => { listeners.delete(fn); };
   }, []);
 
   const setCompanies = useCallback((updater: Company[] | ((prev: Company[]) => Company[])) => {
-    const prev = cache ?? load();
+    const prev = cache;
     const next = typeof updater === 'function' ? (updater as (p: Company[]) => Company[])(prev) : updater;
-    persist(next);
+    cache = next;
+    listeners.forEach((l) => l(next));
+    set(ref(getRtdb(), RTDB_PATH), stripUndef(next)).catch((e) => console.error('[company-store] write failed', e));
   }, []);
 
   return [companies, setCompanies] as const;
