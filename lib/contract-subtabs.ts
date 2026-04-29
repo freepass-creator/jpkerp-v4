@@ -8,6 +8,7 @@ export const CONTRACT_SUBTABS: SubTab[] = [
   { href: '/contract/overdue',  label: '미납' },
   { href: '/contract/return',   label: '반납예정' },
   { href: '/contract/expire',   label: '만기도래' },
+  { href: '/contract/ended',    label: '종료계약' },
 ];
 
 export const CONTRACT_SUBTAB_PENDING: Record<string, number> = {
@@ -17,4 +18,5 @@ export const CONTRACT_SUBTAB_PENDING: Record<string, number> = {
   '/contract/overdue':  2,
   '/contract/return':   0,
   '/contract/expire':   1,
+  '/contract/ended':    0,
 };

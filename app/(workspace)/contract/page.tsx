@@ -41,6 +41,12 @@ export default function ContractListPage() {
     return { totalAssets, active, idle: totalAssets - active };
   }, [contracts]);
 
+  /** 계약현황은 종료(만기/해지) 제외 — 종료 계약은 /contract/ended 에서 관리. */
+  const visibleContracts = useMemo(
+    () => contracts.filter((c) => c.status !== '만기' && c.status !== '해지'),
+    [contracts],
+  );
+
   function fromForm(d: Record<string, string>): Contract {
     return {
       id: `c-${Date.now()}`,
@@ -209,7 +215,7 @@ export default function ContractListPage() {
               </tr>
             </thead>
             <tbody>
-              {contracts.map((c) => (
+              {visibleContracts.map((c) => (
                 <tr
                   key={c.id}
                   className={cn(selected?.id === c.id && 'selected')}
