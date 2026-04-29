@@ -608,6 +608,23 @@ input[type="checkbox"], input[type="radio"] {
 
 .table { border-collapse: collapse; width: 100%; }
 
+/* 패널헤드 — 테이블 thead th 와 동일 규격 (높이·패딩·배경·라인). 컬럼 상단 strip. */
+.panel-head {
+  height: var(--row-height);
+  padding: 0 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  color: var(--text-sub);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.panel-head .panel-head-right { margin-left: auto; }
+
 .table thead th {
   background: var(--bg-header);
   border-bottom: 1px solid var(--border-strong);

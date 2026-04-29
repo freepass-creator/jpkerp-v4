@@ -51,8 +51,39 @@ function makeReceiptEvents(start: string, months: number, amount: number, paidUp
   return events;
 }
 
-/** 실데이터는 사용자가 입력. 샘플 없음. */
-export const SAMPLE_CONTRACTS: Contract[] = [];
+/** UX 확인용 샘플 — 11가1234 차량의 운행중 1건 + 종료된 과거 1건 */
+export const SAMPLE_CONTRACTS: Contract[] = [
+  {
+    id: 'c-sample-001',
+    companyCode: 'CP01',
+    contractNo: 'C-2025-0001',
+    plate: '11가1234',
+    customerName: '김민수',
+    customerPhone: '010-1111-2222',
+    customerKind: '개인',
+    startDate: '2025-04-01',
+    endDate: '2026-03-31',
+    monthlyAmount: 650000,
+    deposit: 1000000,
+    status: '운행중',
+    events: [],
+  },
+  {
+    id: 'c-sample-002',
+    companyCode: 'CP01',
+    contractNo: 'C-2024-0007',
+    plate: '11가1234',
+    customerName: '이지훈',
+    customerPhone: '010-3333-4444',
+    customerKind: '개인',
+    startDate: '2024-04-01',
+    endDate: '2025-03-31',
+    monthlyAmount: 620000,
+    deposit: 1000000,
+    status: '만기',
+    events: [],
+  },
+];
 
 /* 계약별 이행 요약 — Master 그리드용 */
 export type ContractSummary = {

@@ -16,17 +16,17 @@ export type JournalKind =
   | 'etc';             // 기타
 
 export const JOURNAL_KINDS: JournalKind[] = [
-  'ioc', 'pc', 'contact', 'accident', 'ignition',
+  'contact', 'ioc', 'pc', 'accident', 'ignition',
   'insurance', 'product_register', 'penalty_notice', 'disposal', 'etc',
 ];
 
 export const KIND_LABEL: Record<JournalKind, string> = {
   ioc: '입출고',
-  pc: '차량케어',
+  pc: '차량수선',
   contact: '고객응대',
   accident: '사고접수',
   ignition: '시동제어',
-  insurance: '보험관리',
+  insurance: '보험배서',
   product_register: '상품등록',
   penalty_notice: '과태료작업',
   disposal: '자산처분',
