@@ -12,6 +12,8 @@ import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import { PcForm } from '@/components/journal/pc-form';
 import { IocForm } from '@/components/journal/ioc-form';
+import { AccidentForm } from '@/components/journal/accident-form';
+import { IgnitionForm } from '@/components/journal/ignition-form';
 import type { EvidenceUploaderHandle } from '@/components/journal/evidence-uploader';
 import { cn } from '@/lib/cn';
 
@@ -66,13 +68,8 @@ const FORMS: Record<JournalKind, FieldDef[]> = {
     { key: 'mileage', label: '주행거리(km)', type: 'number', colSpan: 2, required: true },
     { key: 'detail',     label: '메모',     type: 'textarea', colSpan: 4 },
   ],
-  ignition: [
-    // 시동제어 — 차량번호 공통 X, 자체 폼만 사용
-    { key: 'plate',  label: '차량번호', placeholder: '12가1234', required: true, colSpan: 2 },
-    { key: 'action', label: '조치', type: 'buttons', colSpan: 4,
-      options: ['시동잠금', '시동해제', '회수결정', '회수진행', '회수완료'], required: true },
-    { key: 'reason', label: '메모', type: 'textarea', colSpan: 4 },
-  ],
+  // ignition 은 IgnitionForm (운행중 계약 리스트 + 토글) 이 자체 처리. fields 비움.
+  ignition: [],
   insurance: [
     { key: 'subkind',   label: '종류', type: 'buttons', colSpan: 4,
       options: ['신규', '갱신', '해지', '연령변경'], required: true },
@@ -458,6 +455,29 @@ export default function JournalPage() {
 
   async function submit() {
     if (!canSubmit) return;
+
+    // 중복검증 — 같은 plate + 같은 kind + 같은 날짜에 이미 동일 subkind/유형 있으면 확인
+    const targetPlate = (usesCommonPlate ? plate : data.plate ?? '').trim();
+    const day = atDate;
+    if (targetPlate) {
+      const dup = entries.find((e) => {
+        if (e.kind !== kind) return false;
+        if ((e.data?.plate ?? '') !== targetPlate) return false;
+        if (!e.at.startsWith(day)) return false;
+        // subkind 일치까지 (없으면 통과)
+        const subA = e.data?.subkind ?? e.data?.contactType ?? '';
+        const subB = data.subkind ?? data.contactType ?? '';
+        if (subA && subB) return subA === subB;
+        return true;
+      });
+      if (dup) {
+        const ok = confirm(
+          `같은 차량(${targetPlate}) · 같은 카테고리(${KIND_LABEL[kind]}) · 같은 날짜(${day}) 항목이 이미 있습니다.\n\n그래도 등록하시겠습니까?`,
+        );
+        if (!ok) return;
+      }
+    }
+
     for (const f of fields) {
       if (f.recentKey && data[f.key]) pushRecent(f.recentKey, data[f.key]);
     }
@@ -517,14 +537,16 @@ export default function JournalPage() {
         </>
       }
       footerRight={
-        <>
-          <button className="btn" onClick={reset}>
-            <ArrowCounterClockwise size={14} weight="bold" /> 초기화
-          </button>
-          <button className="btn btn-primary" onClick={submit} disabled={!canSubmit}>
-            <Plus size={14} weight="bold" /> 등록
-          </button>
-        </>
+        kind === 'ignition' ? null : (
+          <>
+            <button className="btn" onClick={reset}>
+              <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+            </button>
+            <button className="btn btn-primary" onClick={submit} disabled={!canSubmit}>
+              <Plus size={14} weight="bold" /> 등록
+            </button>
+          </>
+        )
       }
     >
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -665,26 +687,50 @@ export default function JournalPage() {
                 </>
               )}
 
-              {/* 처리현황 — 모든 카테고리 공통, 폼 영역 최상단 */}
-              <div className="block" style={{ gridColumn: 'span 4' }}>
-                <span className="label label-required">처리 현황 <span style={{ color: 'var(--text-weak)', fontWeight: 400 }}>(처리완료 외엔 미결로 분류)</span></span>
-                <div className="chip-group" style={{ flexWrap: 'wrap' }}>
-                  {(['진행중', '처리완료', '보류', '처리불가'] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={cn('chip', status === s && 'active')}
-                      onClick={() => setStatus(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
+              {/* 처리현황 — 시동제어 제외, 모든 카테고리 공통 */}
+              {kind !== 'ignition' && (
+                <div className="block" style={{ gridColumn: 'span 4' }}>
+                  <span className="label label-required">처리 현황 <span style={{ color: 'var(--text-weak)', fontWeight: 400 }}>(처리완료 외엔 미결로 분류)</span></span>
+                  <div className="chip-group" style={{ flexWrap: 'wrap' }}>
+                    {(['진행중', '처리완료', '보류', '처리불가'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={cn('chip', status === s && 'active')}
+                        onClick={() => setStatus(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 카테고리 전용 폼 — 나머지는 generic fields.map */}
               {kind === 'pc' && <PcForm data={data} setData={setData} uploaderRef={uploaderRef} />}
               {kind === 'ioc' && <IocForm data={data} setData={setData} />}
+              {kind === 'accident' && <AccidentForm data={data} setData={setData} />}
+              {kind === 'ignition' && (
+                <IgnitionForm
+                  contracts={contracts}
+                  assets={assets}
+                  entries={entries}
+                  onAction={({ plate: p, action, reason }) => {
+                    const now = new Date();
+                    const at = `${now.toISOString().slice(0, 10)} ${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, '0')}`;
+                    const entry: JournalEntry = {
+                      id: `j-${Date.now()}`,
+                      no: `J-${now.getFullYear()}-${String(entries.length + 1).padStart(4, '0')}`,
+                      companyCode: 'CP01',
+                      kind: 'ignition',
+                      at,
+                      staff: '담당자',
+                      data: { plate: p, action, reason, status: '처리완료' },
+                    };
+                    setEntries([entry, ...entries]);
+                  }}
+                />
+              )}
 
               {fields.map((f) => {
                 // buttons 타입은 label 로 감싸면 빈 공간 클릭 시 첫 버튼이 자동 활성화됨 → div 로 분기
