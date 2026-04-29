@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip } from '@phosphor-icons/react';
+import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip, CircleNotch } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { downloadPenaltyZip, previewPenaltyItem, type PenaltyWorkItem } from '@/lib/penalty-pdf';
 import { dedupPenalties, describeDuplicate } from '@/lib/penalty-dedup';
@@ -59,6 +59,7 @@ type Phase = 'in-progress' | 'completed';
 export default function PenaltyPage() {
   const [items, setItems] = useState<PenaltyWorkItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('in-progress');
   /** 체크박스로 선택된 항목 ID — bulk 처리완료/다운로드용 */
@@ -173,8 +174,11 @@ export default function PenaltyPage() {
       return;
     }
     setBusy(true);
+    setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(targets, PLACEHOLDER_STAFF);
+      await downloadPenaltyZip(targets, PLACEHOLDER_STAFF, {
+        onProgress: (done, total) => setPdfProgress({ done, total }),
+      });
       // 처리중 → 처리완료 자동 전환
       const now = new Date().toISOString();
       const inProgIds = new Set(targets.filter((t) => (t._phase ?? 'in-progress') === 'in-progress').map((t) => t.id));
@@ -185,6 +189,7 @@ export default function PenaltyPage() {
       setSelected(new Set());
     } finally {
       setBusy(false);
+      setPdfProgress(null);
     }
   }
 
@@ -198,8 +203,11 @@ export default function PenaltyPage() {
     }
     if (dupCount > 0 && !confirm(`중복 ${dupCount}건은 자동 제외하고 ${target.length}건만 PDF 생성합니다. 진행할까요?`)) return;
     setBusy(true);
+    setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(target, PLACEHOLDER_STAFF);
+      await downloadPenaltyZip(target, PLACEHOLDER_STAFF, {
+        onProgress: (done, total) => setPdfProgress({ done, total }),
+      });
       const now = new Date().toISOString();
       const doneIds = new Set(target.map((i) => i.id));
       setItems((prev) => prev.map((it) => doneIds.has(it.id)
@@ -209,16 +217,21 @@ export default function PenaltyPage() {
       setPhase('completed');
     } finally {
       setBusy(false);
+      setPdfProgress(null);
     }
   }
 
   async function handleDownloadCompletedFiltered() {
     if (completedFiltered.length === 0) return;
     setBusy(true);
+    setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(completedFiltered, PLACEHOLDER_STAFF);
+      await downloadPenaltyZip(completedFiltered, PLACEHOLDER_STAFF, {
+        onProgress: (done, total) => setPdfProgress({ done, total }),
+      });
     } finally {
       setBusy(false);
+      setPdfProgress(null);
     }
   }
 
@@ -339,6 +352,39 @@ export default function PenaltyPage() {
 
   return (
     <>
+      {busy && (
+        <div
+          className="center"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(2px)',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg, #fff)',
+              padding: '32px 40px',
+              borderRadius: 8,
+              minWidth: 280,
+              textAlign: 'center',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            }}
+          >
+            <CircleNotch size={36} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
+            <div className="mt-3 text-medium" style={{ fontWeight: 600 }}>PDF 생성 중...</div>
+            {pdfProgress && pdfProgress.total > 0 ? (
+              <div className="mt-2 text-weak">
+                <strong>{pdfProgress.done}</strong> / {pdfProgress.total} 묶음 완료
+              </div>
+            ) : (
+              <div className="mt-2 text-weak">서버에서 변경부과 PDF + 확인서 렌더링 중</div>
+            )}
+          </div>
+        </div>
+      )}
       <PageShell
         footerLeft={phase === 'in-progress' ? (
           <>
