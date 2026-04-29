@@ -10,7 +10,7 @@
  * 텍스트 PDF (드래그·검색 가능) — html2canvas 이미지 박는 방식과 다름.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer, { type Browser } from 'puppeteer';
+import type { Browser } from 'puppeteer-core';
 import { PDFDocument } from 'pdf-lib';
 import {
   renderOfficialPageHtml,
@@ -46,10 +46,24 @@ async function getBrowser(): Promise<Browser> {
   const existing = globalThis.__puppeteer_browser;
   if (existing && existing.connected) return existing;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
-  });
+  // Vercel/Lambda는 @sparticuz/chromium, 로컬은 puppeteer 번들 Chrome 사용
+  const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_VERSION;
+  let browser: Browser;
+  if (isServerless) {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    const puppeteerCore = (await import('puppeteer-core')).default;
+    browser = await puppeteerCore.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    }) as unknown as Browser;
+  } else {
+    const puppeteer = (await import('puppeteer')).default;
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
+    }) as unknown as Browser;
+  }
   globalThis.__puppeteer_browser = browser;
 
   // 한 번만 등록 — process 종료 시 cleanup
