@@ -1,23 +1,36 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, CircleNotch } from '@phosphor-icons/react';
+import { useState, useMemo } from 'react';
+import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { downloadPenaltyMergedPdf, type PenaltyWorkItem } from '@/lib/penalty-pdf';
+import { downloadPenaltyZip, previewPenaltyItem, type PenaltyWorkItem } from '@/lib/penalty-pdf';
+import { dedupPenalties, describeDuplicate } from '@/lib/penalty-dedup';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
-import { SAMPLE_CONTRACTS } from '@/lib/sample-contracts';
-import { findCompany, defaultCompany } from '@/lib/sample-companies';
-import { splitPdfPages } from '@/lib/pdf-split';
+import { findCompany } from '@/lib/sample-companies';
+import { PenaltyRegisterDialog } from '@/components/penalty/penalty-register-dialog';
+import { exportToExcel } from '@/lib/excel-export';
+import { PERIODS, type Period, periodRange, isInRange } from '@/lib/period-filter';
 
 /**
- * 과태료 변경부과 — 고지서 OCR 후 임대차계약 사실확인서와 함께 PDF 다운로드.
- *
- * 흐름:
- *  1. 고지서 (PDF / 이미지) 업로드
- *  2. /api/ocr/extract 로 자동 OCR (Gemini)
- *  3. 차량번호로 SAMPLE_CONTRACTS 매칭 → 계약자/회사 자동 채움
- *  4. 변경공문 + 고지서 사본 + 사실확인서 → 단일 PDF 다운로드
+ * 과태료 변경부과 — 처리중 / 처리완료 두 단계로 분리.
+ *  - 처리중: OCR 등록되었으나 아직 변경부과 PDF 미발행
+ *  - 처리완료: 변경부과 PDF 다운로드한 이력 (회사 도장 + 임대차계약 사실확인서 묶음)
  */
+
+// TODO: 로그인 staff 레코드에서 실제 값 가져오도록 교체.
+//       현재는 PDF 발급담당자 footer 표기용 placeholder.
+const PLACEHOLDER_STAFF = {
+  department: '경영지원본부 총무팀',
+  name: '담당자',
+  title: '',
+  phone: '02-0000-0000',
+  fax: '',
+  email: 'staff@jpkmobility.com',
+};
+
+const CHECK_COL_WIDTH = 36;
+const COMPANY_COL_WIDTH = 56;
+const PLATE_COL_WIDTH = 96;
 
 const PENALTY_FIELDS: FieldDef[] = [
   { key: 'car_number',  label: '차량번호',  required: true },
@@ -41,143 +54,178 @@ const PENALTY_FIELDS: FieldDef[] = [
   { key: 'partner_code', label: '회사코드' },
 ];
 
-function emptyItem(file: File, dataUrl: string): PenaltyWorkItem {
-  return {
-    id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    fileName: file.name,
-    fileDataUrl: dataUrl,
-    fileSize: file.size,
-    doc_type: '', notice_no: '', issuer: '', issue_date: '',
-    payer_name: '', car_number: '', date: '', location: '',
-    description: '', law_article: '',
-    penalty_amount: 0, fine_amount: 0, demerit_points: 0,
-    toll_amount: 0, surcharge_amount: 0, amount: 0,
-    due_date: '', opinion_period: '', pay_account: '',
-    _asset: null,
-    _contract: null,
-    _company: null,
-    _ocrStatus: 'pending',
-  };
-}
-
-/** 차량번호로 SAMPLE_CONTRACTS 매칭 → contract/company 자동 매핑 */
-function matchContract(carNumber: string): {
-  _contract: PenaltyWorkItem['_contract'];
-  _company: PenaltyWorkItem['_company'];
-} {
-  if (!carNumber) return { _contract: null, _company: null };
-  const found = SAMPLE_CONTRACTS.find((c) => c.plate.replace(/\s/g, '') === carNumber.replace(/\s/g, ''));
-  if (!found) return { _contract: null, _company: null };
-  return {
-    _contract: {
-      contractor_name: found.customerName,
-      contractor_phone: found.customerPhone,
-      contractor_kind: found.customerKind,
-      start_date: found.startDate,
-      end_date: found.endDate,
-      product_type: '장기렌트',
-      partner_code: found.companyCode,
-    },
-    _company: findCompany(found.companyCode) ?? null,
-  };
-}
+type Phase = 'in-progress' | 'completed';
 
 export default function PenaltyPage() {
   const [items, setItems] = useState<PenaltyWorkItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [phase, setPhase] = useState<Phase>('in-progress');
+  /** 체크박스로 선택된 항목 ID — bulk 처리완료/다운로드용 */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** 처리완료 탭 기간 필터 */
+  const [period, setPeriod] = useState<Period>('이번달');
+  /** 처리완료 탭 기준 날짜 — 처리일자(_processedAt) 또는 단속일자(date) */
+  const [periodBy, setPeriodBy] = useState<'processed' | 'violation'>('processed');
+  /** 고지서 등록 다이얼로그 — 빈 상태 텍스트에서도 열 수 있도록 lift */
+  const [registerOpen, setRegisterOpen] = useState(false);
 
-  async function handleFiles(files: FileList | File[]) {
-    const arr = Array.from(files);
-    setBusy(true);
+  function handleCreate(newItems: PenaltyWorkItem[]) {
+    setItems((prev) => {
+      // 신규 batch 를 기존 전체와 비교해 중복 식별
+      const { unique, duplicates } = dedupPenalties(newItems, prev);
 
-    // 1단계: PDF면 페이지 분할 → 단일 페이지 File 목록 평탄화
-    const expanded: File[] = [];
-    for (const f of arr) {
-      try {
-        const pages = await splitPdfPages(f);
-        expanded.push(...pages);
-      } catch (err) {
-        console.error('PDF 분할 실패', err);
-        expanded.push(f);
+      // 중복 항목도 화면에는 추가 (사용자가 보고 판단) — 단 _duplicate 마커 박음
+      const dupTagged = duplicates.map((d) => ({
+        ...d.item,
+        _phase: 'in-progress' as Phase,
+        _duplicate: {
+          reason: describeDuplicate(d.matchedKey, d.source),
+          source: d.source,
+          matchedExistingId: d.matchedExisting && (d.matchedExisting as PenaltyWorkItem).id,
+        },
+      }));
+      const uniqueTagged = unique.map((it) => ({ ...it, _phase: 'in-progress' as Phase }));
+
+      if (duplicates.length > 0) {
+        // 사용자에게 알림 (suppressed silently 안되게)
+        setTimeout(() => {
+          alert(`중복으로 판정된 ${duplicates.length}건이 함께 추가되었습니다. 빨간 라벨로 표시되니 확인 후 삭제하세요.`);
+        }, 0);
       }
-    }
 
-    setOcrProgress({ done: 0, total: expanded.length });
-    try {
-      for (let i = 0; i < expanded.length; i++) {
-        const f = expanded[i];
-        const dataUrl = await fileToDataUrl(f);
-        const placeholder = emptyItem(f, dataUrl);
-        setItems((prev) => [...prev, placeholder]);
-
-        // OCR 호출
-        try {
-          const fd = new FormData();
-          fd.append('file', f);
-          fd.append('type', 'penalty');
-          const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
-          const json = await res.json();
-          if (!json.ok) throw new Error(json.error || 'OCR 실패');
-          const ex = json.extracted as Record<string, unknown>;
-          const carNumber = (ex.car_number as string) ?? '';
-          const match = matchContract(carNumber);
-
-          setItems((prev) => prev.map((it) => it.id === placeholder.id ? {
-            ...it,
-            doc_type: (ex.doc_type as string) ?? '',
-            notice_no: (ex.notice_no as string) ?? '',
-            issuer: (ex.issuer as string) ?? '',
-            issue_date: (ex.issue_date as string) ?? '',
-            car_number: carNumber,
-            date: (ex.date as string) ?? '',
-            location: (ex.location as string) ?? '',
-            description: (ex.description as string) ?? '',
-            law_article: (ex.law_article as string) ?? '',
-            amount: typeof ex.amount === 'number' ? ex.amount : 0,
-            due_date: (ex.due_date as string) ?? '',
-            pay_account: (ex.pay_account as string) ?? '',
-            _contract: match._contract,
-            _company: match._company,
-            _ocrStatus: 'done',
-          } : it));
-        } catch (err) {
-          console.error('OCR error', err);
-          const msg = err instanceof Error ? err.message : String(err);
-          setItems((prev) => prev.map((it) => it.id === placeholder.id ? {
-            ...it,
-            _ocrStatus: 'failed',
-            _ocrError: msg,
-          } : it));
-        } finally {
-          setOcrProgress((p) => p ? { done: p.done + 1, total: p.total } : null);
-        }
-      }
-    } finally {
-      setBusy(false);
-      setOcrProgress(null);
-    }
+      return [...uniqueTagged, ...dupTagged, ...prev];
+    });
   }
 
   function removeItem(id: string) {
     setItems((p) => p.filter((i) => i.id !== id));
   }
 
-  async function handleDownload() {
-    if (items.length === 0) return;
+  function clearInProgress() {
+    const n = items.filter((i) => (i._phase ?? 'in-progress') === 'in-progress').length;
+    if (n === 0) return;
+    if (!confirm(`처리중 ${n}건을 전체 초기화할까요? 처리완료 이력은 유지됩니다.`)) return;
+    setItems((prev) => prev.filter((i) => i._phase === 'completed'));
+  }
+
+  /** 매칭 완료 (회사 + 임차인) 케이스만 처리완료 가능 */
+  function isMatched(item: PenaltyWorkItem): boolean {
+    return Boolean(item._company && item._contract?.contractor_name);
+  }
+
+  /** 단일 항목 처리완료로 이동 — PDF 다운로드 없이도 수동 마킹 */
+  function markCompleted(id: string) {
+    const now = new Date().toISOString();
+    setItems((prev) => prev.map((it) => it.id === id
+      ? { ...it, _phase: 'completed' as Phase, _processedAt: now }
+      : it,
+    ));
+  }
+
+  /** 체크박스 토글 */
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** 현재 visible 행 전체 선택/해제 */
+  function toggleSelectAll(visibleIds: string[]) {
+    setSelected((prev) => {
+      const allChecked = visibleIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allChecked) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  /** 선택된 매칭 완료건 일괄 처리완료 */
+  function markSelectedCompleted() {
+    const targets = items.filter((i) =>
+      selected.has(i.id) &&
+      (i._phase ?? 'in-progress') === 'in-progress' &&
+      isMatched(i),
+    );
+    if (targets.length === 0) {
+      alert('처리완료 가능한 매칭 항목이 선택되지 않았습니다.');
+      return;
+    }
+    if (!confirm(`매칭 완료된 ${targets.length}건을 처리완료로 이동할까요?`)) return;
+    const now = new Date().toISOString();
+    const ids = new Set(targets.map((t) => t.id));
+    setItems((prev) => prev.map((it) => ids.has(it.id)
+      ? { ...it, _phase: 'completed' as Phase, _processedAt: now }
+      : it,
+    ));
+    setSelected(new Set());
+  }
+
+  /** 선택된 항목 PDF 다운로드 (중복 자동 제외) */
+  async function handleDownloadSelected() {
+    const targets = items.filter((i) => selected.has(i.id) && !i._duplicate);
+    if (targets.length === 0) {
+      alert('다운로드 가능한 항목이 없습니다 (중복은 제외됨).');
+      return;
+    }
     setBusy(true);
     try {
-      // 매칭 안 된 항목은 기본 회사로 도장
-      const stamped = items.map((i) => ({
-        ...i,
-        _company: i._company ?? defaultCompany(),
-      }));
-      await downloadPenaltyMergedPdf(stamped);
+      await downloadPenaltyZip(targets, PLACEHOLDER_STAFF);
+      // 처리중 → 처리완료 자동 전환
+      const now = new Date().toISOString();
+      const inProgIds = new Set(targets.filter((t) => (t._phase ?? 'in-progress') === 'in-progress').map((t) => t.id));
+      setItems((prev) => prev.map((it) => inProgIds.has(it.id)
+        ? { ...it, _phase: 'completed' as Phase, _processedAt: now }
+        : it,
+      ));
+      setSelected(new Set());
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleDownload() {
+    const all = items.filter((i) => i._phase === 'in-progress');
+    const dupCount = all.filter((i) => i._duplicate).length;
+    const target = all.filter((i) => !i._duplicate);  // 중복 자동 제외
+    if (target.length === 0) {
+      alert(dupCount > 0 ? `처리중 ${dupCount}건이 모두 중복입니다. 중복 정리 후 다시 시도하세요.` : '처리할 항목이 없습니다.');
+      return;
+    }
+    if (dupCount > 0 && !confirm(`중복 ${dupCount}건은 자동 제외하고 ${target.length}건만 PDF 생성합니다. 진행할까요?`)) return;
+    setBusy(true);
+    try {
+      await downloadPenaltyZip(target, PLACEHOLDER_STAFF);
+      const now = new Date().toISOString();
+      const doneIds = new Set(target.map((i) => i.id));
+      setItems((prev) => prev.map((it) => doneIds.has(it.id)
+        ? { ...it, _phase: 'completed' as Phase, _processedAt: now }
+        : it,
+      ));
+      setPhase('completed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownloadCompletedFiltered() {
+    if (completedFiltered.length === 0) return;
+    setBusy(true);
+    try {
+      await downloadPenaltyZip(completedFiltered, PLACEHOLDER_STAFF);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePreview(item: PenaltyWorkItem) {
+    // 회사 매칭 안된 경우 PDF 본문에 "회사명없음" 으로 표기 (서버 templates 가 처리).
+    // 임의로 defaultCompany 채우지 말 것.
+    await previewPenaltyItem(item, PLACEHOLDER_STAFF);
   }
 
   function handleSaveEdit(d: Record<string, string>) {
@@ -185,7 +233,7 @@ export default function PenaltyPage() {
     setItems((prev) => prev.map((it) => {
       if (it.id !== editingId) return it;
       const partnerCode = d.partner_code ?? it._contract?.partner_code ?? '';
-      const merged: PenaltyWorkItem = {
+      return {
         ...it,
         car_number: d.car_number ?? it.car_number,
         doc_type: d.doc_type ?? it.doc_type,
@@ -211,7 +259,6 @@ export default function PenaltyPage() {
         } : it._contract,
         _company: findCompany(partnerCode) ?? it._company,
       };
-      return merged;
     }));
     setEditingId(null);
   }
@@ -239,171 +286,372 @@ export default function PenaltyPage() {
     partner_code: editing._contract?.partner_code ?? '',
   } : {};
 
-  const filledCount = items.filter((i) => i.car_number).length;
-  const matchedCount = items.filter((i) => i._contract).length;
+  const inProgress = useMemo(() => items.filter((i) => (i._phase ?? 'in-progress') === 'in-progress'), [items]);
+  const completed = useMemo(() => items.filter((i) => i._phase === 'completed'), [items]);
+
+  // 처리완료 탭 — 기간 필터 적용
+  const completedFiltered = useMemo(() => {
+    if (period === '전체') return completed;
+    const range = periodRange(period);
+    return completed.filter((it) => {
+      const d = periodBy === 'processed'
+        ? (it._processedAt ? it._processedAt.slice(0, 10) : '')
+        : (it.date ? it.date.slice(0, 10) : '');
+      return isInRange(d, range);
+    });
+  }, [completed, period, periodBy]);
+
+  const visible = phase === 'in-progress' ? inProgress : completedFiltered;
+
+  // 처리중 — 매칭 통계
+  const inProgMatched = inProgress.filter((i) => i._contract).length;
+  const inProgUnmatched = inProgress.filter((i) => !i._contract && i.car_number).length;
+  const inProgNoCar = inProgress.filter((i) => !i.car_number).length;
+  const inProgAmount = inProgress.reduce((s, i) => s + (i.amount ?? 0), 0);
+
+  // 처리완료 — 필터 합계
+  const compAmount = completedFiltered.reduce((s, i) => s + (i.amount ?? 0), 0);
+
+  async function handleExcel() {
+    if (visible.length === 0) return;
+    await exportToExcel({
+      title: phase === 'in-progress' ? '과태료 처리중' : '과태료 처리완료',
+      subtitle: `${new Date().toLocaleDateString('ko-KR')} 기준 ${visible.length}건`,
+      columns: [
+        { key: 'companyCode', header: '회사', type: 'mono', width: 8, getter: (r) => (r as unknown as PenaltyWorkItem)._company?.code ?? ''},
+        { key: 'car_number', header: '차량번호', type: 'mono', width: 12 },
+        { key: 'doc_type', header: '구분', width: 10 },
+        { key: 'notice_no', header: '고지서번호', type: 'mono', width: 22 },
+        { key: 'issuer', header: '발급기관', width: 18 },
+        { key: 'date', header: '위반일시', type: 'mono', width: 18 },
+        { key: 'location', header: '위반장소', width: 24 },
+        { key: 'description', header: '위반내용', width: 26 },
+        { key: 'amount', header: '금액', type: 'number' },
+        { key: 'due_date', header: '납부기한', type: 'date' },
+        { key: 'pay_account', header: '납부계좌', type: 'mono', width: 22 },
+        { key: 'contractor_name', header: '임차인', width: 12, getter: (r) => (r as unknown as PenaltyWorkItem)._contract?.contractor_name ?? '' },
+        { key: 'contractor_phone', header: '연락처', type: 'mono', width: 14, getter: (r) => (r as unknown as PenaltyWorkItem)._contract?.contractor_phone ?? '' },
+        ...(phase === 'completed' ? [{ key: '_processedAt', header: '처리완료일시', type: 'date' as const, width: 22 }] : []),
+      ],
+      rows: visible as unknown as Record<string, unknown>[],
+    });
+  }
 
   return (
     <>
       <PageShell
-        footerLeft={
+        footerLeft={phase === 'in-progress' ? (
           <>
-            <span className="stat-item">전체 <strong>{items.length}</strong></span>
-            <span className="stat-item">차량번호 인식 <strong>{filledCount}</strong></span>
-            <span className="stat-item">계약 매칭 <strong>{matchedCount}</strong></span>
+            <span className="stat-item">처리중 <strong>{inProgress.length}</strong></span>
+            <span className="stat-item">매칭됨 <strong style={{ color: '#10b981' }}>{inProgMatched}</strong></span>
+            {inProgUnmatched > 0 && (
+              <span className="stat-item alert">미매칭 <strong>{inProgUnmatched}</strong></span>
+            )}
+            {inProgNoCar > 0 && (
+              <span className="stat-item alert">차량번호 인식실패 <strong>{inProgNoCar}</strong></span>
+            )}
+            <span className="stat-divider" />
+            <span className="stat-item">합계 <strong className="num">{inProgAmount.toLocaleString('ko-KR')}</strong>원</span>
           </>
-        }
+        ) : (
+          <>
+            <span className="stat-item">처리완료 누적 <strong>{completed.length}</strong></span>
+            <span className="stat-divider" />
+            <div className="chip-group" role="tablist" aria-label="기준 일자">
+              <button
+                type="button"
+                className={`chip ${periodBy === 'processed' ? 'active' : ''}`}
+                onClick={() => setPeriodBy('processed')}
+              >처리일자</button>
+              <button
+                type="button"
+                className={`chip ${periodBy === 'violation' ? 'active' : ''}`}
+                onClick={() => setPeriodBy('violation')}
+              >단속일자</button>
+            </div>
+            <div className="chip-group" role="tablist" aria-label="기간">
+              {PERIODS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`chip ${period === p ? 'active' : ''}`}
+                  onClick={() => setPeriod(p)}
+                >{p}</button>
+              ))}
+            </div>
+            <span className="stat-divider" />
+            <span className="stat-item"><strong>{completedFiltered.length}</strong>건</span>
+            <span className="stat-item">합계 <strong className="num">{compAmount.toLocaleString('ko-KR')}</strong>원</span>
+          </>
+        )}
         footerRight={
           <>
-            <button className="btn" onClick={() => setItems([])} disabled={items.length === 0}>
-              <Trash size={14} weight="bold" /> 전체 비우기
+            <button className="btn" onClick={handleExcel} disabled={visible.length === 0}>
+              <FileXls size={14} weight="bold" /> 엑셀
             </button>
-            <button className="btn btn-primary" onClick={handleDownload} disabled={items.length === 0 || busy}>
-              <FileArrowDown size={14} weight="bold" /> {busy ? '처리 중...' : `PDF 다운로드 (${items.length}건)`}
-            </button>
+            {phase === 'in-progress' && (
+              <>
+                {selected.size > 0 && (
+                  <>
+                    <button
+                      className="btn"
+                      onClick={markSelectedCompleted}
+                      disabled={busy}
+                      title="선택된 항목 중 매칭 완료된 것만 처리완료로 이동"
+                    >
+                      <CheckCircle size={14} weight="bold" /> 선택 처리완료 ({selected.size})
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={handleDownloadSelected}
+                      disabled={busy}
+                      title="선택된 항목만 PDF 묶음 다운로드"
+                    >
+                      <FileZip size={14} weight="bold" /> 선택 다운로드 ({selected.size})
+                    </button>
+                  </>
+                )}
+                <button
+                  className="btn"
+                  onClick={clearInProgress}
+                  disabled={inProgress.length === 0 || busy}
+                >
+                  <Trash size={14} weight="bold" /> 처리중 전체 초기화
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleDownload}
+                  disabled={inProgress.length === 0 || busy}
+                >
+                  <FileZip size={14} weight="bold" /> {busy ? '생성 중...' : `변경부과 압축 (${inProgress.length}건)`}
+                </button>
+                <PenaltyRegisterDialog open={registerOpen} onOpenChange={setRegisterOpen} onCreate={handleCreate} />
+              </>
+            )}
           </>
         }
       >
-        <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-          <label
-            className={`dropzone block ${dragging ? 'dragging' : ''} ${busy ? 'busy' : ''}`}
-            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
-            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragging(false);
-              if (busy) return;
-              const files = e.dataTransfer?.files;
-              if (files && files.length > 0) handleFiles(files);
-            }}
+        {/* 처리중 / 처리완료 탭 — 자산/계약과 동일 .tabs 규격 */}
+        <nav className="tabs">
+          <button
+            type="button"
+            className={`tab ${phase === 'in-progress' ? 'active' : ''}`}
+            onClick={() => setPhase('in-progress')}
           >
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              multiple
-              className="hidden"
-              disabled={busy}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  handleFiles(e.target.files);
-                  e.target.value = '';
-                }
-              }}
-            />
-            {ocrProgress ? (
-              <>
-                <CircleNotch size={26} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
-                <div className="mt-2 text-medium">
-                  OCR 진행 중...{' '}
-                  <strong>{ocrProgress.done}</strong> / {ocrProgress.total}
-                </div>
-                <div className="mt-1 text-weak">
-                  {ocrProgress.done < ocrProgress.total
-                    ? `${ocrProgress.total - ocrProgress.done}건 남음 — Gemini가 고지서를 읽고 있습니다`
-                    : '마무리 중...'}
-                </div>
-              </>
-            ) : dragging ? (
-              <>
-                <Upload size={26} className="mx-auto" style={{ color: 'var(--brand)' }} />
-                <div className="mt-2 text-medium">여기에 놓기</div>
-                <div className="mt-1 text-weak">파일을 드롭하면 자동으로 OCR이 시작됩니다</div>
-              </>
-            ) : (
-              <>
-                <Upload size={26} className="mx-auto text-weak" />
-                <div className="mt-2 text-medium">고지서 업로드 — 클릭 또는 드래그&드롭 (자동 OCR)</div>
-                <div className="mt-1 text-weak">JPG / PNG / PDF — PDF는 페이지별로 분할하여 각각 OCR. 차량번호로 계약 자동 매칭.</div>
-              </>
-            )}
-          </label>
-        </div>
+            처리중
+          </button>
+          <button
+            type="button"
+            className={`tab ${phase === 'completed' ? 'active' : ''}`}
+            onClick={() => setPhase('completed')}
+          >
+            처리완료
+          </button>
+        </nav>
+
 
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
-                <th>파일명</th>
-                <th>매칭</th>
-                <th>차량번호</th>
-                <th>구분</th>
-                <th>고지서번호</th>
-                <th>발급기관</th>
-                <th className="date">위반일시</th>
-                <th>위반장소</th>
-                <th>위반내용</th>
-                <th className="num">금액</th>
-                <th>임차인 (회사)</th>
-                <th className="date">계약기간</th>
-                <th className="center" style={{ width: 90 }}>동작</th>
+                <th className="center sticky-col" style={{ left: 0, width: CHECK_COL_WIDTH }}>
+                  <input
+                    type="checkbox"
+                    checked={visible.length > 0 && visible.every((it) => selected.has(it.id))}
+                    onChange={() => toggleSelectAll(visible.map((it) => it.id))}
+                    title="현재 보이는 항목 전체 선택"
+                  />
+                </th>
+                <th className="sticky-col" style={{ left: CHECK_COL_WIDTH, minWidth: COMPANY_COL_WIDTH }}>회사코드</th>
+                <th className="sticky-col-2" style={{ left: CHECK_COL_WIDTH + COMPANY_COL_WIDTH, minWidth: PLATE_COL_WIDTH }}>차량번호</th>
+                <th className="center" style={{ width: 36 }}>매칭</th>
+                {phase === 'in-progress' ? (
+                  <>
+                    {/* 처리중 — 매칭 검증에 집중: 계약시작 ‖ 위반일시 ‖ 계약종료 나란히 */}
+                    <th>임차인</th>
+                    <th className="date">계약시작</th>
+                    <th className="date">위반일시</th>
+                    <th className="date">계약종료</th>
+                    <th>구분</th>
+                    <th>위반장소</th>
+                    <th>위반내용</th>
+                    <th className="num">금액</th>
+                    <th>연락처</th>
+                    <th className="date">납부기한</th>
+                    <th>고지서번호</th>
+                    <th>발급기관</th>
+                    <th>파일</th>
+                  </>
+                ) : (
+                  <>
+                    {/* 처리완료 — 변경부과 풀 데이터 */}
+                    <th className="date">처리완료</th>
+                    <th>임차인</th>
+                    <th>신분</th>
+                    <th>연락처</th>
+                    <th>식별번호</th>
+                    <th>주소</th>
+                    <th className="date">계약기간</th>
+                    <th>구분</th>
+                    <th className="date">위반일시</th>
+                    <th>위반장소</th>
+                    <th>위반내용</th>
+                    <th>적용법조</th>
+                    <th className="num">금액</th>
+                    <th className="date">발송일</th>
+                    <th className="date">납부기한</th>
+                    <th>고지서번호</th>
+                    <th>발급기관</th>
+                    <th>납부계좌</th>
+                    <th>파일</th>
+                  </>
+                )}
+                <th className="center" style={{ width: 170, position: 'sticky', right: 0, background: 'var(--bg-header)' }}>동작</th>
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
+              {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="center dim" style={{ padding: '32px 0' }}>
-                    고지서를 업로드하세요. 자동 OCR로 정보를 채우고 차량번호로 계약을 매칭합니다.
+                  <td colSpan={50} style={{ padding: 0 }}>
+                    {phase === 'in-progress' ? (
+                      <button
+                        type="button"
+                        onClick={() => setRegisterOpen(true)}
+                        className="dim"
+                        style={{
+                          width: '100%',
+                          padding: '32px 0',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          font: 'inherit',
+                          textAlign: 'center',
+                          transition: 'background 120ms',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover, rgba(0,0,0,0.03))'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                      >
+                        처리중 항목이 없습니다. 이 영역 또는 우측 하단{' '}
+                        <span style={{ color: 'var(--brand)', textDecoration: 'underline' }}>[+ 고지서 등록]</span>
+                        을 클릭해 고지서를 업로드하세요.
+                      </button>
+                    ) : (
+                      <div className="center dim" style={{ padding: '32px 0' }}>
+                        처리완료 이력이 없습니다. 처리중 탭에서 [변경부과 PDF]를 생성하면 여기로 이동합니다.
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
-                items.map((it) => (
-                  <tr key={it.id}>
-                    <td className="mono dim truncate" style={{ maxWidth: 180 }} title={it.fileName}>{it.fileName}</td>
-                    <td className="center">
-                      {it._ocrStatus === 'pending' ? (
-                        <span title="OCR 진행 중" style={{ color: 'var(--brand)', display: 'inline-flex', alignItems: 'center' }}>
-                          <CircleNotch size={14} className="spin" />
-                        </span>
-                      ) : it._ocrStatus === 'failed' ? (
-                        <span title={`OCR 실패: ${it._ocrError ?? ''}`} style={{ color: '#ef4444', display: 'inline-flex', alignItems: 'center' }}>
-                          <Warning size={14} weight="fill" />
-                        </span>
-                      ) : it._contract ? (
-                        <span title="계약 매칭 성공" style={{ color: '#10b981', display: 'inline-flex', alignItems: 'center' }}>
-                          <CheckCircle size={14} weight="fill" />
-                        </span>
-                      ) : it.car_number ? (
-                        <span title="차량번호 인식 - 계약 매칭 실패" style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center' }}>
-                          <Warning size={14} weight="fill" />
-                        </span>
-                      ) : (
-                        <span className="text-muted">-</span>
-                      )}
-                    </td>
-                    <td className="plate">{it.car_number || <span className="text-muted">-</span>}</td>
-                    <td className="dim">{it.doc_type || '-'}</td>
-                    <td className="mono dim">{it.notice_no || '-'}</td>
-                    <td>{it.issuer || '-'}</td>
-                    <td className="date mono">{it.date || '-'}</td>
-                    <td>{it.location || '-'}</td>
-                    <td>{it.description || '-'}</td>
-                    <td className="num">{it.amount ? it.amount.toLocaleString('ko-KR') : '-'}</td>
-                    <td>
-                      {it._contract?.contractor_name ? (
+                visible.map((it) => {
+                  // 위반일시가 계약기간 안에 있는지 검증
+                  const violDate = it.date?.slice(0, 10);
+                  const startD = it._contract?.start_date;
+                  const endD = it._contract?.end_date;
+                  const inRange = violDate && startD && endD
+                    ? violDate >= startD && violDate <= endD
+                    : null;
+                  const violClass = inRange === false ? 'text-red' : 'mono';
+                  return (
+                    <tr key={it.id}>
+                      <td className="center sticky-col" style={{ left: 0, width: CHECK_COL_WIDTH, background: 'var(--bg-card)' }}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(it.id)}
+                          onChange={() => toggleSelect(it.id)}
+                        />
+                      </td>
+                      <td className="plate text-medium sticky-col" style={{ left: CHECK_COL_WIDTH, minWidth: COMPANY_COL_WIDTH }}>
+                        {it._company?.code || <span className="text-muted">-</span>}
+                      </td>
+                      <td className="plate text-medium sticky-col-2" style={{ left: CHECK_COL_WIDTH + COMPANY_COL_WIDTH, minWidth: PLATE_COL_WIDTH }}>
+                        {it.car_number || <span className="text-muted">-</span>}
+                      </td>
+                      <td className="center">
+                        {it._duplicate ? (
+                          <span title={`중복: ${it._duplicate.reason}`} style={{ display: 'inline-flex' }}>
+                            <Warning size={14} weight="fill" style={{ color: '#dc2626' }} />
+                          </span>
+                        ) : it._contract ? (
+                          <CheckCircle size={14} weight="fill" style={{ color: '#10b981' }} />
+                        ) : it.car_number ? (
+                          <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
+                        ) : <span className="text-muted">-</span>}
+                      </td>
+
+                      {phase === 'in-progress' ? (
                         <>
-                          {it._contract.contractor_name}
-                          {it._company && <span className="text-weak"> · {it._company.name}</span>}
+                          <td className="text-medium">{it._contract?.contractor_name || <span className="text-muted">미매칭</span>}</td>
+                          <td className="date mono dim">{startD || ''}</td>
+                          <td className={`date ${violClass}`}>{it.date || '-'}</td>
+                          <td className="date mono dim">{endD || ''}</td>
+                          <td className="dim">{it.doc_type || '-'}</td>
+                          <td className="dim truncate" style={{ maxWidth: 220 }}>{it.location || '-'}</td>
+                          <td>{it.description || '-'}</td>
+                          <td className="num">{it.amount ? it.amount.toLocaleString('ko-KR') : '-'}</td>
+                          <td className="mono dim">{it._contract?.contractor_phone || ''}</td>
+                          <td className="date">{it.due_date || ''}</td>
+                          <td className="mono dim truncate" style={{ maxWidth: 200 }}>{it.notice_no || '-'}</td>
+                          <td>{it.issuer || '-'}</td>
+                          <td className="mono dim truncate" style={{ maxWidth: 160 }} title={it.fileName}>{it.fileName}</td>
                         </>
                       ) : (
-                        <span className="text-muted">-</span>
+                        <>
+                          <td className="date mono dim">
+                            {it._processedAt ? new Date(it._processedAt).toLocaleString('ko-KR') : ''}
+                          </td>
+                          <td className="text-medium">{it._contract?.contractor_name || <span className="text-muted">미매칭</span>}</td>
+                          <td className="dim">{it._contract?.contractor_kind || ''}</td>
+                          <td className="mono dim">{it._contract?.contractor_phone || ''}</td>
+                          <td className="mono dim">{it._contract?.contractor_ident || ''}</td>
+                          <td className="dim truncate" style={{ maxWidth: 200 }}>{it._contract?.contractor_address || ''}</td>
+                          <td className="date dim">{startD ? `${startD} ~ ${endD}` : ''}</td>
+                          <td className="dim">{it.doc_type || '-'}</td>
+                          <td className="date mono">{it.date || '-'}</td>
+                          <td className="dim truncate" style={{ maxWidth: 220 }}>{it.location || '-'}</td>
+                          <td>{it.description || '-'}</td>
+                          <td className="dim">{it.law_article || '-'}</td>
+                          <td className="num">{it.amount ? it.amount.toLocaleString('ko-KR') : '-'}</td>
+                          <td className="date dim">{it.issue_date || ''}</td>
+                          <td className="date">{it.due_date || ''}</td>
+                          <td className="mono dim truncate" style={{ maxWidth: 200 }}>{it.notice_no || '-'}</td>
+                          <td>{it.issuer || '-'}</td>
+                          <td className="mono dim truncate" style={{ maxWidth: 180 }}>{it.pay_account || '-'}</td>
+                          <td className="mono dim truncate" style={{ maxWidth: 160 }} title={it.fileName}>{it.fileName}</td>
+                        </>
                       )}
-                    </td>
-                    <td className="date dim">
-                      {it._contract?.start_date ? `${it._contract.start_date} ~ ${it._contract.end_date}` : ''}
-                    </td>
-                    <td className="center">
-                      <div className="flex items-center gap-1 justify-center">
-                        <button className="btn btn-sm" onClick={() => setEditingId(it.id)}>
-                          <PencilSimple size={11} /> 수정
-                        </button>
-                        <button className="btn-ghost btn btn-sm" onClick={() => removeItem(it.id)}>
-                          <X size={11} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+
+                      <td className="center" style={{ position: 'sticky', right: 0, background: 'var(--bg-card)' }}>
+                        <div className="flex items-center gap-1 justify-center">
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => handlePreview(it)}
+                            title="변경부과 PDF 미리보기"
+                          >
+                            <Eye size={11} /> 미리보기
+                          </button>
+                          {phase === 'in-progress' && isMatched(it) && (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => markCompleted(it.id)}
+                              title="이 항목을 처리완료로 이동"
+                            >
+                              <CheckCircle size={11} /> 처리완료
+                            </button>
+                          )}
+                          {phase === 'in-progress' && (
+                            <button className="btn btn-sm" onClick={() => setEditingId(it.id)}>
+                              <PencilSimple size={11} /> 수정
+                            </button>
+                          )}
+                          <button className="btn-ghost btn btn-sm" onClick={() => removeItem(it.id)} title="삭제">
+                            <X size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -427,11 +675,35 @@ export default function PenaltyPage() {
   );
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(r.error ?? new Error('파일 읽기 실패'));
-    r.readAsDataURL(file);
-  });
+function PhaseTab({
+  active,
+  onClick,
+  count,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 16px',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: active ? '2px solid var(--brand)' : '2px solid transparent',
+        color: active ? 'var(--text)' : 'var(--text-sub)',
+        cursor: 'pointer',
+        fontSize: '12px',
+        fontFamily: 'inherit',
+        marginBottom: -1,
+      }}
+    >
+      {children} <strong style={{ marginLeft: 4 }}>{count}</strong>
+    </button>
+  );
 }
+
+function _Trash() { return <Trash size={14} weight="bold" />; }

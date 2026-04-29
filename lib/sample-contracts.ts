@@ -51,69 +51,8 @@ function makeReceiptEvents(start: string, months: number, amount: number, paidUp
   return events;
 }
 
-export const SAMPLE_CONTRACTS: Contract[] = [
-  {
-    id: 'c-001',
-    companyCode: 'CP01',
-    contractNo: 'C-2024-001',
-    plate: '01도9893',
-    customerName: '홍길동',
-    customerPhone: '010-1234-5678',
-    customerKind: '개인',
-    startDate: '2024-04-01',
-    endDate: '2027-03-31',
-    monthlyAmount: 500000,
-    deposit: 1000000,
-    status: '운행중',
-    events: [
-      ...makeReceiptEvents('2024-04-01', 36, 500000, 24), // 24/36 수납완료
-      { id: 'i-001-1', type: '검사', dueDate: '2026-08-20', status: '예정', note: '정기검사 (등록증 만기)' },
-      { id: 'm-001-1', type: '정비', dueDate: '2026-04-25', doneDate: '2026-04-25', status: '완료', note: '엔진오일 교환' },
-      { id: 'm-001-2', type: '정비', dueDate: '2026-10-25', status: '예정', note: '6개월 점검' },
-      { id: 'b-001-1', type: '보험', dueDate: '2027-03-31', status: '예정', note: '만기 갱신 필요' },
-      { id: 'rt-001-1', type: '반납', dueDate: '2027-03-31', status: '예정', note: '계약 만기 반납' },
-    ],
-  },
-  {
-    id: 'c-002',
-    companyCode: 'CP02',
-    contractNo: 'C-2025-001',
-    plate: '34나5678',
-    customerName: '김영희',
-    customerPhone: '010-9876-5432',
-    customerKind: '사업자',
-    startDate: '2025-01-15',
-    endDate: '2027-01-14',
-    monthlyAmount: 380000,
-    deposit: 800000,
-    status: '운행중',
-    events: [
-      ...makeReceiptEvents('2025-01-15', 24, 380000, 14),
-      { id: 'i-002-1', type: '검사', dueDate: '2026-12-31', status: '예정' },
-      { id: 'm-002-1', type: '정비', dueDate: '2026-07-15', status: '예정', note: '12개월 점검' },
-      { id: 'rt-002-1', type: '반납', dueDate: '2027-01-14', status: '예정' },
-    ],
-  },
-  {
-    id: 'c-003',
-    companyCode: 'CP02',
-    contractNo: 'C-2025-002',
-    plate: '56다7890',
-    customerName: '박철수',
-    customerPhone: '010-2222-3333',
-    customerKind: '개인',
-    startDate: '2025-09-01',
-    endDate: '2028-08-31',
-    monthlyAmount: 750000,
-    deposit: 1500000,
-    status: '운행중',
-    events: [
-      ...makeReceiptEvents('2025-09-01', 36, 750000, 7), // 미수 1회 발생
-      { id: 'i-003-1', type: '검사', dueDate: '2027-08-31', status: '예정' },
-      { id: 'rt-003-1', type: '반납', dueDate: '2028-08-31', status: '예정' },
-    ],
-  },
-];
+/** 실데이터는 사용자가 입력. 샘플 없음. */
+export const SAMPLE_CONTRACTS: Contract[] = [];
 
 /* 계약별 이행 요약 — Master 그리드용 */
 export type ContractSummary = {

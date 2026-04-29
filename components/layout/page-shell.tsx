@@ -14,7 +14,8 @@
  */
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { cn } from '@/lib/cn';
 
 export type SubTab = { href: string; label: string };
@@ -38,7 +39,17 @@ export function PageShell({
   footerRight,
 }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const showFooter = Boolean(footerLeft || footerRight);
+
+  // 서브탭 형제 라우트들을 백그라운드 prefetch — 첫 클릭 시 컴파일 대기 X.
+  // dev 모드에서 Next.js Link 자동 prefetch 가 비활성이라 명시적으로 호출.
+  useEffect(() => {
+    if (!subTabs) return;
+    for (const t of subTabs) {
+      if (t.href !== pathname) router.prefetch(t.href);
+    }
+  }, [subTabs, pathname, router]);
 
   return (
     <div className="main-panel">

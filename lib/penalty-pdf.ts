@@ -1,16 +1,15 @@
 /**
- * 과태료 PDF 생성. jspdf는 ~700KB라 lazy import.
+ * 과태료 변경부과 PDF 생성 (클라이언트 진입점).
  *
- * 각 고지서마다 3페이지 묶음:
- *   1. 변경공문 (과태료 변경부과 요청서)
- *   2. 고지서 원본 (업로드된 이미지)
- *   3. 임대차계약 사실확인서
- *
- * 도장(인) 영역은 빨간색 원형 도장 모양으로 회사명을 그림.
+ * 실제 PDF 렌더는 서버(/api/penalty/pdf, Puppeteer) 에서 수행 — 진짜 텍스트 PDF.
+ * 클라이언트는:
+ *   1) (회사 × 발급기관) 단위로 그룹핑
+ *   2) 그룹마다 API 호출 → PDF blob 받음
+ *   3) zip 으로 묶어서 다운로드
  */
 import type { PenaltyParsed } from './parsers/penalty';
-import type { jsPDF } from 'jspdf';
 import type { Company } from './sample-companies';
+import type { IssueContext, ConfirmationArgs } from './penalty-templates';
 
 export interface PenaltyWorkItem extends PenaltyParsed {
   id: string;
@@ -18,12 +17,17 @@ export interface PenaltyWorkItem extends PenaltyParsed {
   fileDataUrl: string;
   fileSize?: number;
   pageNumber?: number;
-  _company?: Company | null;       // 도장에 사용 — 매칭된 계약의 회사
+  _company?: Company | null;
   _asset?: {
     manufacturer?: string;
     car_model?: string;
     detail_model?: string;
     partner_code?: string;
+    /** 자동차등록증 추가 항목 — 확인서에 표기 */
+    vin?: string;
+    year?: string;
+    color?: string;
+    fuel?: string;
   } | null;
   _contract?: {
     contractor_name?: string;
@@ -35,221 +39,252 @@ export interface PenaltyWorkItem extends PenaltyParsed {
     end_date?: string;
     product_type?: string;
     partner_code?: string;
+    /** 전자계약 정보 — 확인서 evidence 박스에 표기 */
+    electronic_contract_date?: string;
+    electronic_contract_doc_no?: string;
+    /** 임차인 전자서명 PNG URL (배경 투명) */
+    contractor_signature_png?: string;
   } | null;
   _saving?: boolean;
   _ocrStatus?: 'pending' | 'done' | 'failed';
   _ocrError?: string;
+  _phase?: 'in-progress' | 'completed';
+  _processedAt?: string;
+  /** 중복 검증 결과 — handleCreate 단계에서 dedupPenalties 가 채움.
+   *  reason: UI 에 빨간 라벨로 표시. matchedExistingId: 어떤 기존 항목과 매칭됐는지. */
+  _duplicate?: {
+    reason: string;
+    source: 'existing' | 'batch';
+    matchedExistingId?: string;
+  };
 }
 
-const PAGE_W = 210; // A4 mm
-const PAGE_H = 297;
-const M = 20;
-
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
-}
-
-function shortDate(s?: string) {
+function dateOnly(s?: string): string {
   if (!s) return '';
   const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : s;
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
 }
 
-/**
- * 빨간 원형 도장.
- * 외곽 이중원 + 회사명을 가운데 (글자 수에 따라 자동 줄바꿈).
- */
-function drawStamp(doc: jsPDF, cx: number, cy: number, name: string) {
-  const r = 14; // 외곽 반지름 mm
-  doc.setDrawColor(220, 30, 30);
-  doc.setLineWidth(0.8);
-  doc.circle(cx, cy, r, 'S');
-  doc.setLineWidth(0.4);
-  doc.circle(cx, cy, r - 1.6, 'S');
-
-  doc.setTextColor(220, 30, 30);
-  // 글자 수에 따라 한 줄/두 줄 분기
-  const clean = name.replace(/\s+/g, '');
-  if (clean.length <= 5) {
-    doc.setFontSize(13);
-    doc.text(clean, cx, cy + 1.5, { align: 'center' });
-  } else {
-    const half = Math.ceil(clean.length / 2);
-    const line1 = clean.slice(0, half);
-    const line2 = clean.slice(half);
-    doc.setFontSize(10);
-    doc.text(line1, cx, cy - 1, { align: 'center' });
-    doc.text(line2, cx, cy + 4, { align: 'center' });
-  }
-  // 색 복원
-  doc.setTextColor(0, 0, 0);
-  doc.setDrawColor(0, 0, 0);
+/** Windows/Linux/macOS 모두에서 안전한 폴더·파일명 */
+function safeName(s: string | undefined, fallback = '미지정'): string {
+  if (!s || !s.trim()) return fallback;
+  return s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '').slice(0, 80);
 }
 
-function appendPenaltySection(doc: jsPDF, item: PenaltyWorkItem, isFirstSection: boolean): void {
-  const company = item._company;
-  const companyName = company?.name ?? '(주)회사명';
+/* ────────────────── 컨텍스트 빌더 ────────────────── */
 
-  // ── 1페이지: 변경공문 ──
-  if (!isFirstSection) doc.addPage();
-  let y = M + 10;
+function buildContext(items: PenaltyWorkItem[], staff: IssueContext['staff'], opts?: {
+  recipient?: string;
+  docNo?: string;
+  sendDate?: string;
+  sealPngUrl?: string;
+  homepage?: string;
+  hqAddress?: string;
+}): IssueContext {
+  const first = items[0];
+  // 회사 매칭 안된 경우: "회사명없음" placeholder. 사용자가 나중에 매칭하고 다시 생성.
+  const company = first._company ?? {
+    code: 'NOCOMP', name: '회사명없음',
+    ceo: '', bizNo: '', corpNo: '', hqAddress: '', bizType: '', bizCategory: '', phone: '',
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const fallbackDocNo = `${company.code}-${today.slice(0, 4)}-${Date.now().toString().slice(-5)}`;
 
-  doc.setFontSize(16);
-  doc.text('과태료(범칙금) 변경부과 요청서', PAGE_W / 2, y, { align: 'center' });
-  y += 14;
-
-  doc.setFontSize(10);
-  doc.text(`수신: ${item.issuer || '관할 경찰서장'}`, M, y);
-  y += 7;
-  doc.text(`발신: ${companyName}`, M, y);
-  y += 7;
-  doc.text('제목: 과태료(범칙금) 변경부과 요청', M, y);
-  y += 12;
-
-  doc.setFontSize(10);
-  const bodyLines = [
-    '1. 귀 기관의 무궁한 발전을 기원합니다.',
-    '',
-    '2. 아래 차량에 대한 과태료(범칙금)의 납부자 변경부과를 요청합니다.',
-    '   위반 차량의 소유자(관리자)는 당사이나, 위반 당시 해당 차량은',
-    '   임대차계약에 의하여 임차인이 사용 중이었으므로, 실제 운전자인',
-    '   임차인에게 변경부과하여 주시기 바랍니다.',
-    '',
-    '                        - 아 래 -',
-    '',
-    `   가. 차량번호: ${item.car_number || '—'}`,
-    `   나. 위반일시: ${item.date || '—'}`,
-    `   다. 위반장소: ${item.location || '—'}`,
-    `   라. 위반내용: ${item.description || '—'}`,
-    `   마. 과태료(범칙금): ${item.amount ? `${item.amount.toLocaleString()}원` : '—'}`,
-    `   바. 고지서번호: ${item.notice_no || '—'}`,
-    '',
-    '   사. 임차인 정보',
-    `      - 성명: ${item._contract?.contractor_name || '—'}`,
-    `      - 연락처: ${item._contract?.contractor_phone || '—'}`,
-    `      - 계약기간: ${shortDate(item._contract?.start_date)} ~ ${shortDate(item._contract?.end_date)}`,
-    '',
-    '3. 붙임: 1) 과태료 고지서 사본 1부',
-    '         2) 임대차계약 사실확인서 1부  끝.',
-    '',
-    '',
-    `                                          ${today()}`,
-    '',
-    `                              ${companyName}`,
-  ];
-
-  for (const line of bodyLines) {
-    if (y > PAGE_H - M - 10) {
-      doc.addPage();
-      y = M;
-    }
-    doc.text(line, M, y);
-    y += 5.5;
-  }
-
-  // 도장 — 발신자 줄 오른쪽
-  drawStamp(doc, PAGE_W - M - 18, y - 4, companyName);
-
-  // ── 2페이지: 고지서 원본 ──
-  if (item.fileDataUrl) {
-    doc.addPage();
-    try {
-      const imgW = PAGE_W - M * 2;
-      const imgH = PAGE_H - M * 2;
-      doc.addImage(item.fileDataUrl, 'JPEG', M, M, imgW, imgH);
-    } catch {
-      doc.setFontSize(10);
-      doc.text('(고지서 이미지 삽입 실패)', PAGE_W / 2, PAGE_H / 2, { align: 'center' });
-    }
-  }
-
-  // ── 3페이지: 임대차계약 사실확인서 ──
-  doc.addPage();
-  y = M + 10;
-
-  doc.setFontSize(16);
-  doc.text('임대차계약 사실확인서', PAGE_W / 2, y, { align: 'center' });
-  y += 16;
-
-  doc.setFontSize(10);
-  const contract = item._contract;
-  const asset = item._asset;
-
-  const kvRows: [string, string][] = [
-    ['임대인 (회사)', companyName],
-    ['임차인 (고객)', contract?.contractor_name || '—'],
-    ['임차인 신분', contract?.contractor_kind || '—'],
-    ['임차인 식별번호', contract?.contractor_ident || '—'],
-    ['임차인 연락처', contract?.contractor_phone || '—'],
-    ['임차인 주소', contract?.contractor_address || '—'],
-    ['차량번호', item.car_number || '—'],
-    [
-      '차종',
-      [asset?.manufacturer, asset?.detail_model ?? asset?.car_model].filter(Boolean).join(' ') || '—',
-    ],
-    ['회사코드', company?.code || contract?.partner_code || asset?.partner_code || '—'],
-    ['계약기간', `${shortDate(contract?.start_date)} ~ ${shortDate(contract?.end_date)}`],
-    ['계약유형', contract?.product_type || '장기렌트'],
-  ];
-
-  for (const [k, v] of kvRows) {
-    doc.text(k, M, y);
-    doc.text(String(v), M + 45, y);
-    y += 7;
-  }
-
-  y += 8;
-  const confirmLines = [
-    '위 임대인은 위 차량을 임차인에게 임대차계약에 의하여 대여하였으며,',
-    `위반 당시(${item.date || '—'}) 해당 차량은 임차인이 점유·사용 중이었음을`,
-    '확인합니다.',
-    '',
-    '본 확인서는 관할 기관의 과태료(범칙금) 변경부과 요청을 위하여',
-    '작성되었습니다.',
-    '',
-    '',
-    '',
-    `                                          ${today()}`,
-    '',
-    `                  확인자: ${companyName}`,
-  ];
-
-  for (const line of confirmLines) {
-    if (y > PAGE_H - M - 10) {
-      doc.addPage();
-      y = M;
-    }
-    doc.text(line, M, y);
-    y += 5.5;
-  }
-
-  drawStamp(doc, PAGE_W - M - 18, y - 4, companyName);
+  return {
+    company,
+    hqAddress: opts?.hqAddress,
+    homepage: opts?.homepage,
+    sealPngUrl: opts?.sealPngUrl,
+    staff,
+    docNo: opts?.docNo ?? fallbackDocNo,
+    sendDate: opts?.sendDate ?? today,
+    recipient: opts?.recipient ?? first.issuer ?? '관할 경찰서장',
+  };
 }
 
-/**
- * 모든 고지서를 단일 PDF로 합쳐서 다운로드.
- */
-export async function downloadPenaltyMergedPdf(
+function buildConfirmationPayload(item: PenaltyWorkItem, ctx: IssueContext, idx: number): Omit<ConfirmationArgs, 'ctx' | 'item'> {
+  const seq = String(idx + 1).padStart(3, '0');
+  const confirmationDocNo = `${ctx.company.code}-CONF-${ctx.sendDate.replace(/-/g, '')}-${seq}`;
+
+  const elec = item._contract?.electronic_contract_date && item._contract?.electronic_contract_doc_no
+    ? { date: item._contract.electronic_contract_date, docNo: item._contract.electronic_contract_doc_no }
+    : undefined;
+
+  return {
+    confirmationDocNo,
+    contractorSignaturePng: item._contract?.contractor_signature_png,
+    electronicContract: elec,
+    vehicleDetails: item._asset
+      ? {
+          manufacturer: item._asset.manufacturer,
+          car_name: item._asset.detail_model ?? item._asset.car_model,
+          vin: item._asset.vin,
+          year: item._asset.year,
+          color: item._asset.color,
+          fuel: item._asset.fuel,
+        }
+      : undefined,
+  };
+}
+
+/* ────────────────── 케이스 묶음 PDF — 서버 API 호출 ────────────────── */
+
+async function buildCasePdf(
   items: PenaltyWorkItem[],
-  onProgress?: (done: number, total: number) => void,
+  staff: IssueContext['staff'],
+  opts?: Parameters<typeof buildContext>[2],
+): Promise<Blob> {
+  const ctx = buildContext(items, staff, opts);
+  const confirmations = items.map((item, i) => buildConfirmationPayload(item, ctx, i));
+
+  const res = await fetch('/api/penalty/pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, ctx, confirmations }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`PDF 생성 실패 (${res.status}): ${errText}`);
+  }
+  return await res.blob();
+}
+
+/* ────────────────── 단일 항목 미리보기 ────────────────── */
+
+export async function previewPenaltyItem(
+  item: PenaltyWorkItem,
+  staff: IssueContext['staff'],
+  opts?: Parameters<typeof buildContext>[2],
+): Promise<void> {
+  // 팝업 블로커 회피 — 사용자 클릭 직후 즉시 빈 창 열고, async PDF 생성 후 URL 채움
+  const win = window.open('about:blank', '_blank');
+  if (!win) {
+    alert('PDF 미리보기를 위해 팝업을 허용해주세요.');
+    return;
+  }
+  // 로딩 안내
+  win.document.write(`
+    <html><head><title>PDF 생성 중...</title></head>
+    <body style="font-family: 'Pretendard', sans-serif; padding: 40px; color: #333; text-align: center;">
+      <h2 style="color: #1B2A4A;">PDF 생성 중...</h2>
+      <p style="color: #666;">서버에서 변경부과 PDF 를 생성하고 있습니다. 잠시만 기다려주세요.</p>
+    </body></html>
+  `);
+
+  try {
+    const blob = await buildCasePdf([item], staff, opts);
+    const url = URL.createObjectURL(blob);
+    win.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    console.error('PDF 미리보기 실패', err);
+    win.document.body.innerHTML = `
+      <div style="font-family: sans-serif; padding: 40px; color: #c20a0a;">
+        <h2>PDF 생성 실패</h2>
+        <pre>${(err as Error)?.message ?? String(err)}</pre>
+      </div>
+    `;
+  }
+}
+
+/* ────────────────── 폴더/파일명 ────────────────── */
+
+function folderNameForCompany(item: PenaltyWorkItem): string {
+  // 미매칭은 별도 폴더로 분리 — 사용자가 일목요연하게 "이거 매칭 필요" 파악
+  if (!item._company) return '00_회사명없음';
+  return `${item._company.code}_${safeName(item._company.name, '회사명없음')}`;
+}
+
+/** 한 건 PDF 파일명: 차량번호_임차인_부과기관_위반일자.pdf */
+function fileNameForItem(item: PenaltyWorkItem): string {
+  const car = safeName(item.car_number, '차량미정');
+  const tenant = safeName(item._contract?.contractor_name, '임차인미매칭');
+  const issuer = safeName(item.issuer, '발급기관미정');
+  const violDate = dateOnly(item.date) || '날짜미정';
+  return `${car}_${tenant}_${issuer}_${violDate}.pdf`;
+}
+
+/** 묶음 파일명 — 1건이면 단일 파일명, N>1 이면 첫 차량 + 외 N-1건 */
+function bundleFileName(items: PenaltyWorkItem[]): string {
+  if (items.length === 1) return fileNameForItem(items[0]);
+
+  const firstCar = safeName(items[0].car_number, '차량미정');
+  const issuer = safeName(items[0].issuer, '발급기관미정');
+  const today = new Date().toISOString().slice(0, 10);
+  return `${issuer}_${firstCar}외${items.length - 1}건_${today}.pdf`;
+}
+
+/* ────────────────── zip 다운로드 ────────────────── */
+
+/**
+ * 그룹 키 — 같은 (회사 × 발급기관) 단위로 묶음 PDF 1개씩.
+ * 회사 매칭 안된 케이스는 "NOCOMP" 키 → "00_회사명없음" 폴더로 분류.
+ */
+function groupKey(item: PenaltyWorkItem): string {
+  const company = item._company?.code ?? 'NOCOMP';
+  const issuer = item.issuer ?? 'unknown';
+  return `${company}__${issuer}`;
+}
+
+export async function downloadPenaltyZip(
+  items: PenaltyWorkItem[],
+  staff: IssueContext['staff'],
+  opts?: Parameters<typeof buildContext>[2] & {
+    onProgress?: (done: number, total: number) => void;
+  },
 ): Promise<void> {
   if (items.length === 0) return;
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const total = items.length;
+  const { default: JSZip } = await import('jszip');
+  const zip = new JSZip();
 
-  for (let i = 0; i < total; i++) {
-    appendPenaltySection(doc, items[i], i === 0);
-    onProgress?.(i + 1, total);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const rootFolder = zip.folder(todayStr);
+  if (!rootFolder) return;
+
+  // 모든 항목 → (회사 × 발급기관) 단위 그룹핑.
+  // 미매칭 (회사 없음) 도 PDF 생성. "회사명없음" placeholder 로 표기되고
+  // "00_회사명없음" 폴더로 분류 → 사용자가 나중에 매칭 후 재생성.
+  const groups = new Map<string, PenaltyWorkItem[]>();
+  for (const item of items) {
+    const key = groupKey(item);
+    const arr = groups.get(key) ?? [];
+    arr.push(item);
+    groups.set(key, arr);
   }
 
-  const blob = doc.output('blob');
+  let done = 0;
+  const total = groups.size;
+
+  for (const [, groupItems] of groups) {
+    const compFolder = rootFolder.folder(folderNameForCompany(groupItems[0]));
+    if (!compFolder) continue;
+
+    const merged = await buildCasePdf(groupItems, staff, opts);
+    compFolder.file(bundleFileName(groupItems), merged);
+
+    done++;
+    opts?.onProgress?.(done, total);
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const today = new Date().toISOString().slice(0, 10);
-  a.download = `과태료_변경부과_${today}_${total}건.pdf`;
+  a.download = `과태료_변경부과_${todayStr}_${items.length}건.zip`;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+/* ────────────────── 하위 호환 ────────────────── */
+
+/** @deprecated downloadPenaltyZip 사용 */
+export async function downloadPenaltyMergedPdf(
+  items: PenaltyWorkItem[],
+  staff?: IssueContext['staff'],
+): Promise<void> {
+  if (!staff) {
+    throw new Error('downloadPenaltyMergedPdf: staff 인자 필요');
+  }
+  return downloadPenaltyZip(items, staff);
 }

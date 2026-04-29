@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>과태료 변경부과 — 공문 / 사실확인서 샘플</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --text: #111;
+    --sub: #4b5563;
+    --weak: #6b7280;
+    --muted: #9ca3af;
+    --border: #c4c4c4;
+    --border-soft: #e5e7eb;
+    --stripe: #f7f8fa;
+    --navy: #1B2A4A;
+    --stamp: #C72020;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #ECEEF1;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    padding: 12px 24px;
+    background: #1f2937; color: #fff;
+    font-size: 13px;
+    display: flex; gap: 24px; align-items: center;
+  }
+  .toolbar a { color: #93c5fd; text-decoration: none; }
+  .toolbar a:hover { text-decoration: underline; }
+
+  .page {
+    width: 794px;
+    min-height: 1123px;
+    margin: 24px auto;
+    padding: 56px 64px 96px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    position: relative;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .page-tag {
+    position: absolute; top: 14px; right: 18px;
+    font-size: 10px; color: var(--muted);
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    letter-spacing: 0.06em;
+  }
+  /* 페이지 번호 (1/2, 2/2) — 우측 상단, 본문 영역 안쪽 */
+  .page-no {
+    position: absolute; top: 56px; right: 64px;
+    font-size: 11px; color: var(--weak);
+    letter-spacing: 0.12em;
+    font-family: 'Consolas', monospace;
+  }
+  /* "다음 장 계속" / "앞 장에서 계속" 마커 */
+  .cont-marker {
+    text-align: center;
+    font-size: 11px;
+    color: var(--weak);
+    letter-spacing: 0.16em;
+    margin: 14px 0;
+  }
+
+  /* ── 상단: 회사명만 가운데 큰 글씨 ── */
+  .doc-head {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .doc-head .org-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    line-height: 1.1;
+  }
+
+  /* 메타 (수신/(경유)/제목) — 라벨은 자간 넓게, 콜론 형태 */
+  .meta-block {
+    margin: 0 0 18px;
+    padding: 4px 0 8px;
+  }
+  .meta-block .row {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    padding: 5px 0;
+    font-size: 13.5px;
+    align-items: baseline;
+  }
+  .meta-block .k {
+    color: var(--text);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .meta-block .row.title {
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 9px;
+  }
+  .meta-block .row.title .v { font-weight: 600; }
+
+  /* 박스 표 */
+  table.box {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+  table.box th, table.box td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    vertical-align: middle;
+  }
+  table.box th {
+    background: var(--stripe);
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    font-size: 12px;
+  }
+  table.box td.label {
+    background: var(--stripe);
+    font-weight: 500;
+    color: var(--sub);
+    text-align: center;
+    width: 120px;
+  }
+  table.box td.empty { color: var(--muted); }
+  table.box td.req::before {
+    content: '* ';
+    color: var(--stamp);
+  }
+  table.box .num-col { text-align: center; width: 32px; color: var(--weak); }
+
+  /* 본문 단락 */
+  .body p { margin: 0 0 8px; line-height: 1.85; }
+  .body .ind { padding-left: 14px; }
+
+  .arrow { text-align: center; color: var(--text); font-weight: 600; margin: 18px 0 12px; letter-spacing: 0.4em; font-size: 12px; }
+
+  /* 표 위 건수 캡션 */
+  .table-caption {
+    text-align: right;
+    font-size: 12px;
+    color: var(--sub);
+    margin: 4px 2px 6px;
+  }
+  .table-caption strong { color: var(--navy); font-weight: 700; margin: 0 2px; }
+
+  .attach {
+    margin-top: 18px;
+    padding: 10px 14px;
+    background: var(--stripe);
+    border-left: 3px solid var(--text);
+    font-size: 12.5px;
+  }
+  .attach strong { font-weight: 600; margin-right: 8px; }
+
+  .pledge {
+    margin: 24px 0 0;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    background: var(--stripe);
+    line-height: 1.85;
+    font-size: 12.5px;
+  }
+  .pledge .em { color: var(--navy); font-weight: 600; }
+
+  /* 전자계약 발급근거 — 확인서 신뢰성 주석 */
+  .evidence {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-left: 3px solid var(--navy);
+    background: #fafbfc;
+    font-size: 11.5px;
+    color: var(--sub);
+    line-height: 1.7;
+  }
+  .evidence-row { display: flex; gap: 14px; align-items: baseline; }
+  .evidence-row .k {
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    min-width: 80px;
+  }
+  .evidence-row .weak { color: var(--weak); }
+
+  /* ── 사실확인서 전용 트렌디 톤 ── */
+  /* 상단 헤더 */
+  .conf-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 30px;
+  }
+  .conf-head .brand {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .conf-head .meta {
+    text-align: right;
+    font-family: 'Consolas', monospace;
+    font-size: 10.5px;
+    color: var(--weak);
+    line-height: 1.5;
+  }
+  .conf-head .meta .id { color: var(--sub); }
+
+  /* 큰 타이틀 + 서브 */
+  .conf-title {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: var(--text);
+  }
+  .conf-subtitle {
+    font-size: 12px;
+    color: var(--weak);
+    margin-bottom: 8px;
+  }
+
+  /* 정보 섹션 — 좌측 막대 헤드 + 모던 표 */
+  .info-section { margin-top: 22px; }
+  .info-section .head {
+    font-size: 10.5px;
+    color: var(--weak);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-left: 10px;
+    border-left: 3px solid var(--navy);
+    line-height: 1.2;
+  }
+  /* 모던 KV 표 — 라벨/값/라벨/값 2-페어 */
+  table.kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 1px solid var(--navy);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  table.kv-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+    line-height: 1.5;
+  }
+  table.kv-table tr:last-child td { border-bottom: none; }
+  table.kv-table td.k {
+    background: #fafbfc;
+    color: var(--weak);
+    font-size: 11.5px;
+    font-weight: 500;
+    width: 110px;
+    letter-spacing: 0.02em;
+  }
+  table.kv-table td.v.mono {
+    font-family: 'Consolas', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+  }
+  /* 핵심 식별 필드 — 외부 검증부서(경찰서·보험사 등) 가 우선 대조 */
+  table.kv-table td.v.key {
+    color: var(--navy);
+    font-weight: 700;
+  }
+
+  /* 차량번호 알약 */
+  .car-pill {
+    display: inline-block;
+    background: #eef2f8;
+    color: var(--navy);
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
+  /* 작은 태그 (개인/법인 / 장기렌트 등) */
+  .tag {
+    display: inline-block;
+    background: var(--stripe);
+    color: var(--sub);
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .tag.navy { background: var(--navy); color: #fff; }
+
+  /* 계약기간 타임라인 */
+  .period-timeline {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    margin-top: 18px;
+    padding: 0 4px;
+    position: relative;
+  }
+  .period-timeline .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--navy);
+    flex: 0 0 9px;
+  }
+  .period-timeline .date {
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'Consolas', monospace;
+    letter-spacing: 0.02em;
+  }
+  .period-timeline .line {
+    flex: 1;
+    height: 1px;
+    background: var(--navy);
+    opacity: 0.3;
+    position: relative;
+  }
+  .period-timeline .span-label {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    padding: 0 12px;
+    font-size: 11px;
+    color: var(--sub);
+    white-space: nowrap;
+  }
+
+  /* 발신명의 — 가운데 큰 글씨 + 직인 슬롯 */
+  .sender-name {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 36px 0 26px;
+    color: var(--text);
+  }
+
+  /* 페이지 footer — 하단 고정. 3줄: 문서번호 / 담당부서 / 회사정보 */
+  .page-footer {
+    position: absolute;
+    left: 64px; right: 64px;
+    bottom: 36px;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 10px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.75;
+    letter-spacing: 0.01em;
+  }
+  .page-footer .row {
+    display: flex;
+    gap: 16px;
+  }
+  .page-footer .k {
+    color: var(--weak);
+    letter-spacing: 0.2em;
+    margin-right: 8px;
+  }
+  .page-footer .sep {
+    color: var(--muted);
+    margin: 0 8px;
+  }
+
+  /* 확인서 전용 — 임차인 / 임대인 양 당사자.
+     자연 흐름. footer (절대위치) 와 안 겹치게 margin-bottom 으로 공간 확보 */
+  .signoff {
+    margin-top: 40px;
+    margin-bottom: 100px;
+    text-align: center;
+  }
+  .signoff .date {
+    font-size: 15px;
+    margin-bottom: 26px;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .signoff .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 32px;
+    text-align: left;
+  }
+  .party .role {
+    font-size: 11px;
+    color: var(--weak);
+    margin-bottom: 6px;
+  }
+  .party .name-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .party .name {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  /* 사각 직인 (확인서 임차인 가짜 사인용 fallback) */
+  .stamp {
+    width: 64px; height: 64px; flex: 0 0 64px;
+    background: #fff;
+    border: 2px solid var(--stamp);
+    color: var(--stamp);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.05;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    box-shadow: inset 0 0 0 2.5px #fff, inset 0 0 0 3.5px var(--stamp);
+    transform: rotate(-3deg);
+  }
+  .stamp.lg { width: 72px; height: 72px; flex: 0 0 72px; font-size: 12.5px; }
+
+  /* 직인 슬롯 — 공문/확인서 공통.
+     · seal-png 의 src 가 있고 로드되면 → 누끼딴 PNG 도장 표시
+     · src 없거나 빈 값이면 → 자동으로 "(직인생략)" 라벨 표시 */
+  .seal-slot {
+    display: inline-flex; align-items: center; justify-content: center;
+    vertical-align: middle;
+    margin-left: 12px;
+    letter-spacing: normal;
+  }
+  .seal-slot .seal-png {
+    width: 80px; height: 80px;
+    object-fit: contain;
+    transform: rotate(-4deg);
+  }
+  .seal-slot .seal-png:not([src]),
+  .seal-slot .seal-png[src=""] { display: none; }
+  .seal-slot .seal-fallback {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--weak);
+    letter-spacing: 0.04em;
+    border: 1px solid var(--border);
+    padding: 3px 9px;
+    border-radius: 2px;
+  }
+  /* PNG 가 실제로 들어가면 fallback 라벨 숨김 */
+  .seal-slot:has(.seal-png[src]:not([src=""])) .seal-fallback { display: none; }
+
+  /* 임차인 사인 */
+  .sign-box {
+    width: 130px; height: 50px;
+    border-bottom: 1.5px solid var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 600; color: var(--text);
+    transform: rotate(-3deg);
+  }
+
+  /* ── 과태료 고지서 mock (인천경찰서 발행) ── */
+  .notice-page {
+    background: #fdfcf8;  /* 약간 누런 종이톤 */
+    padding: 0;
+  }
+  .notice-page .scan-mark {
+    position: absolute;
+    top: 14px; left: 18px;
+    font-size: 10px;
+    color: #9ca3af;
+    font-family: 'Consolas', monospace;
+    letter-spacing: 0.06em;
+  }
+  .notice-page .scan-mark::before { content: '◳ '; opacity: 0.5; }
+  .notice-inner {
+    padding: 60px 60px 40px;
+    border: 2px solid #2c2c2c;
+    margin: 24px;
+    background: #fff;
+    position: relative;
+  }
+  .notice-h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: 0.04em;
+    color: #1a1a1a;
+  }
+  .notice-issuer {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 18px;
+    letter-spacing: 0.06em;
+  }
+  .notice-no {
+    text-align: right;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 8px;
+  }
+  table.notice-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  table.notice-table th, table.notice-table td {
+    border: 1px solid #888;
+    padding: 9px 12px;
+    vertical-align: middle;
+    line-height: 1.5;
+  }
+  table.notice-table th {
+    background: #ededed;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-align: center;
+    width: 110px;
+    font-size: 12px;
+  }
+  table.notice-table td.amount {
+    background: #fef9e7;
+    font-weight: 700;
+    color: #c00;
+    font-size: 16px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .notice-photo {
+    margin: 18px 0;
+    border: 1px solid #888;
+    background: repeating-linear-gradient(45deg, #f5f5f5 0 8px, #efefef 8px 16px);
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 12px;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .notice-photo .ph-icon { font-size: 32px; opacity: 0.4; }
+  .notice-photo .ph-meta {
+    font-family: 'Consolas', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.04em;
+  }
+  .notice-payment {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid #888;
+    background: #fafafa;
+    font-size: 12px;
+  }
+  .notice-payment strong {
+    display: block;
+    font-size: 12.5px;
+    margin-bottom: 4px;
+    color: #1a1a1a;
+  }
+  .notice-payment .acct {
+    font-family: 'Consolas', monospace;
+    color: var(--navy);
+    font-weight: 700;
+  }
+  .notice-stamp-area {
+    margin-top: 22px;
+    text-align: right;
+    font-size: 13px;
+  }
+  .notice-stamp-area .name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-right: 14px;
+    letter-spacing: 0.02em;
+  }
+  .notice-stamp-circle {
+    display: inline-block;
+    vertical-align: middle;
+    width: 60px; height: 60px;
+    border: 2px solid #c20a0a;
+    border-radius: 50%;
+    color: #c20a0a;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    padding-top: 18px;
+    box-sizing: border-box;
+    transform: rotate(-6deg);
+    letter-spacing: 0.02em;
+  }
+  .notice-foot {
+    margin-top: 18px;
+    font-size: 10.5px;
+    color: #555;
+    line-height: 1.6;
+  }
+  .notice-foot .label { color: #1a1a1a; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <strong>샘플 미리보기</strong>
+  <a href="#official">요청 공문 (3건)</a>
+  <a href="#official-multi-1">요청 공문 (20건, 2장 분할)</a>
+  <a href="#confirmation">사실확인서 (건별)</a>
+  <a href="#notice">과태료 고지서 (건별)</a>
+  <span style="color: #9ca3af;">
+    — N건 묶음 PDF 구조:&nbsp;
+    <strong style="color:#fff;">공문 1~K장</strong> →
+    <strong style="color:#fff;">[확인서ᵢ + 고지서ᵢ]</strong> 1:1 페어 × N건
+    &nbsp;|&nbsp; 예) 20건 → 공문 2장 + (확인서·고지서) × 20쌍 = <strong style="color:#fff;">총 42장</strong>
+    &nbsp;|&nbsp; footer 매 페이지 하단 반복.
+  </span>
+</div>
+
+<!-- ════════════════════════ 요청 공문 (행정안전부 / 서울시 표준 양식) ════════════════════════
+     1건이든 N건이든 동일 양식. 표 길어지면 자동으로 다음 장.
+     발송일자/문서번호는 하단 footer "시행 [부서-연도-번호] (시행일)" 에만 표기.
+     담당자(부서/이름/전화/팩스/메일)는 공문 생성 사용자 staff 레코드에서 자동 반영. -->
+
+<div class="page" id="official">
+
+  <!-- 상단: 회사명만 가운데 큰 글씨 -->
+  <div class="doc-head">
+    <div class="org-name">제이피케이모빌리티</div>
+  </div>
+
+  <!-- 수신 / 제목 ((경유)는 기업 공문에는 불필요) -->
+  <div class="meta-block">
+    <div class="row"><div class="k">수신</div><div class="v">인천경찰서장</div></div>
+    <div class="row title"><div class="k">제목</div><div class="v">과태료(범칙금) 변경부과 요청 (3건)</div></div>
+  </div>
+
+  <!-- 본문 -->
+  <div class="body">
+    <p>1. 귀 기관의 무궁한 발전을 기원하며, 평소 교통 업무 처리에 노고가 많으심에 깊은 감사를 드립니다.</p>
+    <p>2. 귀 기관에서 당사에 부과한 과태료 고지서를 확인한 결과, 위반 당시 해당 차량은 자동차 임대차 계약에 따라 임차인이 직접 인수하여 운행 중이었던 것으로 확인되었습니다.</p>
+    <p>3. 이에 실제 위반 주체인 임차인에게 과태료가 부과될 수 있도록 관련 증빙 서류를 제출하오니, 확인 후 재부과 조치하여 주시기 바랍니다.</p>
+  </div>
+
+  <div class="arrow">- 아 래 -</div>
+
+  <!-- 표 위 건수 표시 -->
+  <div class="table-caption">총 <strong>3건</strong></div>
+
+  <!-- 위반사항 + 임차인 통합 표 -->
+  <table class="box">
+    <colgroup>
+      <col style="width:30px">
+      <col style="width:74px">
+      <col style="width:64px">
+      <col style="width:80px">
+      <col style="width:108px">
+      <col style="width:80px">
+      <col>
+      <col style="width:72px">
+    </colgroup>
+    <tr>
+      <th>No</th>
+      <th>차량번호</th>
+      <th>임차인</th>
+      <th>계약시작</th>
+      <th style="background:#eef1f7;">위반일시</th>
+      <th>계약종료</th>
+      <th>위반내용</th>
+      <th>금액(원)</th>
+    </tr>
+    <tr>
+      <td class="num-col">1</td>
+      <td>36호0420</td>
+      <td>최준서</td>
+      <td>2023.08.18</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.01.15<br><span style="font-size:11px;font-weight:600;">14:32</span></td>
+      <td>2027.08.17</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 청라하늘대교 영업소</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">4,500</td>
+    </tr>
+    <tr>
+      <td class="num-col">2</td>
+      <td>193우6312</td>
+      <td>김영희</td>
+      <td>2025.01.15</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.01.22<br><span style="font-size:11px;font-weight:600;">09:18</span></td>
+      <td>2027.01.14</td>
+      <td>속도위반 (20km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 송도IC</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">3</td>
+      <td>197너8600</td>
+      <td>박철수</td>
+      <td>2024.05.10</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.03<br><span style="font-size:11px;font-weight:600;">18:42</span></td>
+      <td>2027.05.09</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 부평구 부일로 256</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+  </table>
+
+  <div class="attach">
+    <strong>붙임</strong> 1. 건별 임대차계약 사실확인서 3부.&nbsp;&nbsp;
+    2. 건별 과태료 고지서 사본 3부.&nbsp;&nbsp;끝.
+  </div>
+
+  <!-- 발신명의: 회사명 + 직인 슬롯. PNG 없으면 자동으로 (직인생략) 표시 -->
+  <div class="sender-name">
+    제이피케이모빌리티 주식회사
+    <span class="seal-slot">
+      <img class="seal-png" src="" alt="">
+      <span class="seal-fallback">[전자직인]</span>
+    </span>
+  </div>
+
+  <!-- 페이지 footer — 3줄 (기업 공문 어휘)
+       1) 문서번호 + 발송일
+       2) 담당부서 + 담당자 + 전화 + 팩스 + 메일
+       3) 본사 주소 + 홈페이지 -->
+  <div class="page-footer">
+    <div class="row">
+      <div class="left">
+        <span class="k">문서번호</span>총무팀-2026-00027
+        <span class="sep">/</span>
+        <span class="k">발송일</span>2026. 4. 29.
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">담당부서</span>경영지원본부 총무팀
+        <span class="sep">/</span>
+        <span class="k">담당자</span>박영협 과장
+        <span class="sep">/</span>
+        <span class="k">전화</span>02-1234-5678
+        <span class="sep">/</span>
+        <span class="k">팩스</span>02-1234-5679
+        <span class="sep">/</span>
+        pyh@jpkmobility.com
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">본사</span>서울특별시 강남구 테헤란로 123, 5층 (역삼동, JPK빌딩)
+        <span class="sep">/</span>
+        https://jpkmobility.com
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ 요청 공문 (20건, 2페이지 분할 샘플) ════════════════════════
+     표 행이 많아 1페이지에 다 안 들어갈 때 자동으로 다음 장 넘어가는 케이스.
+     페이지 1: 표 header + rows 1~13 + "(다음 장 계속)" + footer
+     페이지 2: 표 header(반복) + rows 14~20 + 붙임 + 발신명의 + footer
+     공문 본문(수신/제목/아래 등)은 페이지 1에만 출력. -->
+
+<!-- ─────── 페이지 1 / 2 ─────── -->
+<div class="page" id="official-multi-1">
+  <div class="page-no">1 / 2</div>
+
+  <div class="doc-head">
+    <div class="org-name">제이피케이모빌리티</div>
+  </div>
+
+  <div class="meta-block">
+    <div class="row"><div class="k">수신</div><div class="v">인천경찰서장</div></div>
+    <div class="row title"><div class="k">제목</div><div class="v">과태료(범칙금) 변경부과 요청 (20건)</div></div>
+  </div>
+
+  <div class="body">
+    <p>1. 귀 기관의 무궁한 발전을 기원하며, 평소 교통 업무 처리에 노고가 많으심에 깊은 감사를 드립니다.</p>
+    <p>2. 귀 기관에서 당사에 부과한 과태료 고지서를 확인한 결과, 위반 당시 해당 차량은 자동차 임대차 계약에 따라 임차인이 직접 인수하여 운행 중이었던 것으로 확인되었습니다.</p>
+    <p>3. 이에 실제 위반 주체인 임차인에게 과태료가 부과될 수 있도록 관련 증빙 서류를 제출하오니, 확인 후 재부과 조치하여 주시기 바랍니다.</p>
+  </div>
+
+  <div class="arrow">- 아 래 -</div>
+
+  <div class="table-caption">총 <strong>20건</strong></div>
+
+  <table class="box">
+    <colgroup>
+      <col style="width:30px"><col style="width:74px"><col style="width:64px">
+      <col style="width:80px"><col style="width:108px"><col style="width:80px">
+      <col><col style="width:72px">
+    </colgroup>
+    <tr>
+      <th>No</th><th>차량번호</th><th>임차인</th>
+      <th>계약시작</th><th style="background:#eef1f7;">위반일시</th><th>계약종료</th>
+      <th>위반내용</th><th>금액(원)</th>
+    </tr>
+    <tr>
+      <td class="num-col">1</td><td>36호0420</td><td>최준서</td>
+      <td>2023.08.18</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.01.15<br><span style="font-size:11px;font-weight:600;">14:32</span></td>
+      <td>2027.08.17</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 청라하늘대교 영업소</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">4,500</td>
+    </tr>
+    <tr>
+      <td class="num-col">2</td><td>193우6312</td><td>김영희</td>
+      <td>2025.01.15</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.01.22<br><span style="font-size:11px;font-weight:600;">09:18</span></td>
+      <td>2027.01.14</td>
+      <td>속도위반 (20km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 송도IC</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">3</td><td>197너8600</td><td>박철수</td>
+      <td>2024.05.10</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.03<br><span style="font-size:11px;font-weight:600;">18:42</span></td>
+      <td>2027.05.09</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 부평구 부일로 256</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">4</td><td>24마3091</td><td>이지은</td>
+      <td>2024.11.05</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.08<br><span style="font-size:11px;font-weight:600;">11:15</span></td>
+      <td>2026.11.04</td>
+      <td>신호위반<br><span style="font-size:11px;color:var(--weak);">인천 남동구 구월동 1234</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">60,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">5</td><td>84호5234</td><td>정민호</td>
+      <td>2023.06.20</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.12<br><span style="font-size:11px;font-weight:600;">22:30</span></td>
+      <td>2026.06.19</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 영종대교</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">5,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">6</td><td>142우7891</td><td>강서연</td>
+      <td>2025.03.18</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.14<br><span style="font-size:11px;font-weight:600;">07:45</span></td>
+      <td>2027.03.17</td>
+      <td>속도위반 (20km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 연수구 동춘동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">7</td><td>188다1023</td><td>한승우</td>
+      <td>2024.07.30</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.20<br><span style="font-size:11px;font-weight:600;">13:50</span></td>
+      <td>2026.07.29</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 미추홀구 주안로 88</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">8</td><td>56호4567</td><td>윤재희</td>
+      <td>2024.02.10</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.02.25<br><span style="font-size:11px;font-weight:600;">16:20</span></td>
+      <td>2027.02.09</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 인천대교</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">4,500</td>
+    </tr>
+    <tr>
+      <td class="num-col">9</td><td>217서3344</td><td>임도훈</td>
+      <td>2025.06.01</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.02<br><span style="font-size:11px;font-weight:600;">10:08</span></td>
+      <td>2027.05.31</td>
+      <td>신호위반<br><span style="font-size:11px;color:var(--weak);">인천 서구 청라동 12</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">70,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">10</td><td>33가2299</td><td>송예린</td>
+      <td>2024.09.14</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.05<br><span style="font-size:11px;font-weight:600;">19:33</span></td>
+      <td>2026.09.13</td>
+      <td>속도위반 (40km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 중구 신포로 22</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">80,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">11</td><td>109루6543</td><td>조태현</td>
+      <td>2025.04.22</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.10<br><span style="font-size:11px;font-weight:600;">08:55</span></td>
+      <td>2027.04.21</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 부평구 부평동 99</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">12</td><td>204배1100</td><td>장하늘</td>
+      <td>2024.10.08</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.15<br><span style="font-size:11px;font-weight:600;">14:10</span></td>
+      <td>2026.10.07</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 청라하늘대교</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">4,500</td>
+    </tr>
+    <tr>
+      <td class="num-col">13</td><td>78호9988</td><td>권민지</td>
+      <td>2023.12.15</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.18<br><span style="font-size:11px;font-weight:600;">21:42</span></td>
+      <td>2025.12.14</td>
+      <td>신호위반<br><span style="font-size:11px;color:var(--weak);">인천 계양구 계산동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">60,000</td>
+    </tr>
+  </table>
+
+  <div class="cont-marker">— 다음 장에 계속 —</div>
+
+  <!-- 페이지 1 footer (3줄, 매 페이지 동일하게 들어감) -->
+  <div class="page-footer">
+    <div class="row">
+      <div class="left">
+        <span class="k">문서번호</span>총무팀-2026-00027
+        <span class="sep">/</span>
+        <span class="k">발송일</span>2026. 4. 29.
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">담당부서</span>경영지원본부 총무팀
+        <span class="sep">/</span>
+        <span class="k">담당자</span>박영협 과장
+        <span class="sep">/</span>
+        <span class="k">전화</span>02-1234-5678
+        <span class="sep">/</span>
+        <span class="k">팩스</span>02-1234-5679
+        <span class="sep">/</span>
+        pyh@jpkmobility.com
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">본사</span>서울특별시 강남구 테헤란로 123, 5층 (역삼동, JPK빌딩)
+        <span class="sep">/</span>
+        https://jpkmobility.com
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────── 페이지 2 / 2 ─────── -->
+<div class="page" id="official-multi-2">
+  <div class="page-no">2 / 2</div>
+
+  <div class="cont-marker" style="margin-top: 0;">— 앞 장에서 계속 —</div>
+
+  <table class="box" style="margin-top: 8px;">
+    <colgroup>
+      <col style="width:30px"><col style="width:74px"><col style="width:64px">
+      <col style="width:80px"><col style="width:108px"><col style="width:80px">
+      <col><col style="width:72px">
+    </colgroup>
+    <tr>
+      <th>No</th><th>차량번호</th><th>임차인</th>
+      <th>계약시작</th><th style="background:#eef1f7;">위반일시</th><th>계약종료</th>
+      <th>위반내용</th><th>금액(원)</th>
+    </tr>
+    <tr>
+      <td class="num-col">14</td><td>165어7766</td><td>백지호</td>
+      <td>2025.02.20</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.22<br><span style="font-size:11px;font-weight:600;">06:30</span></td>
+      <td>2027.02.19</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 동구 송림동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">15</td><td>91호3344</td><td>류서영</td>
+      <td>2024.01.05</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.03.28<br><span style="font-size:11px;font-weight:600;">17:55</span></td>
+      <td>2027.01.04</td>
+      <td>속도위반 (20km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 남동구 만수동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">16</td><td>232바5566</td><td>노은서</td>
+      <td>2025.05.18</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.04.02<br><span style="font-size:11px;font-weight:600;">12:18</span></td>
+      <td>2027.05.17</td>
+      <td>통행료 미납<br><span style="font-size:11px;color:var(--weak);">인천 영종대교</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">4,500</td>
+    </tr>
+    <tr>
+      <td class="num-col">17</td><td>47호1122</td><td>황건우</td>
+      <td>2024.04.30</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.04.05<br><span style="font-size:11px;font-weight:600;">09:40</span></td>
+      <td>2026.04.29</td>
+      <td>신호위반<br><span style="font-size:11px;color:var(--weak);">인천 서구 가좌동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">60,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">18</td><td>178가4455</td><td>오시현</td>
+      <td>2025.07.10</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.04.10<br><span style="font-size:11px;font-weight:600;">23:05</span></td>
+      <td>2027.07.09</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 미추홀구 학익동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">19</td><td>64호8899</td><td>신유진</td>
+      <td>2023.11.22</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.04.14<br><span style="font-size:11px;font-weight:600;">15:48</span></td>
+      <td>2025.11.21</td>
+      <td>속도위반 (20km/h 초과)<br><span style="font-size:11px;color:var(--weak);">인천 송도IC</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+    <tr>
+      <td class="num-col">20</td><td>119너2200</td><td>문재준</td>
+      <td>2024.08.16</td>
+      <td style="text-align:center;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;">2026.04.18<br><span style="font-size:11px;font-weight:600;">11:25</span></td>
+      <td>2026.08.15</td>
+      <td>주정차 위반<br><span style="font-size:11px;color:var(--weak);">인천 연수구 송도동</span></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">40,000</td>
+    </tr>
+  </table>
+
+  <div class="attach">
+    <strong>붙임</strong> 1. 건별 임대차계약 사실확인서 20부.&nbsp;&nbsp;
+    2. 건별 과태료 고지서 사본 20부.&nbsp;&nbsp;끝.
+  </div>
+
+  <div class="sender-name">
+    제이피케이모빌리티 주식회사
+    <span class="seal-slot">
+      <img class="seal-png" src="" alt="">
+      <span class="seal-fallback">[전자직인]</span>
+    </span>
+  </div>
+
+  <!-- 페이지 2 footer (페이지 1과 동일) -->
+  <div class="page-footer">
+    <div class="row">
+      <div class="left">
+        <span class="k">문서번호</span>총무팀-2026-00027
+        <span class="sep">/</span>
+        <span class="k">발송일</span>2026. 4. 29.
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">담당부서</span>경영지원본부 총무팀
+        <span class="sep">/</span>
+        <span class="k">담당자</span>박영협 과장
+        <span class="sep">/</span>
+        <span class="k">전화</span>02-1234-5678
+        <span class="sep">/</span>
+        <span class="k">팩스</span>02-1234-5679
+        <span class="sep">/</span>
+        pyh@jpkmobility.com
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">본사</span>서울특별시 강남구 테헤란로 123, 5층 (역삼동, JPK빌딩)
+        <span class="sep">/</span>
+        https://jpkmobility.com
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ 사실확인서 ════════════════════════ -->
+
+<div class="page" id="confirmation">
+
+  <!-- 상단: 회사명만. 발급일·문서번호는 하단 footer 로 -->
+  <div class="conf-head">
+    <div class="brand">제이피케이모빌리티 주식회사</div>
+  </div>
+
+  <h1 class="conf-title">자동차 임대차 계약 사실 확인서</h1>
+  <div class="conf-subtitle">VEHICLE LEASE AGREEMENT CONFIRMATION</div>
+
+  <!-- 임차인 정보 -->
+  <div class="info-section">
+    <div class="head">임차인</div>
+    <table class="kv-table">
+      <colgroup><col style="width:110px"><col><col style="width:110px"><col></colgroup>
+      <tr>
+        <td class="k">성명</td><td class="v">최준서 <span class="tag">개인</span></td>
+        <td class="k">연락처</td><td class="v mono">010-2165-2017</td>
+      </tr>
+      <tr>
+        <td class="k">주민등록번호</td><td class="v mono">020627-3252517</td>
+        <td class="k">면허번호</td><td class="v mono">15-20-018805-72</td>
+      </tr>
+      <tr>
+        <td class="k">주소</td><td class="v" colspan="3">충청북도 청주시 상당구 영운천로 201번길 15, 203호 (용정동)</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 계약 차량 — 경찰서·보험사 등 외부 식별·대조용. 자동차등록증 항목 기준 -->
+  <div class="info-section">
+    <div class="head">계약 차량</div>
+    <table class="kv-table">
+      <colgroup><col style="width:110px"><col><col style="width:110px"><col></colgroup>
+      <tr>
+        <td class="k">자동차등록번호</td><td class="v mono">36호0420</td>
+        <td class="k">제조사</td><td class="v">기아</td>
+      </tr>
+      <tr>
+        <td class="k">차명</td><td class="v" colspan="3">올 뉴 K3 1.6 가솔린 럭셔리 A/T</td>
+      </tr>
+      <tr>
+        <td class="k">차대번호</td><td class="v mono">KNAFK4A66P5123456</td>
+        <td class="k">연식</td><td class="v mono">2023년형</td>
+      </tr>
+      <tr>
+        <td class="k">색상</td><td class="v">스노우 화이트 펄</td>
+        <td class="k">사용연료</td><td class="v">가솔린</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 계약 기간 -->
+  <div class="info-section">
+    <div class="head">계약 기간</div>
+    <table class="kv-table">
+      <colgroup><col style="width:110px"><col><col style="width:110px"><col></colgroup>
+      <tr>
+        <td class="k">시작일</td><td class="v mono">2023. 8. 18.</td>
+        <td class="k">종료일</td><td class="v mono">2027. 8. 17.</td>
+      </tr>
+      <tr>
+        <td class="k">계약유형</td><td class="v" colspan="3">장기렌트 <span class="tag">48개월</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="pledge">
+    당사는 위 임차인과 위 차량(<strong>36호0420</strong>)에 대하여 상기 계약기간(<strong>2023. 8. 18.</strong>
+    ~ <strong>2027. 8. 17.</strong>)에 걸친 자동차 임대차 계약을 체결하였으며,
+    해당 기간 중 위 차량이 임차인에게 인도되어 점유·사용되었음을
+    <span class="em">사실</span>대로 확인합니다.
+  </div>
+
+  <!-- 전자계약 발급 근거 — 확인서 신뢰성 명시 -->
+  <div class="evidence">
+    <div class="evidence-row">
+      <span class="k">발급 근거</span>
+      <span>본 확인서는 임차인의 <strong>전자서명</strong>이 포함된 자동차 임대차 전자계약을 기반으로 발급됩니다.</span>
+    </div>
+    <div class="evidence-row">
+      <span class="k">계약 체결일</span>
+      <span>2023. 8. 15.  &nbsp;<span class="weak">/  전자계약 문서번호 ELEC-CT-2023-08-15-00427</span></span>
+    </div>
+    <div class="evidence-row">
+      <span class="k">서명 · 날인</span>
+      <span>본 문서는 <strong>전자서명·전자직인</strong>으로 갈음하여 발급된 전자문서입니다.</span>
+    </div>
+  </div>
+
+  <!-- 임차인 (좌): 계약 시 받은 서명 PNG / 임대인 (우): 회사 직인 PNG.
+       PNG 없으면 자동으로 "(서명생략)" / "(직인생략)" 라벨로 떨어짐.
+       날짜는 옛날 스타일이라 제거 — 발급일/문서번호는 하단 footer 로 -->
+  <div class="signoff">
+    <div class="row">
+      <!-- 임차인 (좌) -->
+      <div class="party">
+        <div class="role">임차인 (계약자)</div>
+        <div class="name-line">
+          <span class="name">최준서</span>
+          <span class="seal-slot">
+            <img class="seal-png" src="" alt="">
+            <span class="seal-fallback">[전자서명]</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- 임대인 (우) — 임차인과 동일 패턴: 라벨이 회사명 바로 위 -->
+      <div class="party">
+        <div class="role">임대인</div>
+        <div class="name-line">
+          <span class="name">제이피케이모빌리티(주)</span>
+          <span class="seal-slot">
+            <img class="seal-png" src="" alt="">
+            <span class="seal-fallback">[전자직인]</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 페이지 footer — 공문과 동일 3줄 구조
+       1) 발급번호 + 발급일자
+       2) 확인서 문의(부서) + 담당자 + 전화 + 메일
+       3) 본사 + 홈페이지 -->
+  <div class="page-footer">
+    <div class="row">
+      <div class="left">
+        <span class="k">발급번호</span>JPK-CONF-2026-0429-001
+        <span class="sep">/</span>
+        <span class="k">발급일자</span>2026. 4. 29.
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">확인서 문의</span>경영지원본부 총무팀
+        <span class="sep">/</span>
+        <span class="k">담당자</span>박영협 과장
+        <span class="sep">/</span>
+        <span class="k">전화</span>02-1234-5678
+        <span class="sep">/</span>
+        pyh@jpkmobility.com
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <span class="k">본사</span>서울특별시 강남구 테헤란로 123, 5층 (역삼동, JPK빌딩)
+        <span class="sep">/</span>
+        https://jpkmobility.com
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ 과태료 고지서 (첨부) ════════════════════════
+     실제 인천경찰서에서 발행한 과태료 고지서 사본 mock.
+     실제 시스템에서는 OCR로 읽어들인 PDF/이미지가 그대로 첨부됨. -->
+
+<div class="page notice-page" id="notice">
+  <div class="scan-mark">SCAN · 2026-04-18</div>
+
+  <div class="notice-inner">
+    <h1 class="notice-h1">과태료 부과 고지서</h1>
+    <div class="notice-issuer">인 천 경 찰 서 장</div>
+
+    <div class="notice-no">고지서번호  CHJ-2026-0322-058914</div>
+
+    <table class="notice-table">
+      <colgroup><col style="width:110px"><col><col style="width:110px"><col></colgroup>
+      <tr>
+        <th>차량번호</th><td><strong>165어7766</strong></td>
+        <th>차종</th><td>승용</td>
+      </tr>
+      <tr>
+        <th>소유자</th><td colspan="3">제이피케이모빌리티 주식회사</td>
+      </tr>
+      <tr>
+        <th>위반일시</th><td>2026. 3. 22.  06:30</td>
+        <th>위반지점</th><td>인천 동구 송림동 (어린이보호구역)</td>
+      </tr>
+      <tr>
+        <th>위반내용</th><td colspan="3">주정차 위반 (어린이보호구역)</td>
+      </tr>
+      <tr>
+        <th>적용법조</th><td colspan="3">도로교통법 제32조 · 시행령 제93조</td>
+      </tr>
+      <tr>
+        <th>과태료</th><td class="amount">40,000원</td>
+        <th>납부기한</th><td><strong>2026. 5. 18.</strong></td>
+      </tr>
+    </table>
+
+    <!-- CCTV 위반 사진 placeholder -->
+    <div class="notice-photo">
+      <div class="ph-icon">▦</div>
+      <div>위반 단속 사진 (CCTV)</div>
+      <div class="ph-meta">CAM-INC-04223 · 2026-03-22 06:30:14</div>
+    </div>
+
+    <div class="notice-payment">
+      <strong>납부 안내</strong>
+      가상계좌  <span class="acct">국민은행 802-11-2026-0322058914</span><br>
+      또는 경찰청 교통민원24 (efine.go.kr) 에서 인터넷 납부 가능.<br>
+      기한 내 미납 시 가산금이 부과되며, 자동차 검사·등록 제한이 있을 수 있습니다.
+    </div>
+
+    <div class="notice-stamp-area">
+      <span style="color: #555; margin-right: 8px;">2026년 3월 28일</span>
+      <span class="name">인천경찰서장</span>
+      <span class="notice-stamp-circle">인천<br>경찰서장</span>
+    </div>
+
+    <div class="notice-foot">
+      <span class="label">이의신청 안내</span><br>
+      본 부과처분에 이의가 있는 경우, 고지서 수령일로부터 60일 이내에 인천경찰서 교통조사계
+      또는 행정심판위원회에 이의신청 또는 행정심판을 청구할 수 있습니다.<br>
+      <span class="label">문의</span> 인천경찰서 교통조사계  ☎ 032-455-XXXX
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

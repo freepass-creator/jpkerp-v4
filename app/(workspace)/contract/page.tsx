@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { PencilSimple, Copy, Trash, Plus } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Trash, Plus, Upload } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
 import { SAMPLE_ASSETS } from '@/lib/sample-assets';
 import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
+import { ContractUploadDialog, type RentalContractExtracted } from '@/components/contract/contract-upload-dialog';
 import { cn } from '@/lib/cn';
 
 const CONTRACT_FIELDS: FieldDef[] = [
@@ -30,6 +31,9 @@ export default function ContractListPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
+  const [uploadOpen, setUploadOpen] = useState(false);
+  /** OCR 추출 결과 — 등록 다이얼로그 미리채움용 (업로드 → 등록 다이얼로그 자동 오픈) */
+  const [registerInitial, setRegisterInitial] = useState<Record<string, string>>({});
 
   const totals = useMemo(() => {
     const totalAssets = SAMPLE_ASSETS.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
@@ -58,6 +62,40 @@ export default function ContractListPage() {
   function handleCreate(d: Record<string, string>) {
     setContracts((prev) => [fromForm(d), ...prev]);
     setRegisterOpen(false);
+    setRegisterInitial({});
+  }
+
+  /**
+   * OCR 추출 데이터 → CONTRACT_FIELDS 키 매핑.
+   * 빈 값/null 은 빼서 폼이 placeholder 보여주게.
+   */
+  function mapExtractedToForm(d: RentalContractExtracted): Record<string, string> {
+    const out: Record<string, string> = {};
+    const set = (key: string, val: unknown) => {
+      if (val === null || val === undefined || val === '') return;
+      out[key] = String(val);
+    };
+    set('plate', d.car_number);
+    set('customerName', d.contractor_name);
+    set('customerKind', d.contractor_kind);
+    set('customerPhone', d.contractor_phone);
+    set('startDate', d.start_date);
+    set('endDate', d.end_date);
+    set('monthlyAmount', d.monthly_amount);
+    set('deposit', d.deposit_total);
+    // contractNo / companyCode 는 OCR로 자동 안 잡히므로 사용자 입력 (placeholder 유지)
+    return out;
+  }
+
+  function handleExtracted(extracted: RentalContractExtracted, fileName: string) {
+    const mapped = mapExtractedToForm(extracted);
+    if (Object.keys(mapped).length === 0) {
+      alert(`${fileName} 에서 추출된 정보가 없습니다. 직접 입력해주세요.`);
+      setRegisterOpen(true);
+      return;
+    }
+    setRegisterInitial(mapped);
+    setRegisterOpen(true);
   }
 
   function handleUpdate(d: Record<string, string>) {
@@ -144,7 +182,10 @@ export default function ContractListPage() {
             <button className="btn" disabled={!selected} onClick={handleDelete}>
               <Trash size={14} weight="bold" /> 삭제
             </button>
-            <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}>
+            <button className="btn" onClick={() => setUploadOpen(true)}>
+              <Upload size={14} weight="bold" /> 계약서 업로드
+            </button>
+            <button className="btn btn-primary" onClick={() => { setRegisterInitial({}); setRegisterOpen(true); }}>
               <Plus size={14} weight="bold" /> 계약등록
             </button>
           </>
@@ -205,8 +246,11 @@ export default function ContractListPage() {
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })}
         items={selected ? buildCtxItems() : []} />
 
-      <EntityFormDialog open={registerOpen} onOpenChange={setRegisterOpen}
-        title="계약 등록" fields={CONTRACT_FIELDS} onSubmit={handleCreate} />
+      <EntityFormDialog open={registerOpen} onOpenChange={(o) => { setRegisterOpen(o); if (!o) setRegisterInitial({}); }}
+        title={Object.keys(registerInitial).length > 0 ? '계약 등록 (계약서 자동 채움)' : '계약 등록'}
+        fields={CONTRACT_FIELDS} initial={registerInitial} onSubmit={handleCreate} />
+
+      <ContractUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onExtracted={handleExtracted} />
       <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
         title="계약 수정" fields={CONTRACT_FIELDS} initial={editInitial}
         submitLabel="수정" onSubmit={handleUpdate} />
