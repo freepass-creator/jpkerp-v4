@@ -10,6 +10,9 @@ import {
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
+import { PcForm } from '@/components/journal/pc-form';
+import { IocForm } from '@/components/journal/ioc-form';
+import type { EvidenceUploaderHandle } from '@/components/journal/evidence-uploader';
 import { cn } from '@/lib/cn';
 
 /**
@@ -49,20 +52,18 @@ const FORMS: Record<JournalKind, FieldDef[]> = {
       options: ['일반문의', '컴플레인', '계약문의', '정비요청', '사고접수', '반납협의', '연장문의', '기타'], required: true },
     { key: 'memo', label: '메모', type: 'textarea', colSpan: 4 },
   ],
+  // ioc 는 IocForm 컴포넌트가 subkind+from/to+주행거리 처리. memo 만 generic 에서.
   ioc: [
-    { key: 'subkind', label: '종류', type: 'buttons', colSpan: 4,
-      options: ['출고', '반납', '회수', '이동'], required: true },
-    { key: 'mileage', label: '주행거리(km)', type: 'number', colSpan: 2 },
-    { key: 'note',    label: '메모',         type: 'textarea', colSpan: 4 },
+    { key: 'note', label: '메모', type: 'textarea', colSpan: 4 },
   ],
+  // pc 는 PcForm 이 subkind+expanded 처리. 주행거리(필수) + memo 만 generic.
   pc: [
-    { key: 'subkind', label: '종류', type: 'buttons', colSpan: 4,
-      options: ['정비', '사고수리', '세차', '상품화', '연료보충', '키 교체'], required: true },
-    { key: 'cost',    label: '비용(원)', type: 'number', colSpan: 2 },
-    { key: 'detail',  label: '메모',     type: 'textarea', colSpan: 4 },
+    { key: 'mileage', label: '주행거리(km)', type: 'number', colSpan: 2, required: true },
+    { key: 'detail', label: '메모', type: 'textarea', colSpan: 4 },
   ],
   accident: [
     { key: 'happenedAt', label: '발생일시', type: 'datetime-local', colSpan: 2, required: true },
+    { key: 'mileage', label: '주행거리(km)', type: 'number', colSpan: 2, required: true },
     { key: 'detail',     label: '메모',     type: 'textarea', colSpan: 4 },
   ],
   ignition: [
@@ -314,6 +315,7 @@ export default function JournalPage() {
   const [plate, setPlate] = useState<string>('');
   const [status, setStatus] = useState<string>('진행중');
   const [data, setData] = useState<Record<string, string>>(() => emptyData(FORMS['contact']));
+  const uploaderRef = useRef<EvidenceUploaderHandle | null>(null);
 
   // 시간이 비어있으면 날짜만 (예: "2026-04-29"), 있으면 합침 ("2026-04-29 13:45")
   const at = atTime ? `${atDate} ${atTime}` : atDate;
@@ -423,16 +425,38 @@ export default function JournalPage() {
 
   const fields = FORMS[kind];
   const requiredKeys = fields.filter((f) => f.required).map((f) => f.key);
+  // 카테고리 전용 폼 (PcForm/IocForm) 은 외부에서 자체 필수 필드 명시
+  const customRequired: Record<string, string[]> = {
+    pc: ['subkind'],
+    ioc: ['subkind', 'to', 'mileage'],
+  };
+  const customKeys = customRequired[kind] ?? [];
   const canSubmit = requiredKeys.every((k) => (data[k] ?? '').trim().length > 0)
+    && customKeys.every((k) => (data[k] ?? '').trim().length > 0)
     && (usesCommonPlate ? plate.trim().length > 0 : true);
 
-  function submit() {
+  async function submit() {
     if (!canSubmit) return;
     for (const f of fields) {
       if (f.recentKey && data[f.key]) pushRecent(f.recentKey, data[f.key]);
     }
     const merged: Record<string, string> = { ...data, status };
     if (usesCommonPlate) merged.plate = plate;
+
+    // 증빙 파일 업로드 (있을 때) — 차량번호/일자/타임스탬프 폴더에 저장
+    try {
+      const files = uploaderRef.current?.getFiles() ?? [];
+      if (files.length > 0) {
+        const targetPlate = merged.plate || 'no-plate';
+        const basePath = `journal/${targetPlate}/${atDate}/${Date.now()}`;
+        const urls = await uploaderRef.current!.commitUpload(basePath);
+        if (urls.length > 0) merged.evidence = JSON.stringify(urls);
+      }
+    } catch (err) {
+      alert(`증빙 업로드 실패: ${(err as Error).message}`);
+      return;
+    }
+
     const next: JournalEntry = {
       id: `j-${Date.now()}`,
       no: `J-${new Date().getFullYear()}-${String(entries.length + 1).padStart(4, '0')}`,
@@ -444,6 +468,7 @@ export default function JournalPage() {
     };
     setEntries([next, ...entries]);
     reset();
+    uploaderRef.current?.clear();
   }
 
   return (
@@ -611,7 +636,28 @@ export default function JournalPage() {
                 </>
               )}
 
-              {fields.map((f, idx) => {
+              {/* 처리현황 — 모든 카테고리 공통, 폼 영역 최상단 */}
+              <div className="block" style={{ gridColumn: 'span 4' }}>
+                <span className="label label-required">처리 현황 <span style={{ color: 'var(--text-weak)', fontWeight: 400 }}>(처리완료 외엔 미결로 분류)</span></span>
+                <div className="chip-group" style={{ flexWrap: 'wrap' }}>
+                  {(['진행중', '처리완료', '보류', '처리불가'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={cn('chip', status === s && 'active')}
+                      onClick={() => setStatus(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 카테고리 전용 폼 — 나머지는 generic fields.map */}
+              {kind === 'pc' && <PcForm data={data} setData={setData} uploaderRef={uploaderRef} />}
+              {kind === 'ioc' && <IocForm data={data} setData={setData} />}
+
+              {fields.map((f) => {
                 // buttons 타입은 label 로 감싸면 빈 공간 클릭 시 첫 버튼이 자동 활성화됨 → div 로 분기
                 const Wrapper = f.type === 'buttons' ? 'div' : 'label';
                 return (
@@ -674,10 +720,24 @@ export default function JournalPage() {
                         onChange={(e) => setData({ ...data, [f.key]: e.target.value })}
                         placeholder={f.placeholder}
                       />
+                    ) : f.type === 'number' ? (
+                      // 숫자 — 천 단위 콤마 자동 포맷, 저장은 숫자 string
+                      <input
+                        className="input w-full mono"
+                        type="text"
+                        inputMode="numeric"
+                        value={data[f.key] ? Number(data[f.key]).toLocaleString('ko-KR') : ''}
+                        onChange={(e) => {
+                          const n = e.target.value.replace(/[^\d-]/g, '');
+                          setData({ ...data, [f.key]: n });
+                        }}
+                        placeholder={f.placeholder ?? '0'}
+                        style={{ textAlign: 'right' }}
+                      />
                     ) : (
                       <>
                         <input
-                          className={cn('input w-full', f.type === 'number' && 'mono')}
+                          className="input w-full"
                           type={f.type ?? 'text'}
                           value={data[f.key] ?? ''}
                           onChange={(e) => setData({ ...data, [f.key]: e.target.value })}
@@ -692,24 +752,6 @@ export default function JournalPage() {
                       </>
                     )}
                   </Wrapper>
-                  {/* 첫 필드 바로 아래 처리현황 — 사용자가 빠르게 상태 전환 가능 */}
-                  {idx === 0 && (
-                    <div className="block" style={{ gridColumn: 'span 4' }}>
-                      <span className="label label-required">처리 현황 <span style={{ color: 'var(--text-weak)', fontWeight: 400 }}>(처리완료 외엔 미결로 분류)</span></span>
-                      <div className="chip-group" style={{ flexWrap: 'wrap' }}>
-                        {(['진행중', '처리완료', '보류', '처리불가'] as const).map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            className={cn('chip', status === s && 'active')}
-                            onClick={() => setStatus(s)}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </Fragment>
                 );
               })}
