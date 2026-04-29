@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>JPK ERP v4 — 업무 (출근 첫 화면)</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+:root {
+  --c-bg:           #f8f9fa;
+  --c-bg-sub:       #f1f3f5;
+  --c-bg-hover:     #e9ecef;
+  --c-bg-active:    #dee2e6;
+  --c-surface:      #ffffff;
+  --c-border-soft:  #edeef0;
+  --c-border:       #d5d8dc;
+  --c-border-strong:#adb5bd;
+
+  --c-text:         #111111;
+  --c-text-sub:     #495057;
+  --c-text-muted:   #868e96;
+  --c-text-inv:     #ffffff;
+
+  --c-accent:       #1B2A4A;
+  --c-accent-hover: #0F1B35;
+  --c-accent-soft:  #E6EEF8;
+
+  --c-ok:           #0d9488;
+  --c-ok-bg:        #f0fdfa;
+  --c-warn:         #d97706;
+  --c-warn-bg:      #fffbeb;
+  --c-err:          #dc2626;
+  --c-err-bg:       #fef2f2;
+  --c-info:         #2563eb;
+  --c-info-bg:      #eff6ff;
+
+  --font:           -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', '맑은 고딕', system-ui, Arial, sans-serif;
+  --fs:             11px;
+  --fs-tag:         10px;
+  --fw:             400;
+  --lh:             1.45;
+
+  --sp-1: 2px; --sp-2: 4px; --sp-3: 6px; --sp-4: 8px;
+  --sp-5: 12px; --sp-6: 16px; --sp-8: 24px;
+
+  --ctrl-h-sm: 22px;
+  --ctrl-h:    26px;
+  --ctrl-r:    2px;
+  --topbar-h:  36px;
+  --sb-w:      160px;
+
+  --icon-sm: 12px; --icon: 14px; --icon-lg: 16px; --icon-xl: 20px;
+
+  --dur:  120ms;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body, button, input, select, textarea, table, th, td {
+  font-family: var(--font);
+  font-size: var(--fs);
+  font-weight: var(--fw);
+  line-height: var(--lh);
+  letter-spacing: -0.01em;
+}
+body {
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  height: var(--ctrl-h);
+  padding: 0 8px;
+  border-radius: var(--ctrl-r);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+button:hover { background: var(--c-bg-hover); }
+button.primary { background: var(--c-accent); color: var(--c-text-inv); border-color: var(--c-accent); }
+button.primary:hover { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
+button.ghost { border-color: transparent; background: transparent; }
+button.ghost:hover { background: var(--c-bg-hover); }
+button.sm { height: var(--ctrl-h-sm); font-size: var(--fs-tag); padding: 0 6px; }
+
+input, select {
+  height: var(--ctrl-h);
+  padding: 0 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  border-radius: var(--ctrl-r);
+  outline: none;
+  width: 100%;
+  transition: border-color var(--dur) var(--ease);
+}
+input:focus, select:focus { border-color: var(--c-accent); }
+
+/* ============ App shell ============ */
+.app {
+  display: grid;
+  grid-template-columns: var(--sb-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  height: 100vh;
+}
+
+/* ── 사이드바 (4축, 업무가 1번) ── */
+.sidebar {
+  grid-column: 1; grid-row: 1 / 3;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
+  display: flex; flex-direction: column;
+}
+.sb-brand {
+  height: var(--topbar-h);
+  display: flex; align-items: center;
+  padding: 0 var(--sp-5);
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-accent);
+}
+.sb-brand b { font-weight: 600; }
+.sb-nav { padding: var(--sp-3) var(--sp-2); display: flex; flex-direction: column; gap: 1px; }
+.sb-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+  height: 30px;
+  color: var(--c-text-sub);
+  border-radius: var(--ctrl-r);
+  cursor: pointer;
+}
+.sb-item i { font-size: var(--icon-lg); color: var(--c-text-muted); }
+.sb-item:hover { background: var(--c-bg-hover); color: var(--c-text); }
+.sb-item.active { background: var(--c-accent); color: var(--c-text-inv); }
+.sb-item.active i { color: var(--c-text-inv); }
+
+/* ── 상단바 ── */
+.topbar {
+  grid-column: 2; grid-row: 1;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center;
+  padding: 0 var(--sp-5);
+  gap: var(--sp-4);
+}
+.crumb { color: var(--c-text-muted); display: flex; align-items: center; gap: 6px; }
+.crumb b { color: var(--c-text); font-weight: 500; }
+.topbar .search {
+  flex: 1; max-width: 360px; position: relative;
+  margin-left: auto;
+}
+.topbar .search input { padding-left: 26px; background: var(--c-bg); }
+.topbar .search input:focus { background: var(--c-surface); }
+.topbar .search::before {
+  content: '';
+  position: absolute; left: 8px; top: 50%;
+  width: 12px; height: 12px;
+  transform: translateY(-50%);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23868e96' stroke-width='2'><circle cx='11' cy='11' r='7'/><line x1='16.5' y1='16.5' x2='21' y2='21'/></svg>");
+}
+.user-meta {
+  display: flex; align-items: center; gap: var(--sp-4);
+  color: var(--c-text-sub);
+}
+.user-meta i { font-size: var(--icon); cursor: pointer; }
+
+/* ============ Main ============ */
+.task-main {
+  grid-column: 2; grid-row: 2;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.hero {
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  padding: var(--sp-6) var(--sp-8);
+}
+.hero-date {
+  font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+.hero-greet {
+  margin-top: 4px;
+  color: var(--c-text-muted);
+  font-size: var(--fs);
+}
+
+.block {
+  padding: var(--sp-6) var(--sp-8) 0;
+}
+.block-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.block-head h2 {
+  font-size: 12px; font-weight: 500;
+  display: flex; align-items: center; gap: 6px;
+  color: var(--c-text);
+}
+.block-head h2 i { font-size: var(--icon); color: var(--c-text-sub); }
+.block-head .count {
+  display: inline-flex; align-items: center; height: 14px; padding: 0 5px;
+  font-size: var(--fs-tag);
+  border-radius: var(--ctrl-r);
+  background: var(--c-bg-sub); color: var(--c-text-sub);
+}
+.block-head .hint {
+  color: var(--c-text-muted);
+  font-size: var(--fs-tag);
+}
+
+/* 큐 카드 */
+.qcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp-4);
+}
+.qcard {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--ctrl-r);
+  padding: var(--sp-5);
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.qcard:hover {
+  border-color: var(--c-accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.qcard.urgent { border-left: 3px solid var(--c-err); }
+.qcard.warn   { border-left: 3px solid var(--c-warn); }
+.qcard.info   { border-left: 3px solid var(--c-info); }
+.qc-top {
+  font-size: var(--fs);
+  color: var(--c-text-sub);
+  display: flex; align-items: center; gap: 4px;
+}
+.qcard.urgent .qc-top { color: var(--c-err); }
+.qcard.warn   .qc-top { color: var(--c-warn); }
+.qc-num {
+  font-size: 22px; font-weight: 600;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.qcard.urgent .qc-num { color: var(--c-err); }
+.qcard.warn   .qc-num { color: var(--c-warn); }
+.qc-sub {
+  color: var(--c-text-muted);
+  font-size: var(--fs-tag);
+}
+
+/* 빠른입력 버튼 */
+.qbtns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--sp-3);
+}
+.qbtn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--ctrl-r);
+  padding: var(--sp-5);
+  height: auto;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--dur) var(--ease);
+}
+.qbtn:hover {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.qbtn i {
+  font-size: var(--icon-xl);
+  color: var(--c-accent);
+}
+.qbtn span {
+  font-size: 12px; font-weight: 500;
+  color: var(--c-text);
+}
+.qbtn small {
+  color: var(--c-text-muted);
+  font-size: var(--fs-tag);
+}
+.qbtn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--c-bg-sub);
+}
+.qbtn.disabled:hover {
+  border-color: var(--c-border);
+  background: var(--c-bg-sub);
+}
+.qbtn.disabled i { color: var(--c-text-muted); }
+
+/* 일지 */
+.diary {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--ctrl-r);
+  margin-bottom: var(--sp-8);
+}
+.diary-row {
+  display: grid;
+  grid-template-columns: 60px 60px 1fr 80px;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--c-border-soft);
+  align-items: center;
+}
+.diary-row:last-child { border-bottom: none; }
+.dr-time { color: var(--c-text-muted); font-size: var(--fs-tag); }
+.dr-text { color: var(--c-text-sub); }
+.dr-text b { color: var(--c-text); font-weight: 500; }
+.dr-by { color: var(--c-text-muted); font-size: var(--fs-tag); text-align: right; }
+
+/* 뱃지 */
+.tag {
+  display: inline-flex; align-items: center;
+  height: 16px; padding: 0 5px;
+  font-size: var(--fs-tag);
+  border-radius: var(--ctrl-r);
+  background: var(--c-bg-sub);
+  color: var(--c-text-sub);
+}
+.tag.ok    { background: var(--c-ok-bg);    color: var(--c-ok); }
+.tag.warn  { background: var(--c-warn-bg);  color: var(--c-warn); }
+.tag.err   { background: var(--c-err-bg);   color: var(--c-err); }
+.tag.info  { background: var(--c-info-bg);  color: var(--c-info); }
+
+/* ============ Modal (3탭 입력 다이얼로그) ============ */
+.modal-bd {
+  position: fixed; inset: 0;
+  background: rgba(17, 17, 17, 0.4);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal-bd.open { display: flex; }
+.modal {
+  background: var(--c-surface);
+  border-radius: var(--ctrl-r);
+  width: 640px; max-width: 90vw;
+  max-height: 86vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+}
+.m-head {
+  padding: var(--sp-5) var(--sp-6);
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--c-border);
+}
+.m-head h3 { font-size: 13px; font-weight: 500; }
+.m-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--c-border);
+  padding: 0 var(--sp-6);
+  gap: 0;
+  background: var(--c-bg);
+}
+.m-tab {
+  padding: 0 var(--sp-5);
+  height: 32px;
+  display: flex; align-items: center;
+  cursor: pointer;
+  color: var(--c-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.m-tab:hover { color: var(--c-text-sub); }
+.m-tab.active {
+  color: var(--c-accent);
+  border-bottom-color: var(--c-accent);
+  background: var(--c-surface);
+}
+.m-body {
+  padding: var(--sp-6);
+  overflow-y: auto;
+  flex: 1;
+}
+.m-foot {
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--c-border);
+  display: flex; justify-content: flex-end; gap: var(--sp-3);
+}
+
+.m-pane { display: none; }
+.m-pane.active { display: block; }
+
+.field-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: var(--sp-4);
+  align-items: center;
+  margin-bottom: var(--sp-3);
+}
+.field-row label {
+  color: var(--c-text-sub);
+  font-size: var(--fs);
+}
+
+.upload-zone {
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--ctrl-r);
+  background: var(--c-bg-sub);
+  padding: var(--sp-8);
+  text-align: center;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+}
+.upload-zone i { font-size: 28px; color: var(--c-border-strong); }
+.upload-zone:hover {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+.upload-zone .label { font-size: var(--fs); }
+.upload-zone .hint { font-size: var(--fs-tag); }
+.upload-zone + .upload-zone { margin-top: var(--sp-3); }
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: 1fr 30px 1fr;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  align-items: center;
+  border-bottom: 1px solid var(--c-border-soft);
+}
+.mapping-row .arrow { color: var(--c-text-muted); text-align: center; }
+.mapping-row .matched { color: var(--c-ok); }
+.mapping-row .unmatched { color: var(--c-warn); }
+
+.alert {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--ctrl-r);
+  background: var(--c-warn-bg);
+  color: var(--c-warn);
+  font-size: var(--fs);
+  margin-top: var(--sp-3);
+  display: flex; align-items: center; gap: 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ 사이드바 ============ -->
+  <aside class="sidebar">
+    <div class="sb-brand"><b>JPK ERP</b>&nbsp;<span style="color:var(--c-text-muted)">v4</span></div>
+    <nav class="sb-nav">
+      <div class="sb-item active"><i class="ph ph-clipboard-text"></i>업무</div>
+      <a class="sb-item" href="prototype.html"><i class="ph ph-car"></i>자산</a>
+      <div class="sb-item"><i class="ph ph-file-text"></i>계약</div>
+      <div class="sb-item"><i class="ph ph-bank"></i>재무</div>
+    </nav>
+  </aside>
+
+  <!-- ============ 상단바 ============ -->
+  <header class="topbar">
+    <div class="crumb">
+      <i class="ph ph-clipboard-text"></i>
+      <b>업무</b>
+    </div>
+    <div class="search">
+      <input placeholder="차량·고객·계약·거래 검색">
+    </div>
+    <div class="user-meta">
+      <i class="ph ph-bell"></i>
+      <span>김xx · 자산팀</span>
+    </div>
+  </header>
+
+  <!-- ============ Main ============ -->
+  <main class="task-main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-date">2026-04-28 (화)</div>
+      <div class="hero-greet">김xx · 자산팀 · 오늘 처리할 일 14건</div>
+    </div>
+
+    <!-- 처리할 일 -->
+    <section class="block">
+      <div class="block-head">
+        <h2><i class="ph ph-warning-circle"></i>오늘 처리할 일</h2>
+        <span class="count">14건</span>
+      </div>
+      <div class="qcards">
+
+        <a class="qcard urgent" href="#" title="재무로 이동">
+          <div class="qc-top">⚠ 미매칭 거래</div>
+          <div class="qc-num">7</div>
+          <div class="qc-sub">재무 · 통장 04-22 업로드분</div>
+        </a>
+
+        <a class="qcard urgent" href="prototype.html" title="자산으로 이동">
+          <div class="qc-top">⚠ 보험 만기 임박</div>
+          <div class="qc-num">3</div>
+          <div class="qc-sub">자산 · D-7 이내 갱신 필요</div>
+        </a>
+
+        <a class="qcard warn" href="#">
+          <div class="qc-top">미납 안내 필요</div>
+          <div class="qc-num">4</div>
+          <div class="qc-sub">계약 · 4월분 미입금</div>
+        </a>
+
+        <a class="qcard info" href="#">
+          <div class="qc-top">출고 예정 (오늘)</div>
+          <div class="qc-num">2</div>
+          <div class="qc-sub">계약 · 인수일 오늘</div>
+        </a>
+
+        <a class="qcard" href="#">
+          <div class="qc-top">반납 예정 (이번주)</div>
+          <div class="qc-num">3</div>
+          <div class="qc-sub">계약</div>
+        </a>
+
+        <a class="qcard" href="#">
+          <div class="qc-top">만기 임박 계약</div>
+          <div class="qc-num">5</div>
+          <div class="qc-sub">D-30 이내</div>
+        </a>
+
+        <a class="qcard warn" href="#">
+          <div class="qc-top">자동이체 미체결</div>
+          <div class="qc-num">1</div>
+          <div class="qc-sub">04-25 결제통장 / 잔고부족 의심</div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- 빠른입력: 데이터 적재 -->
+    <section class="block">
+      <div class="block-head">
+        <h2><i class="ph ph-upload"></i>데이터 적재</h2>
+        <span class="hint">파일·시트 업로드로 한 번에 등록</span>
+      </div>
+      <div class="qbtns">
+
+        <button class="qbtn" onclick="openModal('신규 차량 등록', 'asset')">
+          <i class="ph ph-car"></i>
+          <span>신규 차량</span>
+          <small>등록증·보험·할부 묶음</small>
+        </button>
+
+        <button class="qbtn" onclick="openModal('신규 계약 등록', 'contract')">
+          <i class="ph ph-file-text"></i>
+          <span>신규 계약</span>
+          <small>계약서·신분증·등본</small>
+        </button>
+
+        <button class="qbtn" onclick="openModal('통장 거래내역 업로드', 'bank')">
+          <i class="ph ph-bank"></i>
+          <span>통장 업로드</span>
+          <small>엑셀 → 자동매칭</small>
+        </button>
+
+        <button class="qbtn" onclick="openModal('자동이체 등록', 'autodebit')">
+          <i class="ph ph-arrows-clockwise"></i>
+          <span>자동이체 업로드</span>
+          <small>매월 정기결제 등록</small>
+        </button>
+
+        <button class="qbtn" onclick="openModal('보험 갱신', 'insurance')">
+          <i class="ph ph-shield-check"></i>
+          <span>보험 갱신</span>
+          <small>보험증명서 업로드</small>
+        </button>
+
+        <button class="qbtn" onclick="openModal('할부 추가', 'loan')">
+          <i class="ph ph-credit-card"></i>
+          <span>할부 추가</span>
+          <small>할부약정서</small>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- 빠른입력: 개별 업무 (예정) -->
+    <section class="block">
+      <div class="block-head">
+        <h2><i class="ph ph-pencil-line"></i>개별 업무</h2>
+        <span class="hint">구현 예정 — 1건씩 빠른 처리 (전화·현장)</span>
+      </div>
+      <div class="qbtns">
+        <button class="qbtn disabled">
+          <i class="ph ph-arrow-up-right"></i>
+          <span>출고 처리</span>
+          <small>인수인계서·차량사진·계기판km</small>
+        </button>
+        <button class="qbtn disabled">
+          <i class="ph ph-arrow-down-left"></i>
+          <span>반납 처리</span>
+          <small>반납 점검·차량사진</small>
+        </button>
+        <button class="qbtn disabled">
+          <i class="ph ph-headset"></i>
+          <span>고객응대</span>
+          <small>전화·메시지 기록</small>
+        </button>
+        <button class="qbtn disabled">
+          <i class="ph ph-wrench"></i>
+          <span>차량 수선</span>
+          <small>정비 입고/완료</small>
+        </button>
+        <button class="qbtn disabled">
+          <i class="ph ph-warning-octagon"></i>
+          <span>사고 접수</span>
+          <small>사고 신고·보험접수</small>
+        </button>
+        <button class="qbtn disabled">
+          <i class="ph ph-arrows-counter-clockwise"></i>
+          <span>연장·해지</span>
+          <small>계약 변경</small>
+        </button>
+      </div>
+    </section>
+
+    <!-- 오늘 한 일 (자동 일지) -->
+    <section class="block">
+      <div class="block-head">
+        <h2><i class="ph ph-clock-counter-clockwise"></i>오늘 한 일</h2>
+        <span class="count">12건</span>
+      </div>
+      <div class="diary">
+        <div class="diary-row">
+          <div class="dr-time">11:42</div>
+          <div class="dr-tag"><span class="tag ok">매칭</span></div>
+          <div class="dr-text">통장 04-22 자동매칭 234건 완료, 미매칭 7건 큐로</div>
+          <div class="dr-by">이△△ · 재무</div>
+        </div>
+        <div class="diary-row">
+          <div class="dr-time">10:42</div>
+          <div class="dr-tag"><span class="tag info">업로드</span></div>
+          <div class="dr-text">통장 거래내역 04-22 (매출통장) <b>248건</b> 업로드</div>
+          <div class="dr-by">이△△ · 재무</div>
+        </div>
+        <div class="diary-row">
+          <div class="dr-time">10:15</div>
+          <div class="dr-tag"><span class="tag">응대</span></div>
+          <div class="dr-text">김영희 (전화) · 4월 미납 재안내 → 04-30 입금 약속</div>
+          <div class="dr-by">박oo · 계약</div>
+        </div>
+        <div class="diary-row">
+          <div class="dr-time">09:42</div>
+          <div class="dr-tag"><span class="tag info">출고</span></div>
+          <div class="dr-text"><b>24가1234</b> · 홍길동 · 계약 C-2025-0418 · 누적 12km</div>
+          <div class="dr-by">김xx · 자산</div>
+        </div>
+        <div class="diary-row">
+          <div class="dr-time">09:30</div>
+          <div class="dr-tag"><span class="tag ok">등록</span></div>
+          <div class="dr-text">신규 차량 <b>25나0001</b> 아이오닉5 등록 (등록증·보험·할부 묶음)</div>
+          <div class="dr-by">김xx · 자산</div>
+        </div>
+        <div class="diary-row">
+          <div class="dr-time">09:12</div>
+          <div class="dr-tag"><span class="tag warn">알림</span></div>
+          <div class="dr-text">보험 만기 D-7: 24가1234, 23허5678, 22소9012</div>
+          <div class="dr-by">시스템</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ 입력 다이얼로그 (3탭) ============ -->
+<div class="modal-bd" id="modal">
+  <div class="modal">
+    <div class="m-head">
+      <h3 id="modal-title">신규 차량 등록</h3>
+      <button class="ghost sm" onclick="closeModal()"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="m-tabs">
+      <div class="m-tab" data-tab="direct" onclick="switchTab('direct')">① 직접 입력</div>
+      <div class="m-tab active" data-tab="file" onclick="switchTab('file')">② 파일 업로드</div>
+      <div class="m-tab" data-tab="sheet" onclick="switchTab('sheet')">③ 시트 업로드</div>
+    </div>
+    <div class="m-body">
+
+      <!-- ── 직접 입력 ── -->
+      <div class="m-pane" data-pane="direct">
+        <div class="field-row"><label>차량번호</label><input placeholder="예: 24가1234"></div>
+        <div class="field-row"><label>차대번호</label><input placeholder="VIN 17자리"></div>
+        <div class="field-row"><label>차종/모델</label><input></div>
+        <div class="field-row"><label>연식</label><input type="number" placeholder="2024"></div>
+        <div class="field-row"><label>등록일</label><input type="date"></div>
+        <div class="field-row"><label>현재 상태</label>
+          <select>
+            <option>운영중</option><option>휴차</option><option>상품화</option><option>매각예정</option>
+          </select>
+        </div>
+        <div class="alert"><i class="ph ph-info"></i>등록증만 있어도 등록 가능. 보험·할부는 자산 페이지에서 추후 추가하세요.</div>
+      </div>
+
+      <!-- ── 파일 업로드 ── -->
+      <div class="m-pane active" data-pane="file">
+        <div class="upload-zone">
+          <i class="ph ph-file-arrow-up"></i>
+          <div class="label"><b>① 차량등록증</b> · 필수</div>
+          <div class="hint">PDF / JPG / PNG · 드래그 또는 클릭</div>
+        </div>
+        <div class="upload-zone">
+          <i class="ph ph-file-arrow-up"></i>
+          <div class="label">② 보험가입증명서 · 선택</div>
+          <div class="hint">보험사 발급 PDF</div>
+        </div>
+        <div class="upload-zone">
+          <i class="ph ph-file-arrow-up"></i>
+          <div class="label">③ 할부약정서 · 선택</div>
+          <div class="hint">금융사 발급 PDF</div>
+        </div>
+        <div class="alert" style="background:var(--c-info-bg); color:var(--c-info)">
+          <i class="ph ph-magic-wand"></i>업로드 후 OCR이 자동으로 필드를 채웁니다. 빨간색 highlight된 칸만 검토하세요.
+        </div>
+      </div>
+
+      <!-- ── 시트 업로드 ── -->
+      <div class="m-pane" data-pane="sheet">
+        <div class="field-row">
+          <label>구글시트 URL</label>
+          <input placeholder="https://docs.google.com/spreadsheets/...">
+        </div>
+        <div style="text-align:center; color:var(--c-text-muted); font-size:var(--fs-tag); margin: var(--sp-3) 0">또는</div>
+        <div class="upload-zone">
+          <i class="ph ph-table"></i>
+          <div class="label">엑셀 / CSV 파일</div>
+          <div class="hint">.xlsx · .csv · 드래그 또는 클릭</div>
+        </div>
+
+        <h4 style="margin-top:var(--sp-6); margin-bottom:var(--sp-3); font-weight:500; color:var(--c-text-sub)">미리보기 — 차량 12건 감지 · 칼럼 매핑</h4>
+        <div>
+          <div class="mapping-row">
+            <div>"차량번호"</div>
+            <div class="arrow">→</div>
+            <div class="matched">차량번호 ✓</div>
+          </div>
+          <div class="mapping-row">
+            <div>"VIN"</div>
+            <div class="arrow">→</div>
+            <div class="matched">차대번호 ✓</div>
+          </div>
+          <div class="mapping-row">
+            <div>"모델명"</div>
+            <div class="arrow">→</div>
+            <div class="matched">차종/모델 ✓</div>
+          </div>
+          <div class="mapping-row">
+            <div>"등록"</div>
+            <div class="arrow">→</div>
+            <div class="matched">등록일 ✓</div>
+          </div>
+          <div class="mapping-row">
+            <div>"비고"</div>
+            <div class="arrow">→</div>
+            <div class="unmatched">
+              <select style="height:22px; font-size:var(--fs-tag)">
+                <option>(매핑 안 함)</option>
+                <option>특이사항</option>
+                <option>메모</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="alert">
+          <i class="ph ph-warning"></i>2건 차량번호 중복, 1건 차대번호 누락 — 등록 시 제외됩니다.
+        </div>
+      </div>
+
+    </div>
+    <div class="m-foot">
+      <button onclick="closeModal()">취소</button>
+      <button class="primary" id="modal-submit">등록 완료</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MODAL_TITLES = {
+  asset:     '신규 차량 등록',
+  contract:  '신규 계약 등록',
+  bank:      '통장 거래내역 업로드',
+  autodebit: '자동이체 등록',
+  insurance: '보험 갱신',
+  loan:      '할부 추가',
+};
+function openModal(title, kind) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+function switchTab(name) {
+  document.querySelectorAll('.m-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.m-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal') closeModal();
+});
+</script>
+
+</body>
+</html>
