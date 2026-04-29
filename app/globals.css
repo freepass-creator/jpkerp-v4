@@ -572,26 +572,6 @@ input[type="checkbox"], input[type="radio"] {
 .badge.type-반납 { color: var(--text-sub);          border-color: var(--border); }
 .badge.type-기타 { color: var(--text-sub);          border-color: var(--border); }
 
-/* 업무일지 빠른 입력 영역 — 칩(종류 선택) + 1줄 폼 */
-.journal-quick {
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.journal-chips {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.journal-form {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
 
 /* 계약 상세 페이지 헤더 — 한 줄 요약 정보 */
 .contract-detail-head {
