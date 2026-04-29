@@ -193,6 +193,23 @@ export default function FinanceDailyPage() {
       subTabPending={FINANCE_SUBTAB_PENDING}
       footerLeft={
         <>
+          <div className="chip-group" role="tablist" aria-label="자금일보 뷰">
+            <button
+              type="button"
+              className={cn('chip', view === 'match' && 'active')}
+              onClick={() => setView('match')}
+            >
+              매칭 ({counts.unmatched + counts.classified} / {filteredEntries.length})
+            </button>
+            <button
+              type="button"
+              className={cn('chip', view === 'summary' && 'active')}
+              onClick={() => setView('summary')}
+            >
+              일자별 집계
+            </button>
+          </div>
+          <span className="stat-divider" />
           {view === 'match' ? (
             <>
               <span className="stat-item">전체 <strong>{entries.length}</strong></span>
@@ -235,16 +252,6 @@ export default function FinanceDailyPage() {
         ) : null
       }
     >
-      {/* 뷰 토글 */}
-      <div style={{ display: 'flex', gap: 4, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-        <button type="button" className={cn('chip', view === 'match' && 'active')} onClick={() => setView('match')}>
-          매칭 작업 ({counts.unmatched + counts.classified} / {filteredEntries.length})
-        </button>
-        <button type="button" className={cn('chip', view === 'summary' && 'active')} onClick={() => setView('summary')}>
-          일자별 집계
-        </button>
-      </div>
-
       {view === 'match' ? (
         <JpkTable<LedgerEntry>
           columns={matchColumns}
