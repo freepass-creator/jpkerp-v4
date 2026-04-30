@@ -140,7 +140,9 @@
 
   --brand:    #93c5fd;
   --brand-h:  #bfdbfe;
-  --brand-bg: #1e3a8a;
+  /* 다크모드 brand-bg — 사이드바 active 배경. 주변 slate(#1e293b) 와 조화되게 톤다운.
+     강한 indigo(#1e3a8a) 대신 slate에 살짝 푸른 기 더한 색. */
+  --brand-bg: #2a3a5a;
 
   /* 다크모드 focus ring — sky-300(--brand) 보다 한 단계 톤 다운한 슬레이트 블루.
      입력 활성 시 너무 강하지 않게. */
