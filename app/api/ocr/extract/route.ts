@@ -17,38 +17,59 @@ export const maxDuration = 120;
 
 const MODEL = 'gemini-2.5-flash';
 
+/**
+ * 자동차등록증 본문 ① ~ ⑩ + 헤더(최초등록일·문서확인번호) + 1.제원 ⑪ ~ ㉔ + 4.검사 ㉚~㉟ 표기 항목만.
+ * 등록증에 없는 추측 항목(제조사·모델명·세부모델·트림·색상·구동방식 등)은 의도적으로 제외.
+ */
 const VEHICLE_REG_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    car_number: { type: Type.STRING, nullable: true },
-    car_name: { type: Type.STRING, nullable: true },
-    manufacturer: { type: Type.STRING, nullable: true },
-    car_model: { type: Type.STRING, nullable: true },
-    detail_model: { type: Type.STRING, nullable: true },
-    vin: { type: Type.STRING, nullable: true },
-    type_number: { type: Type.STRING, nullable: true },
-    engine_type: { type: Type.STRING, nullable: true },
-    car_year: { type: Type.INTEGER, nullable: true },
-    first_registration_date: { type: Type.STRING, nullable: true },
-    category_hint: { type: Type.STRING, nullable: true },
-    usage_type: { type: Type.STRING, nullable: true },
-    displacement: { type: Type.INTEGER, nullable: true },
-    seats: { type: Type.INTEGER, nullable: true },
-    fuel_type: { type: Type.STRING, nullable: true },
-    owner_name: { type: Type.STRING, nullable: true },
-    owner_biz_no: { type: Type.STRING, nullable: true },
-    address: { type: Type.STRING, nullable: true },
-    length_mm: { type: Type.INTEGER, nullable: true },
-    width_mm: { type: Type.INTEGER, nullable: true },
-    height_mm: { type: Type.INTEGER, nullable: true },
-    gross_weight_kg: { type: Type.INTEGER, nullable: true },
+    // 헤더
+    document_no: { type: Type.STRING, nullable: true, description: '문서확인번호 (등록증 우상단)' },
+    first_registration_date: { type: Type.STRING, nullable: true, description: '최초등록일 YYYY-MM-DD' },
+    cert_issue_date: { type: Type.STRING, nullable: true, description: '등록증 발급일 YYYY-MM-DD' },
+    // 본문 ① ~ ⑩
+    car_number: { type: Type.STRING, nullable: true, description: '① 자동차등록번호 (예: 01도9893)' },
+    category_hint: { type: Type.STRING, nullable: true, description: '② 차종 (경형 승용 / 대형 승용 등)' },
+    usage_type: { type: Type.STRING, nullable: true, description: '③ 용도 (자가용 / 영업용 등)' },
+    car_name: { type: Type.STRING, nullable: true, description: '④ 차명 (예: 모닝, 아슬란)' },
+    type_number: { type: Type.STRING, nullable: true, description: '⑤ 형식 (예: JA51BA-T6-P)' },
+    car_year_month: { type: Type.STRING, nullable: true, description: '⑤ 제작연월 YYYY-MM (예: 2017-09)' },
+    vin: { type: Type.STRING, nullable: true, description: '⑥ 차대번호' },
+    engine_type: { type: Type.STRING, nullable: true, description: '⑦ 원동기형식' },
+    address: { type: Type.STRING, nullable: true, description: '⑧ 사용본거지' },
+    owner_name: { type: Type.STRING, nullable: true, description: '⑨ 성명(명칭)' },
+    owner_biz_no: { type: Type.STRING, nullable: true, description: '⑩ 생년월일/법인등록번호' },
+    // 1. 제원 ⑪ ~ ㉔
+    approval_number: { type: Type.STRING, nullable: true, description: '⑪ 제원관리번호(형식승인번호)' },
+    length_mm: { type: Type.INTEGER, nullable: true, description: '⑫ 길이 mm' },
+    width_mm: { type: Type.INTEGER, nullable: true, description: '⑬ 너비 mm' },
+    height_mm: { type: Type.INTEGER, nullable: true, description: '⑭ 높이 mm' },
+    gross_weight_kg: { type: Type.INTEGER, nullable: true, description: '⑮ 총중량 kg' },
+    seats: { type: Type.INTEGER, nullable: true, description: '⑯ 승차정원' },
+    max_load_kg: { type: Type.INTEGER, nullable: true, description: '⑰ 최대적재량 kg' },
+    displacement: { type: Type.INTEGER, nullable: true, description: '⑱ 배기량 cc' },
+    rated_output: { type: Type.STRING, nullable: true, description: '⑲ 정격출력 (예: 76/6200)' },
+    cylinders: { type: Type.STRING, nullable: true, description: '⑳ 기통수' },
+    fuel_type: { type: Type.STRING, nullable: true, description: '㉑ 연료종류 (예: 휘발유(무연))' },
+    fuel_efficiency: { type: Type.NUMBER, nullable: true, description: '㉑ 연료소비율 km/L' },
+    // 4. 검사 ㉚ ~ ㉟
+    inspection_from: { type: Type.STRING, nullable: true, description: '㉚ 검사 유효기간 시작 YYYY-MM-DD' },
+    inspection_to: { type: Type.STRING, nullable: true, description: '㉛ 검사 유효기간 만료 YYYY-MM-DD' },
+    mileage: { type: Type.INTEGER, nullable: true, description: '㉝ 주행거리 km' },
+    inspection_type: { type: Type.STRING, nullable: true, description: '㉟ 검사 구분 (예: 종합검사(경과))' },
+    // 푸터
+    acquisition_price: { type: Type.INTEGER, nullable: true, description: '자동차 출고(취득)가격 원' },
   },
   required: [
-    'car_number', 'car_name', 'manufacturer', 'car_model', 'detail_model',
-    'vin', 'type_number', 'engine_type', 'car_year',
-    'first_registration_date', 'category_hint', 'usage_type', 'displacement',
-    'seats', 'fuel_type', 'owner_name', 'owner_biz_no', 'address',
-    'length_mm', 'width_mm', 'height_mm', 'gross_weight_kg',
+    'document_no', 'first_registration_date', 'cert_issue_date',
+    'car_number', 'category_hint', 'usage_type', 'car_name', 'type_number', 'car_year_month',
+    'vin', 'engine_type', 'address', 'owner_name', 'owner_biz_no',
+    'approval_number', 'length_mm', 'width_mm', 'height_mm', 'gross_weight_kg',
+    'seats', 'max_load_kg', 'displacement', 'rated_output', 'cylinders',
+    'fuel_type', 'fuel_efficiency',
+    'inspection_from', 'inspection_to', 'mileage', 'inspection_type',
+    'acquisition_price',
   ],
 };
 

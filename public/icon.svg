@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="72" fill="#1B2A4A"/>
-  <text x="50%" y="38%" text-anchor="middle" dominant-baseline="middle"
-        font-family="Consolas, 'SF Mono', Menlo, monospace" font-weight="900"
-        font-size="170" fill="#ffffff" letter-spacing="-2">JPK</text>
-  <text x="50%" y="72%" text-anchor="middle" dominant-baseline="middle"
-        font-family="Consolas, 'SF Mono', Menlo, monospace" font-weight="900"
-        font-size="170" fill="#ffffff" letter-spacing="-2">ERP</text>
-</svg>

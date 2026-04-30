@@ -11,34 +11,53 @@ import type { Asset } from '@/lib/sample-assets';
 
 const OCR_CONCURRENCY = 30;
 
-/** /api/ocr/extract 응답(VEHICLE_REG_SCHEMA) → Asset 필드 매핑 */
+/**
+ * /api/ocr/extract 응답(VEHICLE_REG_SCHEMA) → Asset 필드 매핑.
+ *
+ * 자동차등록증에 실제로 적힌 필드만 채움. 등록증에 없는 추측 항목
+ * (제조사·모델명·세부모델·트림·색상·구동방식 등)은 OCR 스키마에서도 제외.
+ */
 function mapVehicleRegToAsset(ex: Record<string, unknown>): Partial<Asset> {
   const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
   return {
     companyCode: 'CP01',
-    plate: str(ex.car_number) ?? '',
-    vehicleClass: str(ex.category_hint) ?? '',
-    usage: str(ex.usage_type) ?? '',
-    vehicleName: str(ex.car_name) ?? '',
-    modelType: str(ex.type_number),
-    manufactureDate: ex.car_year ? String(ex.car_year) : undefined,
-    vin: str(ex.vin) ?? '',
-    engineType: str(ex.engine_type),
-    ownerLocation: str(ex.address),
-    ownerName: str(ex.owner_name) ?? '',
-    ownerRegNumber: str(ex.owner_biz_no),
+    // 헤더
+    documentNo: str(ex.document_no),
     firstRegistDate: str(ex.first_registration_date) ?? '',
-    length: num(ex.length_mm),
-    width: num(ex.width_mm),
-    height: num(ex.height_mm),
-    totalWeight: num(ex.gross_weight_kg),
-    capacity: num(ex.seats),
-    displacement: num(ex.displacement),
-    fuelType: str(ex.fuel_type),
-    maker: str(ex.manufacturer),
-    modelName: str(ex.car_model),
-    detailModel: str(ex.detail_model),
+    certIssueDate: str(ex.cert_issue_date),
+    // 본문 ① ~ ⑩
+    plate: str(ex.car_number) ?? '',
+    vehicleClass: str(ex.category_hint) ?? '',     // ②
+    usage: str(ex.usage_type) ?? '',               // ③
+    vehicleName: str(ex.car_name) ?? '',           // ④
+    modelType: str(ex.type_number),                // ⑤ 형식
+    manufactureDate: str(ex.car_year_month),       // ⑤ 제작연월 YYYY-MM
+    vin: str(ex.vin) ?? '',                        // ⑥
+    engineType: str(ex.engine_type),               // ⑦
+    ownerLocation: str(ex.address),                // ⑧
+    ownerName: str(ex.owner_name) ?? '',           // ⑨
+    ownerRegNumber: str(ex.owner_biz_no),          // ⑩
+    // 1. 제원 ⑪ ~ ㉔
+    approvalNumber: str(ex.approval_number),       // ⑪
+    length: num(ex.length_mm),                     // ⑫
+    width: num(ex.width_mm),                       // ⑬
+    height: num(ex.height_mm),                     // ⑭
+    totalWeight: num(ex.gross_weight_kg),          // ⑮
+    capacity: num(ex.seats),                       // ⑯
+    maxLoad: num(ex.max_load_kg),                  // ⑰
+    displacement: num(ex.displacement),            // ⑱
+    ratedOutput: str(ex.rated_output),             // ⑲
+    cylinders: str(ex.cylinders),                  // ⑳
+    fuelType: str(ex.fuel_type),                   // ㉑
+    fuelEfficiency: num(ex.fuel_efficiency),       // ㉑
+    // 4. 검사 ㉚ ~ ㉟
+    inspectionFrom: str(ex.inspection_from),       // ㉚
+    inspectionTo: str(ex.inspection_to),           // ㉛
+    mileage: num(ex.mileage),                      // ㉝
+    inspectionType: str(ex.inspection_type),       // ㉟
+    // 푸터
+    acquisitionPrice: num(ex.acquisition_price),
     status: '대기',
   };
 }
