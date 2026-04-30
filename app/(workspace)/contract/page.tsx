@@ -241,8 +241,8 @@ export default function ContractListPage() {
                   <td className="mono dim">{c.customerPhone ?? '-'}</td>
                   <td className="date">{c.startDate}</td>
                   <td className="date">{c.endDate}</td>
-                  <td className="num">{c.monthlyAmount.toLocaleString('ko-KR')}</td>
-                  <td className="num">{c.deposit?.toLocaleString('ko-KR') ?? '-'}</td>
+                  <td className="num">{(c.monthlyAmount ?? 0).toLocaleString('ko-KR')}</td>
+                  <td className="num">{c.deposit ? c.deposit.toLocaleString('ko-KR') : '-'}</td>
                   <td className="center">
                     <span className={cn('badge', c.status === '운행중' ? 'badge-green' : c.status === '만기' ? 'badge-orange' : 'badge')}>
                       {c.status}
