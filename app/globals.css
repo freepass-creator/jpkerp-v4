@@ -341,7 +341,7 @@ td.num, td.date, th.num, th.date {
   display: flex; align-items: center;
   padding: 0 14px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-header);
+  background: var(--bg-card);
   flex-shrink: 0;
 }
 .sb-company-name {
@@ -365,7 +365,8 @@ td.num, td.date, th.num, th.date {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 14px;
   color: var(--text-sub);
-  border-left: 2px solid transparent;
+  /* 좌측 3px brand 막대로 active 표시 — 배경 없이 칸 구분 */
+  border-left: 3px solid transparent;
 }
 .sb-item:hover { background: var(--bg-stripe); color: var(--text-main); }
 .sb-item.active {
