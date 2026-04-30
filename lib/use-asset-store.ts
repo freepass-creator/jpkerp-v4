@@ -82,7 +82,10 @@ export function useAssetStore() {
     const next = typeof updater === 'function' ? (updater as (p: Asset[]) => Asset[])(prev) : updater;
     cache = next;
     listeners.forEach((l) => l(next));
-    set(ref(getRtdb(), RTDB_PATH), stripUndef(next)).catch((e) => console.error('[asset-store] write failed', e));
+    set(ref(getRtdb(), RTDB_PATH), stripUndef(next)).catch((e) => {
+      console.error('[asset-store] write failed', e);
+      if (typeof window !== 'undefined') alert(`자산 저장 실패: ${e?.message ?? e}\n\nFirebase Console → Realtime Database → Rules 확인 필요.`);
+    });
   }, []);
 
   return [assets, setAssets] as const;

@@ -94,7 +94,10 @@ export function useLedgerStore() {
     // RTDB echo dedup 용 — 이 직렬화가 onValue 로 돌아오면 무시
     lastSerialized = JSON.stringify(stripped.length === 0 ? null : stripped);
     listeners.forEach((l) => l(next));
-    set(ref(getRtdb(), RTDB_PATH), stripped).catch((e) => console.error('[ledger-store] write failed', e));
+    set(ref(getRtdb(), RTDB_PATH), stripped).catch((e) => {
+      console.error('[ledger-store] write failed', e);
+      if (typeof window !== 'undefined') alert(`계좌내역 저장 실패: ${e?.message ?? e}\n\nFirebase Console → Realtime Database → Rules 확인 필요.`);
+    });
   }, []);
 
   return [entries, setEntries] as const;
