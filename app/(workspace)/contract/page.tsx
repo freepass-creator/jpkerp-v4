@@ -6,7 +6,7 @@ import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
-import { type Contract, type CustomerKind } from '@/lib/sample-contracts';
+import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { nextSequenceCode } from '@/lib/code-gen';
@@ -53,20 +53,23 @@ export default function ContractListPage() {
     [contracts],
   );
 
-  /** ContractDraft (필수 10필드) → Contract 완성 */
+  /** ContractDraft (필수 10필드) → Contract 완성 + 수납 스케줄 자동 생성 */
   function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>): Contract {
     return {
       id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       contractNo: nextSequenceCode('C', contracts.map((c) => c.contractNo)),
       ...draft,
       status: '운행중',
-      events: [],
+      events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount),
     };
   }
 
   /** 수정/복사 폼 record → Contract — 등록은 ContractRegisterDialog 가 처리. */
   function fromFormRecord(d: Record<string, string>): Contract {
     const contractNo = d.contractNo?.trim() || nextSequenceCode('C', contracts.map((c) => c.contractNo));
+    const startDate = d.startDate || new Date().toISOString().slice(0, 10);
+    const endDate = d.endDate || '';
+    const monthlyAmount = Number(d.monthlyAmount) || 0;
     return {
       id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: d.companyCode || '',
@@ -76,12 +79,12 @@ export default function ContractListPage() {
       customerKind: (d.customerKind as CustomerKind) || '개인',
       customerIdent: d.customerIdent || '',
       customerPhone: d.customerPhone || '',
-      startDate: d.startDate || new Date().toISOString().slice(0, 10),
-      endDate: d.endDate || '',
-      monthlyAmount: Number(d.monthlyAmount) || 0,
+      startDate,
+      endDate,
+      monthlyAmount,
       deposit: Number(d.deposit) || 0,
       status: '운행중',
-      events: [],
+      events: generateContractSchedule(startDate, endDate, monthlyAmount),
     };
   }
 

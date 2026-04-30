@@ -32,24 +32,42 @@ export type Contract = {
   events: ScheduleEvent[];
 };
 
-/* 회차별 수납 이벤트 자동 생성 */
-function makeReceiptEvents(start: string, months: number, amount: number, paidUpTo: number): ScheduleEvent[] {
+/**
+ * 계약 등록 시 자동 생성되는 수납 스케줄.
+ *
+ *   startDate~endDate 사이 매월 시작일과 같은 일자에 청구 1건씩.
+ *   모든 회차 status='예정' (수납 처리는 별도 워크플로우에서).
+ *   2025-01-15 시작 / 2026-01-14 만기 / 50만 → 12회차 (1/15, 2/15, ..., 12/15).
+ *
+ *   잘못된 날짜·만기 < 시작 → 빈 배열.
+ */
+export function generateContractSchedule(
+  startDate: string,
+  endDate: string,
+  monthlyAmount: number,
+): ScheduleEvent[] {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return [];
+  if (end < start) return [];
+
   const events: ScheduleEvent[] = [];
-  const [y, m, d] = start.split('-').map(Number);
-  for (let i = 0; i < months; i++) {
-    const due = new Date(y, m - 1 + i, d);
-    const dueStr = due.toISOString().slice(0, 10);
-    const cycle = i + 1;
-    const isPaid = cycle <= paidUpTo;
+  const dayOfMonth = start.getDate();
+  let cycle = 1;
+  let cursor = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);
+
+  while (cursor <= end) {
+    const dueStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
     events.push({
-      id: `r-${start}-${cycle}`,
+      id: `r-${startDate}-${cycle}`,
       type: '수납',
       cycle,
       dueDate: dueStr,
-      doneDate: isPaid ? dueStr : undefined,
-      amount,
-      status: isPaid ? '완료' : '예정',
+      amount: monthlyAmount,
+      status: '예정',
     });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, dayOfMonth);
+    cycle++;
   }
   return events;
 }
