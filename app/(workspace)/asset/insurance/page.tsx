@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Trash, FileArrowDown, X } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import dynamic from 'next/dynamic';
 const InsuranceRegisterDialog = dynamic(
   () => import('@/components/insurance/insurance-register-dialog').then((m) => m.InsuranceRegisterDialog),
@@ -19,6 +19,7 @@ const MAX_CYCLES = 6;  // 표준 자동차보험 6회 분납
 export default function AssetInsurancePage() {
   const [policies, setPolicies] = useState<InsurancePolicy[]>(SAMPLE_INSURANCE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const subTabPending = useAssetSubtabPending();
 
   function handleCreate(items: InsurancePolicy[]) {
     setPolicies((prev) => [...items, ...prev]);
@@ -95,7 +96,7 @@ export default function AssetInsurancePage() {
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
-      subTabPending={ASSET_SUBTAB_PENDING}
+      subTabPending={subTabPending}
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{policies.length}</strong></span>

@@ -1,17 +1,18 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 
 /**
  * 차량수선 — 자산별 정비/수선 이력.
  * 한 row = 1 자산 × 1 수선건.
  */
 export default function AssetRepairPage() {
+  const subTabPending = useAssetSubtabPending();
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
-      subTabPending={ASSET_SUBTAB_PENDING}
+      subTabPending={subTabPending}
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>0</strong></span>

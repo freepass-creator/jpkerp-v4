@@ -15,19 +15,10 @@ const AssetEditDialog = dynamic(
   { ssr: false },
 );
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
-import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import { type Asset, type AssetStatus } from '@/lib/sample-assets';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { downloadContractTemplate } from '@/lib/contract-template';
-
-/** 자산 페이지 미결 지표 — 추후 실데이터로 교체 */
-const ASSET_PENDING = {
-  보험미결: 3,
-  할부미납: 1,
-  등록증갱신: 1,
-  매각정산: 0,
-};
-
 
 export default function AssetListPage() {
   const [assets, setAssets] = useAssetStore();
@@ -49,7 +40,17 @@ export default function AssetListPage() {
     return c;
   }, [assets]);
 
-  const pendings = Object.entries(ASSET_PENDING).filter(([, n]) => n > 0);
+  const subTabPending = useAssetSubtabPending();
+  const pendings = useMemo<[string, number][]>(() => {
+    const items: [string, number][] = [];
+    const ins = subTabPending['/asset/insurance'] ?? 0;
+    const loan = subTabPending['/asset/loan'] ?? 0;
+    const insp = subTabPending['/asset/inspection'] ?? 0;
+    if (ins > 0) items.push(['보험미결', ins]);
+    if (loan > 0) items.push(['할부미납', loan]);
+    if (insp > 0) items.push(['검사만기', insp]);
+    return items;
+  }, [subTabPending]);
 
   function handleCreate(partial: Partial<Asset>) {
     const next: Asset = {
@@ -93,7 +94,7 @@ export default function AssetListPage() {
     <>
       <PageShell
         subTabs={ASSET_SUBTABS}
-        subTabPending={ASSET_SUBTAB_PENDING}
+        subTabPending={subTabPending}
         footerLeft={
           <>
             <span className="stat-item">전체 <strong>{assets.length}</strong></span>

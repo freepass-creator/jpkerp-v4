@@ -9,16 +9,20 @@ import { runWithConcurrency } from '@/lib/parallel';
 import type { Asset } from '@/lib/sample-assets';
 import { findCompanyByOwner, type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useAssetStore } from '@/lib/use-asset-store';
 
 const OCR_CONCURRENCY = 30;
 
 type Status = 'pending' | 'done' | 'failed';
+type DuplicateReason = 'plate' | 'vin' | null;
 type WorkItem = {
   id: string;
   fileName: string;
   data: Partial<Asset>;
   _status: Status;
   _error?: string;
+  /** 기존 자산과 중복 — plate(차량번호) 또는 vin(차대번호) 일치. null = 중복 아님. */
+  _duplicate?: DuplicateReason;
 };
 
 /**
@@ -82,6 +86,7 @@ type Props = {
 
 export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
   const [companies] = useCompanyStore();
+  const [assets] = useAssetStore();
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
@@ -132,7 +137,12 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const ex = json.extracted as Record<string, unknown>;
           const data = mapVehicleRegToAsset(ex, companies);
-          setItems((prev) => prev.map((it) => it.id === id ? { ...it, data, _status: 'done' as const } : it));
+          // 기존 자산과 중복 검사 — 차대번호(vin) 우선, 차량번호(plate) 차순.
+          const dup: DuplicateReason =
+            data.vin && assets.some((a) => a.vin === data.vin) ? 'vin'
+            : data.plate && assets.some((a) => a.plate === data.plate) ? 'plate'
+            : null;
+          setItems((prev) => prev.map((it) => it.id === id ? { ...it, data, _status: 'done' as const, _duplicate: dup } : it));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error('[asset OCR]', err);
@@ -152,9 +162,23 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
   }
 
   function commitAll() {
-    const ok = items.filter((i) => i._status === 'done');
+    // 1) 분석 완료 + 기존 자산 중복 아닌 행만
+    const ok = items.filter((i) => i._status === 'done' && !i._duplicate);
     if (ok.length === 0) return;
-    ok.forEach((i) => onCreate(i.data));
+    // 2) 배치 내부 중복 제거 (같은 vin 또는 plate 중복 입력)
+    const seen = new Set<string>();
+    const unique: WorkItem[] = [];
+    let droppedInBatch = 0;
+    for (const i of ok) {
+      const key = i.data.vin || i.data.plate || '';
+      if (key && seen.has(key)) { droppedInBatch++; continue; }
+      if (key) seen.add(key);
+      unique.push(i);
+    }
+    if (droppedInBatch > 0) {
+      alert(`배치 내 중복 ${droppedInBatch}건 제외하고 ${unique.length}건 등록합니다.`);
+    }
+    unique.forEach((i) => onCreate(i.data));
     setOpen(false);
     setTimeout(reset, 100);
   }
@@ -164,8 +188,9 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     if (!o) reset();
   }
 
-  const okCount = items.filter((i) => i._status === 'done').length;
-  const matchedCount = items.filter((i) => i._status === 'done' && i.data.companyCode).length;
+  const okCount = items.filter((i) => i._status === 'done' && !i._duplicate).length;
+  const matchedCount = items.filter((i) => i._status === 'done' && i.data.companyCode && !i._duplicate).length;
+  const duplicateCount = items.filter((i) => i._duplicate).length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -266,6 +291,10 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                                 <CircleNotch size={14} className="spin" style={{ color: 'var(--brand)' }} />
                               ) : p._status === 'failed' ? (
                                 <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
+                              ) : p._duplicate ? (
+                                <span title={p._duplicate === 'vin' ? '차대번호 중복' : '차량번호 중복'} style={{ display: 'inline-flex' }}>
+                                  <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
+                                </span>
                               ) : d.companyCode ? (
                                 <CheckCircle size={14} weight="fill" style={{ color: '#10b981' }} />
                               ) : (
@@ -277,7 +306,15 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                                 : d.companyCode ? d.companyCode
                                 : <span className="text-red" title="등록된 회사 없음 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
                             </td>
-                            <td className="plate text-medium">{d.plate || '-'}</td>
+                            <td className="plate text-medium">
+                              {d.plate || '-'}
+                              {p._duplicate && (
+                                <span className="text-red" style={{ marginLeft: 6, fontSize: 11 }}
+                                      title={p._duplicate === 'vin' ? '차대번호 중복 — 이미 등록된 차량' : '차량번호 중복 — 이미 등록된 차량'}>
+                                  · 중복
+                                </span>
+                              )}
+                            </td>
                             <td className="dim">{d.vehicleClass || '-'}</td>
                             <td>{d.vehicleName || '-'}</td>
                             <td className="mono dim truncate" style={{ maxWidth: 160 }} title={d.vin}>{d.vin || '-'}</td>
@@ -299,7 +336,8 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
 
               {items.length > 0 && (
                 <div className="text-weak text-xs">
-                  총 {items.length}건 · 분석완료 <strong>{okCount}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
+                  총 {items.length}건 · 등록 가능 <strong>{okCount}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
+                  {duplicateCount > 0 && <> · <span className="text-red">중복 {duplicateCount}건 제외</span></>}
                 </div>
               )}
             </div>

@@ -1,13 +1,14 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 
 export default function AssetLoanPage() {
+  const subTabPending = useAssetSubtabPending();
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
-      subTabPending={ASSET_SUBTAB_PENDING}
+      subTabPending={subTabPending}
       footerLeft={<span className="stat">전체 <strong>0</strong></span>}
       footerRight={<button className="btn btn-primary">+ 할부 등록</button>}
     >

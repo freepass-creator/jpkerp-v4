@@ -1,7 +1,7 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
+import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { cn } from '@/lib/cn';
 
@@ -11,10 +11,11 @@ import { cn } from '@/lib/cn';
  */
 export default function AssetInspectionPage() {
   const [assets] = useAssetStore();
+  const subTabPending = useAssetSubtabPending();
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
-      subTabPending={ASSET_SUBTAB_PENDING}
+      subTabPending={subTabPending}
       footerLeft={<span className="stat-item">전체 <strong>{assets.length}</strong></span>}
       footerRight={<button className="btn btn-primary">+ 검사 등록</button>}
     >
