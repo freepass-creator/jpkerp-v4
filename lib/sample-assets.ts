@@ -81,23 +81,5 @@ export type Asset = {
   status: AssetStatus;
 };
 
-/** 차량번호 입력·매칭 UX 확인용 샘플 1대. 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. */
-export const SAMPLE_ASSETS: Asset[] = [
-  {
-    id: 'a-sample-001',
-    companyCode: 'CP01',
-    firstRegistDate: '2022-03-14',
-    plate: '11가1234',
-    vehicleClass: '승용',
-    usage: '대여',
-    vehicleName: '아반떼(CN7)',
-    vin: 'KMHL14JA8MA123456',
-    ownerName: '스위치플랜(주)',
-    maker: '현대',
-    modelName: '아반떼',
-    detailModel: '아반떼(CN7)',
-    fuelType: '가솔린',
-    exteriorColor: '화이트',
-    status: '운행중',
-  },
-];
+/** 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. 샘플 없음. */
+export const SAMPLE_ASSETS: Asset[] = [];
