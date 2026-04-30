@@ -27,7 +27,7 @@ export const MENU: MenuSection[] = [
     label: '운영',
     items: [
       { href: '/journal', label: '업무일지', icon: Notebook },
-      { href: '/pending', label: '미결현황', icon: Hourglass },
+      { href: '/pending', label: '업무현황', icon: Hourglass },
     ],
   },
   {

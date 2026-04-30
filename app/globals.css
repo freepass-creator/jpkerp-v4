@@ -903,12 +903,18 @@ input[type="checkbox"], input[type="radio"] {
   font-weight: var(--font-weight-medium);
   display: flex; justify-content: space-between; align-items: center;
 }
-.modal-body { padding: 16px; overflow-y: auto; flex: 1; }
+.modal-body { padding: 16px 16px 0 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+/* 다이얼로그 푸터는 항상 모달 하단에 고정 — modal-body 내부에 위치하더라도 sticky 로 시각 고정.
+   margin-top: auto 로 짧은 콘텐츠일 때도 푸터를 바닥으로 밀어붙임. */
 .modal-footer {
   padding: 8px 14px;
   border-top: 1px solid var(--border);
   background: var(--bg-header);
   display: flex; justify-content: flex-end; gap: 6px;
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0 -16px;
+  z-index: 1;
 }
 
 /* ═══════════════ Context Menu (우클릭) ═══════════════ */

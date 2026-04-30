@@ -555,7 +555,7 @@ export default function JournalPage() {
         <div style={{ flex: 3, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           {/* 패널헤드 — 우측 이력 헤드와 한 줄로 맞닿음 */}
           <div className="panel-head">
-            {usesCommonPlate ? <><Car size={14} /><span>차량 정보 · {KIND_LABEL[kind]}</span></> : <span>시동제어 대상</span>}
+            {usesCommonPlate ? <><Car size={14} /><span>{KIND_LABEL[kind]}</span></> : <span>시동제어 대상</span>}
           </div>
 
           {/* 패널바디 — 스크롤 영역 */}
