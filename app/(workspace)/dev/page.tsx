@@ -25,207 +25,259 @@ const TABS: { v: Tab; label: string }[] = [
 
 export default function DevPage() {
   const [tab, setTab] = useState<Tab>('companies');
+  const [companies, setCompanies] = useCompanyStore();
+  const [assets, setAssets] = useAssetStore();
+  const [contracts, setContracts] = useContractStore();
+  const [entries, setEntries] = useLedgerStore();
+
+  const counts = {
+    companies: companies.length,
+    assets: assets.length,
+    contracts: contracts.length,
+    ledger: entries.length,
+  };
+
+  function clearCurrent() {
+    if (tab === 'companies') {
+      if (counts.companies === 0) return;
+      if (!confirm(`회사 전체 ${counts.companies}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
+      setCompanies([]);
+    } else if (tab === 'assets') {
+      if (counts.assets === 0) return;
+      if (!confirm(`자산 전체 ${counts.assets}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
+      setAssets([]);
+    } else if (tab === 'contracts') {
+      if (counts.contracts === 0) return;
+      if (!confirm(`계약 전체 ${counts.contracts}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
+      setContracts([]);
+    } else {
+      if (counts.ledger === 0) return;
+      if (!confirm(`계좌내역 전체 ${counts.ledger}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
+      setEntries([]);
+    }
+  }
 
   return (
-    <PageShell>
-      <div style={{ display: 'flex', gap: 4, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-        {TABS.map((t) => (
-          <button
-            key={t.v}
-            type="button"
-            className={cn('chip', tab === t.v && 'active')}
-            onClick={() => setTab(t.v)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 12 }}>
-        {tab === 'companies' && <CompaniesPanel />}
-        {tab === 'assets' && <AssetsPanel />}
-        {tab === 'contracts' && <ContractsPanel />}
-        {tab === 'ledger' && <LedgerPanel />}
+    <PageShell
+      filterbar={
+        <div className="chip-group">
+          {TABS.map((t) => (
+            <button
+              key={t.v}
+              type="button"
+              className={cn('chip', tab === t.v && 'active')}
+              onClick={() => setTab(t.v)}
+            >
+              {t.label} ({counts[t.v]})
+            </button>
+          ))}
+        </div>
+      }
+      footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
+      footerRight={
+        <button className="btn" disabled={counts[tab] === 0} onClick={clearCurrent}>
+          <TrashSimple size={14} weight="bold" /> 전체 삭제
+        </button>
+      }
+    >
+      <div className="table-wrap">
+        {tab === 'companies' && <CompaniesTable companies={companies} setCompanies={setCompanies} />}
+        {tab === 'assets' && <AssetsTable assets={assets} setAssets={setAssets} />}
+        {tab === 'contracts' && <ContractsTable contracts={contracts} setContracts={setContracts} />}
+        {tab === 'ledger' && <LedgerTable entries={entries} setEntries={setEntries} />}
       </div>
     </PageShell>
   );
 }
 
 /* ─── 회사 ─── */
-function CompaniesPanel() {
-  const [companies, setCompanies] = useCompanyStore();
+function CompaniesTable({ companies, setCompanies }: {
+  companies: ReturnType<typeof useCompanyStore>[0];
+  setCompanies: ReturnType<typeof useCompanyStore>[1];
+}) {
   const removeOne = (code: string, name: string) => {
     if (!confirm(`회사 "${name}" (${code}) 삭제할까요?`)) return;
     setCompanies((p) => p.filter((c) => c.code !== code));
   };
-  const clearAll = () => {
-    if (companies.length === 0) return;
-    if (!confirm(`회사 전체 ${companies.length}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setCompanies([]);
-  };
   return (
-    <PanelLayout
-      title="회사정보"
-      count={companies.length}
-      onClearAll={clearAll}
-      headers={['회사코드', '회사명', '대표자', '사업자등록번호', '계좌수', '카드수']}
-    >
-      {companies.map((c) => (
-        <Row
-          key={c.code}
-          cells={[c.code, c.name, c.ceo || '-', c.bizNo, String(c.accounts?.length ?? 0), String(c.cards?.length ?? 0)]}
-          onDelete={() => removeOne(c.code, c.name)}
-        />
-      ))}
-    </PanelLayout>
+    <table className="table">
+      <thead>
+        <tr>
+          <th>회사코드</th>
+          <th>회사명</th>
+          <th>대표자</th>
+          <th>사업자등록번호</th>
+          <th className="num">계좌</th>
+          <th className="num">카드</th>
+          <th className="center" style={{ width: 50 }}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {companies.length === 0 ? (
+          <tr><td colSpan={7} className="center dim" style={{ padding: '32px 0' }}>등록된 회사 없음</td></tr>
+        ) : companies.map((c) => (
+          <tr key={c.code}>
+            <td className="plate text-medium">{c.code}</td>
+            <td>{c.name}</td>
+            <td>{c.ceo || '-'}</td>
+            <td className="mono">{c.bizNo}</td>
+            <td className="num">{c.accounts?.length ?? 0}</td>
+            <td className="num">{c.cards?.length ?? 0}</td>
+            <td className="center">
+              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
+                <Trash size={11} />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
 /* ─── 자산 ─── */
-function AssetsPanel() {
-  const [assets, setAssets] = useAssetStore();
+function AssetsTable({ assets, setAssets }: {
+  assets: ReturnType<typeof useAssetStore>[0];
+  setAssets: ReturnType<typeof useAssetStore>[1];
+}) {
   const removeOne = (id: string, plate: string) => {
     if (!confirm(`자산 "${plate || id}" 삭제할까요?`)) return;
     setAssets((p) => p.filter((a) => a.id !== id));
   };
-  const clearAll = () => {
-    if (assets.length === 0) return;
-    if (!confirm(`자산 전체 ${assets.length}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setAssets([]);
-  };
   return (
-    <PanelLayout
-      title="자산"
-      count={assets.length}
-      onClearAll={clearAll}
-      headers={['ID', '회사', '차량번호', '차명', '차대번호', '상태']}
-    >
-      {assets.map((a) => (
-        <Row
-          key={a.id}
-          cells={[a.id, a.companyCode, a.plate || '-', a.vehicleName || '-', a.vin || '-', a.status]}
-          onDelete={() => removeOne(a.id, a.plate)}
-        />
-      ))}
-    </PanelLayout>
+    <table className="table">
+      <thead>
+        <tr>
+          <th>회사</th>
+          <th>차량번호</th>
+          <th>차명</th>
+          <th>차대번호</th>
+          <th>형식</th>
+          <th>제작연월</th>
+          <th>상태</th>
+          <th className="mono dim">ID</th>
+          <th className="center" style={{ width: 50 }}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {assets.length === 0 ? (
+          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 자산 없음</td></tr>
+        ) : assets.map((a) => (
+          <tr key={a.id}>
+            <td className="plate">{a.companyCode}</td>
+            <td className="plate text-medium">{a.plate || '-'}</td>
+            <td>{a.vehicleName || '-'}</td>
+            <td className="mono dim">{a.vin || '-'}</td>
+            <td className="dim">{a.modelType || '-'}</td>
+            <td className="dim">{a.manufactureDate || '-'}</td>
+            <td>{a.status}</td>
+            <td className="mono dim">{a.id}</td>
+            <td className="center">
+              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
+                <Trash size={11} />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
 /* ─── 계약 ─── */
-function ContractsPanel() {
-  const [contracts, setContracts] = useContractStore();
+function ContractsTable({ contracts, setContracts }: {
+  contracts: ReturnType<typeof useContractStore>[0];
+  setContracts: ReturnType<typeof useContractStore>[1];
+}) {
   const removeOne = (id: string, contractNo: string) => {
     if (!confirm(`계약 "${contractNo || id}" 삭제할까요?`)) return;
     setContracts((p) => p.filter((c) => c.id !== id));
   };
-  const clearAll = () => {
-    if (contracts.length === 0) return;
-    if (!confirm(`계약 전체 ${contracts.length}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setContracts([]);
-  };
   return (
-    <PanelLayout
-      title="계약"
-      count={contracts.length}
-      onClearAll={clearAll}
-      headers={['ID', '회사', '계약번호', '차량번호', '고객', '상태']}
-    >
-      {contracts.map((c) => (
-        <Row
-          key={c.id}
-          cells={[c.id, c.companyCode, c.contractNo, c.plate, c.customerName, c.status]}
-          onDelete={() => removeOne(c.id, c.contractNo)}
-        />
-      ))}
-    </PanelLayout>
+    <table className="table">
+      <thead>
+        <tr>
+          <th>회사</th>
+          <th>계약번호</th>
+          <th>차량번호</th>
+          <th>고객</th>
+          <th className="date">시작</th>
+          <th className="date">만기</th>
+          <th>상태</th>
+          <th className="mono dim">ID</th>
+          <th className="center" style={{ width: 50 }}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {contracts.length === 0 ? (
+          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 계약 없음</td></tr>
+        ) : contracts.map((c) => (
+          <tr key={c.id}>
+            <td className="plate">{c.companyCode}</td>
+            <td className="mono text-medium">{c.contractNo}</td>
+            <td className="plate">{c.plate}</td>
+            <td>{c.customerName}</td>
+            <td className="date">{c.startDate}</td>
+            <td className="date">{c.endDate}</td>
+            <td>{c.status}</td>
+            <td className="mono dim">{c.id}</td>
+            <td className="center">
+              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
+                <Trash size={11} />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
 /* ─── 계좌내역 ─── */
-function LedgerPanel() {
-  const [entries, setEntries] = useLedgerStore();
+function LedgerTable({ entries, setEntries }: {
+  entries: ReturnType<typeof useLedgerStore>[0];
+  setEntries: ReturnType<typeof useLedgerStore>[1];
+}) {
   const removeOne = (id: string, memo: string) => {
     if (!confirm(`거래 "${memo}" 삭제할까요?`)) return;
     setEntries((p) => p.filter((e) => e.id !== id));
   };
-  const clearAll = () => {
-    if (entries.length === 0) return;
-    if (!confirm(`계좌내역 전체 ${entries.length}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setEntries([]);
-  };
   return (
-    <PanelLayout
-      title="계좌내역"
-      count={entries.length}
-      onClearAll={clearAll}
-      headers={['ID', '회사', '거래일시', '입금', '출금', '적요', '상대']}
-    >
-      {entries.map((e) => (
-        <Row
-          key={e.id}
-          cells={[
-            e.id,
-            e.companyCode,
-            e.txDate,
-            e.deposit ? e.deposit.toLocaleString('ko-KR') : '',
-            e.withdraw ? e.withdraw.toLocaleString('ko-KR') : '',
-            e.memo,
-            e.counterparty ?? '',
-          ]}
-          onDelete={() => removeOne(e.id, e.memo)}
-        />
-      ))}
-    </PanelLayout>
-  );
-}
-
-/* ─── 공용 레이아웃 ─── */
-function PanelLayout({
-  title, count, onClearAll, headers, children,
-}: {
-  title: string;
-  count: number;
-  onClearAll: () => void;
-  headers: string[];
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-3">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span className="text-medium">{title} <span className="text-weak">({count})</span></span>
-        <button className="btn" disabled={count === 0} onClick={onClearAll}>
-          <TrashSimple size={14} weight="bold" /> 전체 삭제
-        </button>
-      </div>
-      {count === 0 ? (
-        <div className="text-weak" style={{ padding: '32px 0', textAlign: 'center' }}>등록된 데이터 없음</div>
-      ) : (
-        <div className="border" style={{ borderColor: 'var(--border)', overflowX: 'auto' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                {headers.map((h) => <th key={h}>{h}</th>)}
-                <th className="center" style={{ width: 50 }}></th>
-              </tr>
-            </thead>
-            <tbody>{children}</tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Row({ cells, onDelete }: { cells: string[]; onDelete: () => void }) {
-  return (
-    <tr>
-      {cells.map((c, i) => (
-        <td key={i} className={i === 0 ? 'mono dim' : undefined}>{c}</td>
-      ))}
-      <td className="center">
-        <button className="btn-ghost btn btn-sm" onClick={onDelete} title="삭제">
-          <Trash size={11} />
-        </button>
-      </td>
-    </tr>
+    <table className="table">
+      <thead>
+        <tr>
+          <th>회사</th>
+          <th className="date">거래일시</th>
+          <th className="num">입금</th>
+          <th className="num">출금</th>
+          <th>적요</th>
+          <th>상대</th>
+          <th>계좌</th>
+          <th className="mono dim">ID</th>
+          <th className="center" style={{ width: 50 }}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.length === 0 ? (
+          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 거래 없음</td></tr>
+        ) : entries.map((e) => (
+          <tr key={e.id}>
+            <td className="plate">{e.companyCode}</td>
+            <td className="date mono">{e.txDate}</td>
+            <td className="num">{e.deposit ? e.deposit.toLocaleString('ko-KR') : ''}</td>
+            <td className="num">{e.withdraw ? e.withdraw.toLocaleString('ko-KR') : ''}</td>
+            <td>{e.memo}</td>
+            <td className="dim">{e.counterparty ?? ''}</td>
+            <td className="mono dim">{e.account ?? '-'}</td>
+            <td className="mono dim">{e.id}</td>
+            <td className="center">
+              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(e.id, e.memo)} title="삭제">
+                <Trash size={11} />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

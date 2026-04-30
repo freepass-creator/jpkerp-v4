@@ -53,7 +53,7 @@ export default function AssetListPage() {
 
   function handleCreate(partial: Partial<Asset>) {
     const next: Asset = {
-      id: `a-${Date.now()}`,
+      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: partial.companyCode ?? 'CP01',
       plate: partial.plate ?? '',
       firstRegistDate: partial.firstRegistDate ?? '',
