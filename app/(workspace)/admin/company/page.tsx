@@ -81,8 +81,8 @@ export default function AdminCompanyPage() {
             <tbody>
               {companies.length === 0 ? (
                 <tr><td colSpan={11} className="center dim" style={{ padding: '32px 0' }}>등록된 회사가 없습니다. 우측 하단 [+ 회사 등록]으로 사업자등록증 OCR 진행하세요.</td></tr>
-              ) : companies.map((c) => (
-                <tr key={c.code} className={cn(selected?.code === c.code && 'selected')}
+              ) : companies.map((c, i) => (
+                <tr key={c.code || `__${i}__`} className={cn(selected?.code === c.code && 'selected')}
                     onClick={() => setSelected(c)}
                     onContextMenu={(ev) => { ev.preventDefault(); setSelected(c); setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY }); }}>
                   <td className="plate text-medium">{c.code}</td>

@@ -183,8 +183,8 @@ function CompaniesTable({ companies, setCompanies }: {
       <tbody>
         {companies.length === 0 ? (
           <tr><td colSpan={7} className="center dim" style={{ padding: '32px 0' }}>등록된 회사 없음</td></tr>
-        ) : companies.map((c) => (
-          <tr key={c.code}>
+        ) : companies.map((c, i) => (
+          <tr key={c.code || `__${i}__`}>
             <td className="plate text-medium">{c.code}</td>
             <td>{c.name}</td>
             <td>{c.ceo || '-'}</td>
