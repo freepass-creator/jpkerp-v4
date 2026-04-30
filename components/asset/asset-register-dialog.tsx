@@ -4,33 +4,24 @@ import { useState } from 'react';
 import { Upload, FileXls, Pencil, Plus, X, CheckCircle, CircleNotch, Warning } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { RegistrationForm } from './registration-form';
-import { runWithConcurrency } from '@/lib/parallel';
 import type { Asset } from '@/lib/sample-assets';
 import { findCompanyByOwner, type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
+import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
+import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
+import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
 
-const OCR_CONCURRENCY = 30;
-
-type Status = 'pending' | 'done' | 'failed';
 type DuplicateReason = 'plate' | 'vin' | null;
-type WorkItem = {
-  id: string;
-  fileName: string;
+type AssetWorkItem = OcrBatchItem & {
   data: Partial<Asset>;
-  _status: Status;
-  _error?: string;
-  /** 기존 자산과 중복 — plate(차량번호) 또는 vin(차대번호) 일치. null = 중복 아님. */
-  _duplicate?: DuplicateReason;
+  _duplicate: DuplicateReason;
 };
 
-/**
- * /api/ocr/extract 응답(VEHICLE_REG_SCHEMA) → Asset 필드 매핑.
- *
- * 자동차등록증에 실제로 적힌 필드만 채움. 등록증에 없는 추측 항목
- * (제조사·모델명·세부모델·트림·색상·구동방식 등)은 OCR 스키마에서도 제외.
- */
+/** 자동차등록증(VEHICLE_REG_SCHEMA) → Asset 매핑. 등록증에 실제로 적힌 항목만. */
 function mapVehicleRegToAsset(
   ex: Record<string, unknown>,
   companies: readonly Company[],
@@ -95,102 +86,41 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     onOpenChange?.(v);
   };
 
-  const [items, setItems] = useState<WorkItem[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  function reset() {
-    setItems([]);
-    setBusy(false);
-    setProgress(null);
-  }
-
-  /** 업로드 즉시 OCR 시작 — 과태료와 동일 패턴. */
-  async function handleFiles(files: FileList | File[]) {
-    const arr = Array.from(files);
-    if (arr.length === 0) return;
-    setBusy(true);
-
-    const stamp = Date.now();
-    const placeholders: WorkItem[] = arr.map((f, i) => ({
-      id: `p-${stamp}-${i}-${Math.random().toString(36).slice(2, 5)}`,
-      fileName: f.name,
+  const ocr = useOcrBatch<AssetWorkItem>({
+    docType: 'vehicle_reg',
+    createPlaceholder: (file, id) => ({
+      id, fileName: file.name, _status: 'pending',
       data: { companyCode: '', status: '대기' as const },
-      _status: 'pending',
-    }));
-    setItems((prev) => [...prev, ...placeholders]);
-    setProgress((prev) => ({
-      done: prev?.done ?? 0,
-      total: (prev?.total ?? 0) + arr.length,
-    }));
+      _duplicate: null,
+    }),
+    applyResult: (prev, raw, allItems) => {
+      const data = mapVehicleRegToAsset(raw, companies);
+      // 기존 자산 + 동일 배치의 다른 done 항목 모두 인덱스에 넣고 매칭
+      const index = buildKeyIndex<Partial<Asset>>([
+        ...assets,
+        ...allItems.filter((i) => i.id !== prev.id && i._status === 'done').map((i) => i.data),
+      ], assetKeyFn);
+      const dup = matchAgainstIndex(data, index, assetKeyFn);
+      const _duplicate: DuplicateReason = dup ? describeAssetDuplicate(dup.matchedKey) : null;
+      return { ...prev, data, _duplicate };
+    },
+  });
 
-    try {
-      await runWithConcurrency(arr, OCR_CONCURRENCY, async (file, i) => {
-        const id = placeholders[i].id;
-        try {
-          const fd = new FormData();
-          fd.append('file', file);
-          fd.append('type', 'vehicle_reg');
-          const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
-          const json = await res.json();
-          if (!json.ok) throw new Error(json.error || 'OCR 실패');
-          const ex = json.extracted as Record<string, unknown>;
-          const data = mapVehicleRegToAsset(ex, companies);
-          // 기존 자산과 중복 검사 — 차대번호(vin) 우선, 차량번호(plate) 차순.
-          const dup: DuplicateReason =
-            data.vin && assets.some((a) => a.vin === data.vin) ? 'vin'
-            : data.plate && assets.some((a) => a.plate === data.plate) ? 'plate'
-            : null;
-          setItems((prev) => prev.map((it) => it.id === id ? { ...it, data, _status: 'done' as const, _duplicate: dup } : it));
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('[asset OCR]', err);
-          setItems((prev) => prev.map((it) => it.id === id ? { ...it, _status: 'failed' as const, _error: msg } : it));
-        } finally {
-          setProgress((p) => p ? { done: p.done + 1, total: p.total } : null);
-        }
-      });
-    } finally {
-      setBusy(false);
-      setProgress(null);
-    }
-  }
-
-  function removeItem(id: string) {
-    setItems((p) => p.filter((i) => i.id !== id));
-  }
+  const okItems = ocr.items.filter((i) => i._status === 'done' && !i._duplicate);
+  const matchedCount = okItems.filter((i) => i.data.companyCode).length;
+  const duplicateCount = ocr.items.filter((i) => i._duplicate).length;
 
   function commitAll() {
-    // 1) 분석 완료 + 기존 자산 중복 아닌 행만
-    const ok = items.filter((i) => i._status === 'done' && !i._duplicate);
-    if (ok.length === 0) return;
-    // 2) 배치 내부 중복 제거 (같은 vin 또는 plate 중복 입력)
-    const seen = new Set<string>();
-    const unique: WorkItem[] = [];
-    let droppedInBatch = 0;
-    for (const i of ok) {
-      const key = i.data.vin || i.data.plate || '';
-      if (key && seen.has(key)) { droppedInBatch++; continue; }
-      if (key) seen.add(key);
-      unique.push(i);
-    }
-    if (droppedInBatch > 0) {
-      alert(`배치 내 중복 ${droppedInBatch}건 제외하고 ${unique.length}건 등록합니다.`);
-    }
-    unique.forEach((i) => onCreate(i.data));
+    if (okItems.length === 0) return;
+    okItems.forEach((i) => onCreate(i.data));
     setOpen(false);
-    setTimeout(reset, 100);
+    setTimeout(ocr.reset, 100);
   }
 
   function handleClose(o: boolean) {
     setOpen(o);
-    if (!o) reset();
+    if (!o) ocr.reset();
   }
-
-  const okCount = items.filter((i) => i._status === 'done' && !i._duplicate).length;
-  const matchedCount = items.filter((i) => i._status === 'done' && i.data.companyCode && !i._duplicate).length;
-  const duplicateCount = items.filter((i) => i._duplicate).length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -218,53 +148,16 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
 
           <TabsContent value="ocr">
             <div className="space-y-3">
-              <label
-                className={`dropzone block ${dragging ? 'dragging' : ''} ${busy ? 'busy' : ''}`}
-                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
-                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }}
-                onDrop={(e) => {
-                  e.preventDefault(); e.stopPropagation();
-                  setDragging(false);
-                  if (busy) return;
-                  const files = e.dataTransfer?.files;
-                  if (files && files.length > 0) handleFiles(files);
-                }}
-              >
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  className="hidden"
-                  disabled={busy}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      handleFiles(e.target.files);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-                {progress ? (
-                  <>
-                    <CircleNotch size={26} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
-                    <div className="mt-2 text-medium">OCR 진행 중... <strong>{progress.done}</strong> / {progress.total}</div>
-                    <div className="mt-1 text-weak">Gemini가 자동차등록증을 읽고 있습니다</div>
-                  </>
-                ) : dragging ? (
-                  <>
-                    <Upload size={26} className="mx-auto" style={{ color: 'var(--brand)' }} />
-                    <div className="mt-2 text-medium">여기에 놓기</div>
-                  </>
-                ) : (
-                  <>
-                    <Upload size={26} className="mx-auto text-weak" />
-                    <div className="mt-2 text-medium">자동차등록증 업로드 — 클릭 또는 드래그&드롭</div>
-                    <div className="mt-1 text-weak">JPG / PNG / PDF — 업로드 즉시 OCR 시작. 법인번호로 회사 자동 매칭.</div>
-                  </>
-                )}
-              </label>
+              <OcrUploadStage
+                progress={ocr.progress}
+                busy={ocr.busy}
+                onFiles={ocr.handleFiles}
+                idleTitle="자동차등록증 업로드 — 클릭 또는 드래그&드롭"
+                idleSubtitle="JPG / PNG / PDF — 업로드 즉시 OCR 시작. 법인번호로 회사 자동 매칭, 차량번호·차대번호 중복 검사."
+                progressSubtitle="Gemini가 자동차등록증을 읽고 있습니다"
+              />
 
-              {items.length > 0 && (
+              {ocr.items.length > 0 && (
                 <div className="border" style={{ borderColor: 'var(--border)', overflowX: 'auto', maxHeight: 360 }}>
                   <table className="table">
                     <thead>
@@ -282,15 +175,15 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((p) => {
+                      {ocr.items.map((p) => {
                         const d = p.data;
                         return (
                           <tr key={p.id}>
-                            <td className="center"><StatusBadge item={p} /></td>
+                            <td className="center"><AssetItemStatus item={p} /></td>
                             <td className="plate">
                               {p._status === 'pending' ? <span className="text-weak">…</span>
                                 : d.companyCode ? d.companyCode
-                                : <span className="text-red" title="등록된 회사 없음 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
+                                : <span className="text-weak">-</span>}
                             </td>
                             <td className="plate text-medium">{d.plate || '-'}</td>
                             <td className="dim">{d.vehicleClass || '-'}</td>
@@ -300,7 +193,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                             <td className="date">{d.firstRegistDate || '-'}</td>
                             <td className="num">{d.acquisitionPrice ? d.acquisitionPrice.toLocaleString('ko-KR') : '-'}</td>
                             <td className="center">
-                              <button className="btn-ghost btn btn-sm" onClick={() => removeItem(p.id)} title="제거">
+                              <button className="btn-ghost btn btn-sm" onClick={() => ocr.removeItem(p.id)} title="제거">
                                 <X size={11} />
                               </button>
                             </td>
@@ -312,9 +205,9 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                 </div>
               )}
 
-              {items.length > 0 && (
+              {ocr.items.length > 0 && (
                 <div className="text-weak text-xs">
-                  총 {items.length}건 · 등록 가능 <strong>{okCount}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
+                  총 {ocr.items.length}건 · 등록 가능 <strong>{okItems.length}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
                   {duplicateCount > 0 && <> · <span className="text-red">중복 {duplicateCount}건 제외</span></>}
                 </div>
               )}
@@ -324,14 +217,14 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
               <DialogClose asChild>
                 <button className="btn">취소</button>
               </DialogClose>
-              <button className="btn btn-primary" disabled={okCount === 0 || busy} onClick={commitAll}>
-                {okCount > 0 ? `${okCount}건 등록` : '등록'}
+              <button className="btn btn-primary" disabled={okItems.length === 0 || ocr.busy} onClick={commitAll}>
+                {okItems.length > 0 ? `${okItems.length}건 등록` : '등록'}
               </button>
             </DialogFooter>
           </TabsContent>
 
           <TabsContent value="manual">
-            <RegistrationForm data={{}} onSubmit={(d) => { onCreate(d); setOpen(false); reset(); }} />
+            <RegistrationForm data={{}} onSubmit={(d) => { onCreate(d); setOpen(false); ocr.reset(); }} />
           </TabsContent>
 
           <TabsContent value="sheet">
@@ -345,28 +238,24 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
   );
 }
 
-/**
- * 행별 상태 배지 — 분석중 / 오류 / 중복 / 미매칭 / 신규.
- *  · 우선순위: failed > duplicate > pending > companyCode 없음(미매칭) > 신규
- */
-function StatusBadge({ item }: { item: WorkItem }) {
-  const wrap: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3 };
+/** 자산 OCR 행 상태 — 분석중 / 오류 / 중복 / 미매칭 / 신규. */
+function AssetItemStatus({ item }: { item: AssetWorkItem }) {
   if (item._status === 'pending') {
-    return <span className="badge" style={wrap}><CircleNotch size={11} className="spin" /> 분석중</span>;
+    return <StatusBadge tone="neutral" icon={<CircleNotch size={11} className="spin" />}>분석중</StatusBadge>;
   }
   if (item._status === 'failed') {
-    return <span className="badge badge-red" style={wrap} title={item._error}><Warning size={11} weight="fill" /> 오류</span>;
+    return <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />} title={item._error}>오류</StatusBadge>;
   }
   if (item._duplicate) {
     return (
-      <span className="badge badge-red" style={wrap}
-            title={item._duplicate === 'vin' ? '차대번호 중복 — 이미 등록된 차량' : '차량번호 중복 — 이미 등록된 차량'}>
-        <Warning size={11} weight="fill" /> 중복
-      </span>
+      <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />}
+                   title={item._duplicate === 'vin' ? '차대번호 중복 — 이미 등록된 차량' : '차량번호 중복 — 이미 등록된 차량'}>
+        중복
+      </StatusBadge>
     );
   }
   if (!item.data.companyCode) {
-    return <span className="badge badge-orange" style={wrap} title="등록된 회사와 매칭 실패"><Warning size={11} weight="fill" /> 미매칭</span>;
+    return <StatusBadge tone="orange" icon={<Warning size={11} weight="fill" />} title="등록된 회사와 매칭 실패">미매칭</StatusBadge>;
   }
-  return <span className="badge badge-green" style={wrap}><CheckCircle size={11} weight="fill" /> 신규</span>;
+  return <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>;
 }
