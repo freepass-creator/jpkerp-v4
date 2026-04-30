@@ -1,21 +1,21 @@
 /**
  * 엔티티 코드 자동 생성 유틸 — 일관된 ID 체계.
  *
- * ┌─ 코드 컨벤션 ──────────────────────────────────────────────────┐
+ * ┌─ 코드 컨벤션 (모두 회사 scoped 4자리 일련번호) ────────────────┐
  * │ 회사       CP01, CP02, ... CP99       (사용자 부여, nextCompanyCode)      │
- * │ 자산       AS-CP01-001                (회사 scoped, nextCompanyScopedCode) │
- * │ 계약       C-2026-0001                (연 scoped, nextSequenceCode)        │
- * │ 직원       E-CP01-001                 (회사 scoped)                        │
- * │ 고객       LS-2026-0001               (연 scoped, Lessee)                  │
- * │ 거래처     V-2026-0001                (연 scoped, Vendor)                  │
- * │ 보험       IN-2026-0001               (연 scoped, Insurance)               │
- * │ 할부       LN-2026-0001               (연 scoped, Loan)                    │
- * │ 과태료     PN-2026-0001               (연 scoped, 내부관리용)              │
- * │ 일지       J-2026-0001                (연 scoped, Journal)                 │
- * │ 거래       l-{ts}-{rand}              (RTDB key, 자동)                     │
+ * │ 자산       AS-CP01-0001               (회사 scoped, ~9999/회사)            │
+ * │ 계약       C-CP01-0001                (회사 scoped)                        │
+ * │ 고객       LS-CP01-0001               (회사 scoped, Lessee)                │
+ * │ 직원       E-CP01-0001                (회사 scoped, Employee)              │
+ * │ 거래처     V-CP01-0001                (회사 scoped, Vendor)                │
+ * │ 보험       IN-CP01-0001               (회사 scoped, Insurance)             │
+ * │ 할부       LN-CP01-0001               (회사 scoped, Loan)                  │
+ * │ 과태료     PN-CP01-0001               (회사 scoped)                        │
+ * │ 일지       J-CP01-0001                (회사 scoped, Journal)               │
+ * │ 거래(원장) l-{ts}-{rand}              (RTDB key, 자동 — 시퀀스 X)          │
  * └────────────────────────────────────────────────────────────────┘
  *
- * 모든 함수는 기존 코드 배열을 받아 다음 사용 가능 코드 반환. 수동 입력도 항상 가능.
+ * 회사별 1번부터 시작. 9999까지 안전. 모든 함수는 기존 코드 배열을 받아 다음 코드 반환.
  */
 
 /** 회사코드 — CP01 ~ CP99 중 비어있는 다음 번호 */

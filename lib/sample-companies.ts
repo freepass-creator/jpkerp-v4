@@ -42,3 +42,29 @@ export function findCompany(code?: string): Company | undefined {
   if (!code) return undefined;
   return SAMPLE_COMPANIES.find((c) => c.code === code);
 }
+
+/**
+ * 자동차등록증 ⑨성명·⑩법인등록번호로 회사 찾기.
+ *   매칭 우선순위: 법인등록번호(corpNo) > 사업자등록번호(bizNo) > 회사명(name).
+ *   하이픈/공백 정규화 후 비교.
+ */
+export function findCompanyByOwner(
+  ownerName: string | undefined,
+  ownerRegNo: string | undefined,
+  companies: readonly Company[],
+): Company | undefined {
+  const norm = (s?: string) => s?.replace(/[-\s]/g, '') ?? '';
+  const reg = norm(ownerRegNo);
+  if (reg) {
+    const byCorp = companies.find((c) => norm(c.corpNo) === reg);
+    if (byCorp) return byCorp;
+    const byBiz = companies.find((c) => norm(c.bizNo) === reg);
+    if (byBiz) return byBiz;
+  }
+  const name = ownerName?.trim();
+  if (name) {
+    const byName = companies.find((c) => c.name === name);
+    if (byName) return byName;
+  }
+  return undefined;
+}

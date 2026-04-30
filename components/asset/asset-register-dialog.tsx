@@ -8,6 +8,8 @@ import { cn } from '@/lib/cn';
 import { RegistrationForm } from './registration-form';
 import { runWithConcurrency } from '@/lib/parallel';
 import type { Asset } from '@/lib/sample-assets';
+import { findCompanyByOwner, type Company } from '@/lib/sample-companies';
+import { useCompanyStore } from '@/lib/use-company-store';
 
 const OCR_CONCURRENCY = 30;
 
@@ -17,11 +19,17 @@ const OCR_CONCURRENCY = 30;
  * 자동차등록증에 실제로 적힌 필드만 채움. 등록증에 없는 추측 항목
  * (제조사·모델명·세부모델·트림·색상·구동방식 등)은 OCR 스키마에서도 제외.
  */
-function mapVehicleRegToAsset(ex: Record<string, unknown>): Partial<Asset> {
+function mapVehicleRegToAsset(
+  ex: Record<string, unknown>,
+  companies: readonly Company[],
+): Partial<Asset> {
   const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const ownerName = str(ex.owner_name);
+  const ownerRegNumber = str(ex.owner_biz_no);
+  const matched = findCompanyByOwner(ownerName, ownerRegNumber, companies);
   return {
-    companyCode: 'CP01',
+    companyCode: matched?.code ?? '',
     // 헤더
     documentNo: str(ex.document_no),
     firstRegistDate: str(ex.first_registration_date) ?? '',
@@ -36,8 +44,8 @@ function mapVehicleRegToAsset(ex: Record<string, unknown>): Partial<Asset> {
     vin: str(ex.vin) ?? '',                        // ⑥
     engineType: str(ex.engine_type),               // ⑦
     ownerLocation: str(ex.address),                // ⑧
-    ownerName: str(ex.owner_name) ?? '',           // ⑨
-    ownerRegNumber: str(ex.owner_biz_no),          // ⑩
+    ownerName: ownerName ?? '',                    // ⑨
+    ownerRegNumber,                                // ⑩
     // 1. 제원 ⑪ ~ ㉔
     approvalNumber: str(ex.approval_number),       // ⑪
     length: num(ex.length_mm),                     // ⑫
@@ -78,6 +86,7 @@ type ParsedItem = {
 };
 
 export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
+  const [companies] = useCompanyStore();
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
@@ -99,7 +108,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     const placeholders: ParsedItem[] = files.map((f, i) => ({
       id: `p-${stamp}-${i}`,
       fileName: f.name,
-      data: { companyCode: 'CP01', status: '대기' as const },
+      data: { companyCode: '', status: '대기' as const },
     }));
     setParsedList(placeholders);
 
@@ -115,7 +124,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
           const json = await res.json();
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const ex = json.extracted as Record<string, unknown>;
-          const data = mapVehicleRegToAsset(ex);
+          const data = mapVehicleRegToAsset(ex, companies);
           setParsedList((prev) => prev.map((p) => (p.id === id ? { ...p, data } : p)));
         } catch (err) {
           console.error('[asset OCR]', err);
@@ -361,7 +370,11 @@ function ParsedListView({
                 <tr key={p.id}>
                   {/* 파일명 + 식별자 */}
                   <td className="mono dim truncate" style={{ maxWidth: 160 }} title={p.fileName}>{p.fileName}</td>
-                  <td className="plate">{v(d.companyCode)}</td>
+                  <td className="plate">
+                    {d.companyCode
+                      ? d.companyCode
+                      : <span className="text-red" title="등록된 회사와 매칭 실패 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
+                  </td>
 
                   {/* 등록증 ① ~ ⑩ */}
                   <td className="plate text-medium">{v(d.plate)}</td>
