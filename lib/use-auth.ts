@@ -3,21 +3,21 @@
 import { useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithEmailAndPassword,
   signOut as fbSignOut,
-  GoogleAuthProvider,
   type User,
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebase/client';
 
 /**
- * Firebase Auth 상태 훅 — Google 로그인 / 로그아웃.
+ * Firebase Auth 훅 — 이메일/비밀번호 로그인 (jpkerp3 패턴 동일).
  *
- *  const { user, loading, login, logout } = useAuth();
- *  - user: 로그인된 User 또는 null
- *  - loading: 초기 인증 상태 확인 중 true
- *  - login(): Google 팝업으로 로그인
- *  - logout(): 로그아웃
+ *  const { user, loading } = useAuth();
+ *  await login(email, password);
+ *  await logout();
+ *
+ * 계정은 Firebase Console → Authentication → Users 에서 관리자가 추가.
+ * 신규 가입 폼은 별도 (운영 안정 후 구현).
  */
 
 let cache: User | null = null;
@@ -46,28 +46,16 @@ export function useAuth() {
     return () => { listeners.delete(fn); };
   }, []);
 
-  return {
-    user,
-    loading,
-    login,
-    logout,
-  };
+  return { user, loading };
 }
 
-/** Google 팝업 로그인 */
-export async function login() {
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-  try {
-    await signInWithPopup(getFirebaseAuth(), provider);
-  } catch (e) {
-    console.error('[auth] login failed', e);
-    alert(`로그인 실패: ${e instanceof Error ? e.message : String(e)}`);
-  }
+/** 이메일/비밀번호 로그인. 실패 시 throw. */
+export async function login(email: string, password: string): Promise<void> {
+  await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
 }
 
 /** 로그아웃 */
-export async function logout() {
+export async function logout(): Promise<void> {
   try {
     await fbSignOut(getFirebaseAuth());
   } catch (e) {

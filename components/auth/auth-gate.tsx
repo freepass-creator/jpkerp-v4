@@ -1,96 +1,105 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth, login } from '@/lib/use-auth';
 
 /**
- * 인증 게이트 — 로그인 안 된 사용자는 로그인 화면으로.
- * Workspace 전체를 감싸서 모든 페이지에 인증 강제.
+ * 인증 게이트 — 미인증 시 로그인 화면. jpkerp3 의 디자인 그대로 포팅.
+ * 이메일/비밀번호 로그인. 계정은 Firebase Console 에서 관리자가 추가.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div style={{
-        height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--text-sub)', fontSize: 12,
-      }}>
-        인증 확인 중...
+      <div className="auth-loading">
+        <div className="auth-loading__brand">
+          <span className="auth-brand__base">team</span>
+          <span className="auth-brand__main">jpk</span>{' '}
+          <span className="auth-brand__erp">ERP</span>
+        </div>
+        <i className="auth-loading__spinner ph ph-spinner" />
       </div>
     );
   }
 
-  if (!user) {
-    return <LoginScreen />;
-  }
-
+  if (!user) return <LoginScreen />;
   return <>{children}</>;
 }
 
 function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await login(email, password);
+      // 인증 상태 변경은 onAuthStateChanged 가 자동 처리 → AuthGate 가 children 렌더
+    } catch (err) {
+      const msg = (err as Error).message;
+      setError(
+        msg.includes('invalid') || msg.includes('wrong-password')
+          ? '이메일 또는 비밀번호가 잘못되었습니다'
+          : msg.includes('user-not-found')
+            ? '등록되지 않은 계정입니다'
+            : msg.includes('too-many-requests')
+              ? '시도 너무 많음 — 잠시 후 다시 시도하세요'
+              : msg,
+      );
+      setBusy(false);
+    }
+  }
+
   return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 24,
-      background: 'var(--bg-page)',
-    }}>
-      {/* JPK ERP 로고 */}
-      <div style={{
-        width: 120,
-        height: 120,
-        borderRadius: 18,
-        background: 'var(--brand)',
-        color: 'var(--text-inverse)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 900,
-        fontSize: 36,
-        letterSpacing: -1,
-        lineHeight: 1.0,
-        fontFamily: 'Consolas, monospace',
-      }}>
-        <div>JPK</div>
-        <div>ERP</div>
+    <div className="auth-shell">
+      <div className="auth-brand">
+        <span className="auth-brand__base">team</span>
+        <span className="auth-brand__main">jpk</span>{' '}
+        <span className="auth-brand__erp">ERP</span>
       </div>
-
-      <div style={{ textAlign: 'center', color: 'var(--text-sub)' }}>
-        장기렌터카 ERP
-      </div>
-
-      <button
-        onClick={login}
-        className="btn btn-primary"
-        style={{
-          fontSize: 13,
-          padding: '10px 24px',
-          height: 'auto',
-          gap: 8,
-        }}
-      >
-        <GoogleIcon /> Google 계정으로 로그인
-      </button>
-
-      <div style={{ fontSize: 11, color: 'var(--text-weak)', maxWidth: 320, textAlign: 'center', lineHeight: 1.6 }}>
-        직원 Google 계정으로 로그인하세요.<br />
-        문의는 관리자에게.
-      </div>
+      <section className="auth-card" aria-label="로그인">
+        <header className="auth-card__head">
+          <h2 className="auth-card__title">로그인</h2>
+          <p className="auth-card__sub">이메일과 비밀번호를 입력해주세요.</p>
+        </header>
+        <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <div className="auth-field">
+            <label htmlFor="login-email">이메일</label>
+            <input
+              id="login-email"
+              type="email"
+              autoComplete="email"
+              placeholder="name@company.com"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="login-password">비밀번호</label>
+            <input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="비밀번호 입력"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          {error && <p className="auth-message" role="alert">{error}</p>}
+          <button type="submit" className="auth-submit" disabled={busy}>
+            {busy ? '접속 중...' : '로그인'}
+          </button>
+        </form>
+        <p className="auth-guide">기존 jpkerp 계정으로 로그인</p>
+      </section>
+      <div className="auth-copyright">&copy; 2026 teamjpk. All Rights Reserved.</div>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z" fill="#4285F4"/>
-      <path d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z" fill="#34A853"/>
-      <path d="M4.5 10.48a4.8 4.8 0 0 1 0-3.04V5.37H1.83a8 8 0 0 0 0 7.18l2.67-2.07z" fill="#FBBC05"/>
-      <path d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.37L4.5 7.44a4.77 4.77 0 0 1 4.48-3.26z" fill="#EA4335"/>
-    </svg>
   );
 }
