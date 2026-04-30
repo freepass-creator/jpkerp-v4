@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
-import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
+import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import {
   ALL_SUBJECTS,
   RECEIPT_SUBJECTS,
@@ -194,7 +194,7 @@ export default function FinanceDailyPage() {
   return (
     <PageShell
       subTabs={FINANCE_SUBTABS}
-      subTabPending={FINANCE_SUBTAB_PENDING}
+     
       footerLeft={
         <>
           <div className="chip-group" role="tablist" aria-label="자금일보 뷰">

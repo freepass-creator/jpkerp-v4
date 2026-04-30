@@ -2,7 +2,7 @@
 
 import { PageShell } from '@/components/layout/page-shell';
 import { useMemo } from 'react';
-import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
@@ -99,7 +99,7 @@ export default function ContractCustomerPage() {
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-      subTabPending={CONTRACT_SUBTAB_PENDING}
+     
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{total}</strong></span>

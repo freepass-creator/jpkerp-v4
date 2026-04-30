@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { PencilSimple, Copy, Trash, Plus, Upload } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { type Contract } from '@/lib/sample-contracts';
@@ -175,7 +175,7 @@ export default function ContractListPage() {
     <>
       <PageShell
         subTabs={CONTRACT_SUBTABS}
-        subTabPending={CONTRACT_SUBTAB_PENDING}
+       
         footerLeft={
           <>
             <span className="stat-item">전체 자산 <strong>{totals.totalAssets}</strong></span>

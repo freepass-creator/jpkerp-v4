@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
-import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
@@ -97,7 +97,7 @@ export default function ContractOverduePage() {
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-      subTabPending={CONTRACT_SUBTAB_PENDING}
+     
       footerLeft={
         <>
           <span className="stat-item">미수 회차 <strong>{rows.length}</strong></span>

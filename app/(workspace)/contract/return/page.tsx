@@ -1,13 +1,13 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 
 export default function ContractReturnPage() {
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-      subTabPending={CONTRACT_SUBTAB_PENDING}
+     
       footerLeft={<span className="stat-item">반납예정 <strong>0</strong></span>}
       footerRight={<button className="btn btn-primary">+ 반납 처리</button>}
     >

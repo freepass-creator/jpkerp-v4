@@ -3,7 +3,7 @@
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, CalendarBlank } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
+import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract, type ScheduleEvent } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
@@ -18,7 +18,7 @@ export default function ContractScheduleDetailPage() {
 
   if (!contract) {
     return (
-      <PageShell subTabs={CONTRACT_SUBTABS} subTabPending={CONTRACT_SUBTAB_PENDING}>
+      <PageShell subTabs={CONTRACT_SUBTABS}>
         <div className="workspace-main flex items-center justify-center">
           <div className="text-center">
             <div className="text-medium">계약을 찾을 수 없습니다</div>
@@ -38,7 +38,7 @@ export default function ContractScheduleDetailPage() {
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-      subTabPending={CONTRACT_SUBTAB_PENDING}
+     
       footerLeft={
         <>
           <span className="stat-item">{contract.companyCode} <strong>{contract.contractNo}</strong></span>

@@ -269,7 +269,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                   <table className="table">
                     <thead>
                       <tr>
-                        <th style={{ width: 28 }}></th>
+                        <th className="center" style={{ width: 70 }}>상태</th>
                         <th>회사</th>
                         <th>차량번호</th>
                         <th>차종</th>
@@ -286,35 +286,13 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                         const d = p.data;
                         return (
                           <tr key={p.id}>
-                            <td className="center">
-                              {p._status === 'pending' ? (
-                                <CircleNotch size={14} className="spin" style={{ color: 'var(--brand)' }} />
-                              ) : p._status === 'failed' ? (
-                                <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
-                              ) : p._duplicate ? (
-                                <span title={p._duplicate === 'vin' ? '차대번호 중복' : '차량번호 중복'} style={{ display: 'inline-flex' }}>
-                                  <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
-                                </span>
-                              ) : d.companyCode ? (
-                                <CheckCircle size={14} weight="fill" style={{ color: '#10b981' }} />
-                              ) : (
-                                <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
-                              )}
-                            </td>
+                            <td className="center"><StatusBadge item={p} /></td>
                             <td className="plate">
                               {p._status === 'pending' ? <span className="text-weak">…</span>
                                 : d.companyCode ? d.companyCode
                                 : <span className="text-red" title="등록된 회사 없음 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
                             </td>
-                            <td className="plate text-medium">
-                              {d.plate || '-'}
-                              {p._duplicate && (
-                                <span className="text-red" style={{ marginLeft: 6, fontSize: 11 }}
-                                      title={p._duplicate === 'vin' ? '차대번호 중복 — 이미 등록된 차량' : '차량번호 중복 — 이미 등록된 차량'}>
-                                  · 중복
-                                </span>
-                              )}
-                            </td>
+                            <td className="plate text-medium">{d.plate || '-'}</td>
                             <td className="dim">{d.vehicleClass || '-'}</td>
                             <td>{d.vehicleName || '-'}</td>
                             <td className="mono dim truncate" style={{ maxWidth: 160 }} title={d.vin}>{d.vin || '-'}</td>
@@ -365,4 +343,30 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * 행별 상태 배지 — 분석중 / 오류 / 중복 / 미매칭 / 신규.
+ *  · 우선순위: failed > duplicate > pending > companyCode 없음(미매칭) > 신규
+ */
+function StatusBadge({ item }: { item: WorkItem }) {
+  const wrap: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3 };
+  if (item._status === 'pending') {
+    return <span className="badge" style={wrap}><CircleNotch size={11} className="spin" /> 분석중</span>;
+  }
+  if (item._status === 'failed') {
+    return <span className="badge badge-red" style={wrap} title={item._error}><Warning size={11} weight="fill" /> 오류</span>;
+  }
+  if (item._duplicate) {
+    return (
+      <span className="badge badge-red" style={wrap}
+            title={item._duplicate === 'vin' ? '차대번호 중복 — 이미 등록된 차량' : '차량번호 중복 — 이미 등록된 차량'}>
+        <Warning size={11} weight="fill" /> 중복
+      </span>
+    );
+  }
+  if (!item.data.companyCode) {
+    return <span className="badge badge-orange" style={wrap} title="등록된 회사와 매칭 실패"><Warning size={11} weight="fill" /> 미매칭</span>;
+  }
+  return <span className="badge badge-green" style={wrap}><CheckCircle size={11} weight="fill" /> 신규</span>;
 }

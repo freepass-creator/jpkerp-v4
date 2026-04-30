@@ -9,11 +9,3 @@ export const FINANCE_SUBTABS: SubTab[] = [
   { href: '/finance/expense',  label: '지출내역' },
   { href: '/finance/taxbill',  label: '세금계산서' },
 ];
-
-export const FINANCE_SUBTAB_PENDING: Record<string, number> = {
-  '/finance/autopay':  0,
-  '/finance/card':     0,
-  '/finance/receipt':  0,
-  '/finance/expense':  0,
-  '/finance/taxbill':  0,
-};

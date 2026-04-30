@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Trash, PencilSimple } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
+import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_AUTOPAY, type Autopay } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -79,7 +79,7 @@ export default function FinanceAutopayPage() {
   return (
     <>
       <PageShell
-        subTabs={FINANCE_SUBTABS} subTabPending={FINANCE_SUBTAB_PENDING}
+        subTabs={FINANCE_SUBTABS}
         footerLeft={<>
           <span className="stat-item">전체 <strong>{items.length}</strong></span>
           <span className="stat-item">활성 <strong>{active.length}</strong></span>

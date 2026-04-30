@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
-import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
+import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { RECEIPT_SUBJECTS } from '@/lib/sample-finance';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -39,7 +39,7 @@ export default function FinanceReceiptPage() {
   return (
     <PageShell
       subTabs={FINANCE_SUBTABS}
-      subTabPending={FINANCE_SUBTAB_PENDING}
+     
       footerLeft={<>
         <div className="chip-group">
           {PERIODS.map((p) => (

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Trash, PencilSimple, Copy } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
+import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_CARD, type CardUsage } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -80,7 +80,7 @@ export default function FinanceCardPage() {
 
   return (
     <>
-      <PageShell subTabs={FINANCE_SUBTABS} subTabPending={FINANCE_SUBTAB_PENDING}
+      <PageShell subTabs={FINANCE_SUBTABS}
         footerLeft={<>
           <span className="stat-item">사용 건수 <strong>{items.length}</strong></span>
           <span className="stat-item">사용 합계 <strong>₩{total.toLocaleString('ko-KR')}</strong></span>
