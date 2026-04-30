@@ -17,7 +17,16 @@ import { useEffect, useState } from 'react';
  */
 
 export type Theme = 'light' | 'dark' | 'auto';
-export type FontFamily = 'mono' | 'sans' | 'system';
+export type FontFamily =
+  | 'mono'           // Consolas + 굴림체 — ERP 기본
+  | 'pretendard'     // Pretendard Variable
+  | 'noto'           // Noto Sans KR
+  | 'spoqa'          // Spoqa Han Sans Neo
+  | 'nanum'          // 나눔고딕
+  | 'nanum-square'   // 나눔스퀘어 라운드
+  | 'ibm-plex'       // IBM Plex Sans KR
+  | 'gowun'          // 고운돋움 (Gowun Dodum)
+  | 'system';        // OS 기본
 export type FontSize = 11 | 12 | 13 | 14;
 export type Density = 'compact' | 'comfortable';
 
@@ -42,9 +51,33 @@ const FONT_STACKS: Record<FontFamily, { font: string; mono: string }> = {
     font: "Consolas, 'GulimChe', '굴림체', 'Segoe UI', sans-serif",
     mono: "Consolas, 'GulimChe', '굴림체', 'Menlo', monospace",
   },
-  sans: {
-    font: "Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
-    mono: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+  pretendard: {
+    font: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'JetBrains Mono', 'Menlo', monospace",
+  },
+  noto: {
+    font: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'JetBrains Mono', monospace",
+  },
+  spoqa: {
+    font: "'Spoqa Han Sans Neo', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'JetBrains Mono', monospace",
+  },
+  nanum: {
+    font: "'Nanum Gothic', '나눔고딕', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'D2Coding', 'Menlo', monospace",
+  },
+  'nanum-square': {
+    font: "'Nanum Square Round', '나눔스퀘어라운드', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'D2Coding', 'Menlo', monospace",
+  },
+  'ibm-plex': {
+    font: "'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "'IBM Plex Mono', Consolas, monospace",
+  },
+  gowun: {
+    font: "'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'JetBrains Mono', monospace",
   },
   system: {
     font: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",

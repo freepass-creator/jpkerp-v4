@@ -13,26 +13,40 @@ import { useAuth } from './use-auth';
  */
 
 export type UserProfile = {
+  /* 기본 정보 */
   displayName: string;     // 이름
+  role: string;            // 직급/역할
   department: string;      // 부서
-  phone: string;           // 연락처
-  email: string;           // 이메일 (auth 동기화)
-  role?: string;           // 직급/역할 (선택)
+  /* 연락 — 명함 */
+  email: string;           // 이메일 (auth 동기화, 변경 불가)
+  phone: string;           // 휴대폰
+  officePhone: string;     // 사무실 직통
+  fax: string;             // 팩스
+  /* 근무지 */
+  workplace: string;       // 근무지명 (예: 본사 / 서울지점)
+  workplaceAddress: string;// 근무지 주소
 };
 
 const EMPTY: UserProfile = {
-  displayName: '', department: '', phone: '', email: '', role: '',
+  displayName: '', role: '', department: '',
+  email: '', phone: '', officePhone: '', fax: '',
+  workplace: '', workplaceAddress: '',
 };
 
 function asProfile(val: unknown, fallbackEmail: string): UserProfile {
+  const s = (v: unknown): string => (typeof v === 'string' ? v : '');
   if (val && typeof val === 'object') {
     const v = val as Partial<UserProfile>;
     return {
-      displayName: typeof v.displayName === 'string' ? v.displayName : '',
-      department:  typeof v.department  === 'string' ? v.department  : '',
-      phone:       typeof v.phone       === 'string' ? v.phone       : '',
-      email:       typeof v.email       === 'string' ? v.email       : fallbackEmail,
-      role:        typeof v.role        === 'string' ? v.role        : '',
+      displayName:      s(v.displayName),
+      role:             s(v.role),
+      department:       s(v.department),
+      email:            v.email ? s(v.email) : fallbackEmail,
+      phone:            s(v.phone),
+      officePhone:      s(v.officePhone),
+      fax:              s(v.fax),
+      workplace:        s(v.workplace),
+      workplaceAddress: s(v.workplaceAddress),
     };
   }
   return { ...EMPTY, email: fallbackEmail };
