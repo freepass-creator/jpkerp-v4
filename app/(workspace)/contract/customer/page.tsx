@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn';
  * 폐기 D-day 색상 코딩.
  */
 
-type LesseeKind = '개인' | '사업자';
+type LesseeKind = '개인' | '사업자' | '법인';
 type LesseeStatus = '유지중' | '만기도래' | '종료';
 
 type Lessee = {
@@ -30,7 +30,7 @@ type Lessee = {
 };
 
 // 개인 5년 / 사업자 10년 보존 정책
-const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10 };
+const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10, 법인: 10 };
 
 export default function ContractCustomerPage() {
   const [contracts] = useContractStore();

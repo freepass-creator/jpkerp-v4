@@ -13,18 +13,21 @@ export type ScheduleEvent = {
   note?: string;
 };
 
+export type CustomerKind = '개인' | '사업자' | '법인';
+
 export type Contract = {
   id: string;
   companyCode: string;
-  contractNo: string;       // 계약번호
-  plate: string;            // 차량번호
-  customerName: string;     // 고객명
-  customerPhone?: string;
-  customerKind?: '개인' | '사업자';
-  startDate: string;
-  endDate: string;
-  monthlyAmount: number;
-  deposit?: number;
+  contractNo: string;            // 계약번호 (C-YYYY-NNNN)
+  plate: string;                 // 차량번호
+  customerName: string;          // 고객명
+  customerKind: CustomerKind;    // 신분 — 등록번호 형식 결정
+  customerIdent: string;         // 고객등록번호 (주민/사업자/법인등록번호)
+  customerPhone: string;         // 연락처 (미납·만기 통지용)
+  startDate: string;             // 계약 시작일
+  endDate: string;               // 만기일
+  monthlyAmount: number;         // 월 대여료
+  deposit: number;               // 보증금 (없으면 0)
   status: ContractStatus;
   events: ScheduleEvent[];
 };
