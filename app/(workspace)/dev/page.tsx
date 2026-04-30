@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Trash, TrashSimple } from '@phosphor-icons/react';
-import { ref, onValue, set } from 'firebase/database';
+import { Fragment, useState, useEffect } from 'react';
+import { Trash, TrashSimple, CaretRight, CaretDown } from '@phosphor-icons/react';
+import { ref, onValue, set, get } from 'firebase/database';
 import { PageShell } from '@/components/layout/page-shell';
 import { getRtdb } from '@/lib/firebase/client';
 import { useCompanyStore } from '@/lib/use-company-store';
@@ -122,6 +122,28 @@ export default function DevPage() {
 
 /* ─── 기타 노드 ─── */
 function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [items, setItems] = useState<Record<string, [string, unknown][]>>({});
+
+  async function loadItems(key: string) {
+    try {
+      const snap = await get(ref(getRtdb(), key));
+      const val = snap.val();
+      const entries = val && typeof val === 'object' ? Object.entries(val) : [];
+      setItems((prev) => ({ ...prev, [key]: entries }));
+    } catch (e) {
+      console.error('[dev] loadItems failed', e);
+    }
+  }
+  function toggle(key: string) {
+    if (expanded === key) {
+      setExpanded(null);
+    } else {
+      setExpanded(key);
+      void loadItems(key);
+    }
+  }
+
   const removeNode = async (key: string, count: number) => {
     if (!confirm(`/${key} 노드 전체 ${count}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
     try {
@@ -130,32 +152,83 @@ function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
       alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
+
+  const removeItem = async (nodeKey: string, itemKey: string) => {
+    if (!confirm(`/${nodeKey}/${itemKey} 1건 삭제할까요?`)) return;
+    try {
+      await set(ref(getRtdb(), `${nodeKey}/${itemKey}`), null);
+      await loadItems(nodeKey);
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <table className="table">
       <thead>
         <tr>
+          <th style={{ width: 30 }}></th>
           <th>노드 경로</th>
           <th className="num">건수</th>
-          <th className="center" style={{ width: 120 }}></th>
+          <th className="center" style={{ width: 110 }}></th>
         </tr>
       </thead>
       <tbody>
         {nodes.length === 0 ? (
-          <tr><td colSpan={3} className="center dim" style={{ padding: '32px 0' }}>jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
+          <tr><td colSpan={4} className="center dim" style={{ padding: '32px 0' }}>jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
         ) : nodes.map((n) => (
-          <tr key={n.key}>
-            <td className="mono text-medium">/{n.key}</td>
-            <td className="num">{n.count}</td>
-            <td className="center">
-              <button className="btn btn-sm" onClick={() => removeNode(n.key, n.count)}>
-                <Trash size={12} weight="bold" /> 노드 삭제
-              </button>
-            </td>
-          </tr>
+          <Fragment key={n.key}>
+            <tr onClick={() => toggle(n.key)} style={{ cursor: 'pointer' }}>
+              <td className="center">
+                {expanded === n.key ? <CaretDown size={11} /> : <CaretRight size={11} />}
+              </td>
+              <td className="mono text-medium">/{n.key}</td>
+              <td className="num">{n.count}</td>
+              <td className="center" onClick={(e) => e.stopPropagation()}>
+                <button className="btn btn-sm" onClick={() => removeNode(n.key, n.count)}>
+                  <TrashSimple size={12} weight="bold" /> 노드 전체
+                </button>
+              </td>
+            </tr>
+            {expanded === n.key && (items[n.key] ?? []).map(([itemKey, itemVal]) => (
+              <tr key={`${n.key}/${itemKey}`} style={{ background: 'var(--bg-stripe)' }}>
+                <td></td>
+                <td colSpan={2} className="mono dim" style={{ paddingLeft: 20 }}>
+                  <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{itemKey}</span>
+                  <span style={{ marginLeft: 12, color: 'var(--text-weak)' }}>
+                    {previewValue(itemVal)}
+                  </span>
+                </td>
+                <td className="center">
+                  <button className="btn btn-sm" onClick={() => removeItem(n.key, itemKey)}>
+                    <Trash size={12} weight="bold" /> 삭제
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {expanded === n.key && (items[n.key]?.length ?? 0) === 0 && (
+              <tr style={{ background: 'var(--bg-stripe)' }}>
+                <td></td>
+                <td colSpan={3} className="dim" style={{ paddingLeft: 20 }}>(빈 노드)</td>
+              </tr>
+            )}
+          </Fragment>
         ))}
       </tbody>
     </table>
   );
+}
+
+/** 값 미리보기 — 객체면 키 갯수, 배열이면 길이, 원시값이면 그대로 */
+function previewValue(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return `[${v.length}]`;
+  if (typeof v === 'object') {
+    const keys = Object.keys(v as object);
+    return `{${keys.length}} ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ' ...' : ''}`;
+  }
+  const s = String(v);
+  return s.length > 80 ? s.slice(0, 80) + '...' : s;
 }
 
 /* ─── 회사 ─── */
@@ -177,7 +250,7 @@ function CompaniesTable({ companies, setCompanies }: {
           <th>사업자등록번호</th>
           <th className="num">계좌</th>
           <th className="num">카드</th>
-          <th className="center" style={{ width: 50 }}></th>
+          <th className="center" style={{ width: 80 }}></th>
         </tr>
       </thead>
       <tbody>
@@ -192,8 +265,8 @@ function CompaniesTable({ companies, setCompanies }: {
             <td className="num">{c.accounts?.length ?? 0}</td>
             <td className="num">{c.cards?.length ?? 0}</td>
             <td className="center">
-              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
-                <Trash size={11} />
+              <button className="btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
+                <Trash size={12} weight="bold" /> 삭제
               </button>
             </td>
           </tr>
@@ -224,7 +297,7 @@ function AssetsTable({ assets, setAssets }: {
           <th>제작연월</th>
           <th>상태</th>
           <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 50 }}></th>
+          <th className="center" style={{ width: 80 }}></th>
         </tr>
       </thead>
       <tbody>
@@ -241,8 +314,8 @@ function AssetsTable({ assets, setAssets }: {
             <td>{a.status}</td>
             <td className="mono dim">{a.id}</td>
             <td className="center">
-              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
-                <Trash size={11} />
+              <button className="btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
+                <Trash size={12} weight="bold" /> 삭제
               </button>
             </td>
           </tr>
@@ -273,7 +346,7 @@ function ContractsTable({ contracts, setContracts }: {
           <th className="date">만기</th>
           <th>상태</th>
           <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 50 }}></th>
+          <th className="center" style={{ width: 80 }}></th>
         </tr>
       </thead>
       <tbody>
@@ -290,8 +363,8 @@ function ContractsTable({ contracts, setContracts }: {
             <td>{c.status}</td>
             <td className="mono dim">{c.id}</td>
             <td className="center">
-              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
-                <Trash size={11} />
+              <button className="btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
+                <Trash size={12} weight="bold" /> 삭제
               </button>
             </td>
           </tr>
@@ -322,7 +395,7 @@ function LedgerTable({ entries, setEntries }: {
           <th>상대</th>
           <th>계좌</th>
           <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 50 }}></th>
+          <th className="center" style={{ width: 80 }}></th>
         </tr>
       </thead>
       <tbody>
@@ -339,8 +412,8 @@ function LedgerTable({ entries, setEntries }: {
             <td className="mono dim">{e.account ?? '-'}</td>
             <td className="mono dim">{e.id}</td>
             <td className="center">
-              <button className="btn-ghost btn btn-sm" onClick={() => removeOne(e.id, e.memo)} title="삭제">
-                <Trash size={11} />
+              <button className="btn btn-sm" onClick={() => removeOne(e.id, e.memo)} title="삭제">
+                <Trash size={12} weight="bold" /> 삭제
               </button>
             </td>
           </tr>
