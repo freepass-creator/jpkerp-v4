@@ -5,8 +5,9 @@ import { Plus, ArrowCounterClockwise, Car, ClockCounterClockwise } from '@phosph
 import { PageShell } from '@/components/layout/page-shell';
 import {
   JOURNAL_KINDS, KIND_LABEL, KIND_HINT,
-  SAMPLE_JOURNAL, type JournalEntry, type JournalKind,
+  type JournalEntry, type JournalKind,
 } from '@/lib/sample-journal';
+import { useJournalStore } from '@/lib/use-journal-store';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { type Contract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -303,7 +304,7 @@ function PlatePicker({
 }
 
 export default function JournalPage() {
-  const [entries, setEntries] = useState<JournalEntry[]>(SAMPLE_JOURNAL);
+  const [entries, setEntries] = useJournalStore();
   const [kind, setKind] = useState<JournalKind>('contact');
   const [atDate, setAtDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [atTime, setAtTime] = useState<string>(() => {
