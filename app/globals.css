@@ -112,6 +112,39 @@
   --topbar-h:  48px;
 }
 
+/* ── Dark mode — :root[data-theme="dark"] 일 때 색상 변수만 스왑.
+   레이아웃·간격·폰트 등은 그대로 유지. ── */
+:root[data-theme="dark"] {
+  --bg-page:     #0f172a;
+  --bg-card:     #1e293b;
+  --bg-header:   #1e293b;
+  --bg-stripe:   #243245;
+  --bg-hover:    #1e3a5f;
+  --bg-selected: #1e3a8a;
+  --bg-disabled: #334155;
+
+  --text-main:    #f1f5f9;
+  --text-sub:     #94a3b8;
+  --text-weak:    #64748b;
+  --text-muted:   #475569;
+  --text-inverse: #0f172a;
+  --text-link:    #60a5fa;
+
+  --border:        #334155;
+  --border-soft:   #1e293b;
+  --border-strong: #475569;
+  --border-focus:  #93c5fd;
+
+  --brand:    #93c5fd;
+  --brand-h:  #bfdbfe;
+  --brand-bg: #1e3a8a;
+
+  --alert-red-bg: #450a0a;     --alert-red-text: #fca5a5;     --alert-red-border: #7f1d1d;
+  --alert-orange-bg: #451a03;  --alert-orange-text: #fcd34d;  --alert-orange-border: #78350f;
+  --alert-green-bg: #052e1f;   --alert-green-text: #6ee7b7;   --alert-green-border: #14532d;
+  --alert-blue-bg: #0c1f3d;    --alert-blue-text: #93c5fd;    --alert-blue-border: #1e3a8a;
+}
+
 /* ── Reset / global ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
