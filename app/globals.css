@@ -802,12 +802,14 @@ input[type="checkbox"], input[type="radio"] {
 .app-footer .stat strong { color: var(--text-main); font-weight: var(--font-weight-medium); }
 .app-footer .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
-/* ═══════════════ Tabs (사각 박스 버튼) ═══════════════ */
+/* ═══════════════ Tabs (사각 박스 버튼) ═══════════════
+   좌우 padding 12px — filterbar(.filterbar)·footer(.app-footer) 와 일치.
+   첫 탭의 외곽 좌측이 아래 영역 콘텐츠와 동일 X 좌표에 정렬. */
 .tabs {
   display: flex;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
-  padding: 6px 8px;
+  padding: 6px 12px;
   gap: 4px;
   flex-shrink: 0;
 }
