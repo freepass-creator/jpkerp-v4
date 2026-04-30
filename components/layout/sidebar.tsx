@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Fragment } from 'react';
-import { Gear } from '@phosphor-icons/react';
+import { Gear, Code } from '@phosphor-icons/react';
 import { MENU, type MenuItem } from '@/lib/menu';
 import { cn } from '@/lib/cn';
 
@@ -36,6 +36,13 @@ export function Sidebar() {
       </nav>
 
       <div className="sb-foot">
+        <Link
+          href="/dev"
+          className={cn('sb-item', isActive(pathname, '/dev') && 'active')}
+        >
+          <Code size={15} />
+          <span>개발도구</span>
+        </Link>
         <Link
           href="/settings"
           className={cn('sb-item', isActive(pathname, '/settings') && 'active')}

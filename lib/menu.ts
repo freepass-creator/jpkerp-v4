@@ -7,7 +7,6 @@ import {
   Bank,
   Wrench,
   Warning,
-  Trash,
 } from '@phosphor-icons/react';
 
 export type MenuItem = {
@@ -44,7 +43,6 @@ export const MENU: MenuSection[] = [
     items: [
       { href: '/admin',   label: '일반관리',    icon: Wrench },
       { href: '/penalty', label: '과태료 업무', icon: Warning },
-      { href: '/dev',     label: '개발도구',    icon: Trash },
     ],
   },
 ];

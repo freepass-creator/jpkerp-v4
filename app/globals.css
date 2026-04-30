@@ -348,8 +348,7 @@ td.num, td.date, th.num, th.date {
 .sb-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
 .sb-foot {
-  border-top: 1px solid var(--border);
-  background: var(--bg-header);
+  background: var(--bg-card);
   padding: 6px 8px;
   flex-shrink: 0;
 }
