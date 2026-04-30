@@ -7,7 +7,11 @@ import { downloadPenaltyZip, previewPenaltyItem, type PenaltyWorkItem } from '@/
 import { dedupPenalties, describeDuplicate } from '@/lib/penalty-dedup';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { findCompany } from '@/lib/sample-companies';
-import { PenaltyRegisterDialog } from '@/components/penalty/penalty-register-dialog';
+import dynamic from 'next/dynamic';
+const PenaltyRegisterDialog = dynamic(
+  () => import('@/components/penalty/penalty-register-dialog').then((m) => m.PenaltyRegisterDialog),
+  { ssr: false },
+);
 import { exportToExcel } from '@/lib/excel-export';
 import { PERIODS, type Period, periodRange, isInRange } from '@/lib/period-filter';
 

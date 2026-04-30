@@ -7,7 +7,11 @@ import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
 import { type LedgerEntry, type LedgerMethod } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
-import { LedgerRegisterDialog } from '@/components/finance/ledger-register-dialog';
+import dynamic from 'next/dynamic';
+const LedgerRegisterDialog = dynamic(
+  () => import('@/components/finance/ledger-register-dialog').then((m) => m.LedgerRegisterDialog),
+  { ssr: false },
+);
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useCompanyStore } from '@/lib/use-company-store';

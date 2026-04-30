@@ -6,7 +6,11 @@ import { PageShell } from '@/components/layout/page-shell';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
-import { CompanyRegisterDialog } from '@/components/admin/company-register-dialog';
+import dynamic from 'next/dynamic';
+const CompanyRegisterDialog = dynamic(
+  () => import('@/components/admin/company-register-dialog').then((m) => m.CompanyRegisterDialog),
+  { ssr: false },
+);
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { cn } from '@/lib/cn';
 

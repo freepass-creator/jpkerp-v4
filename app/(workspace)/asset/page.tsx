@@ -4,8 +4,16 @@ import { useState, useMemo } from 'react';
 import { Download, FileXls, Trash, PencilSimple, Copy, Plus } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { AssetGrid } from '@/components/asset/asset-grid';
-import { AssetRegisterDialog } from '@/components/asset/asset-register-dialog';
-import { AssetEditDialog, type EditMode } from '@/components/asset/asset-edit-dialog';
+import dynamic from 'next/dynamic';
+import type { EditMode } from '@/components/asset/asset-edit-dialog';
+const AssetRegisterDialog = dynamic(
+  () => import('@/components/asset/asset-register-dialog').then((m) => m.AssetRegisterDialog),
+  { ssr: false },
+);
+const AssetEditDialog = dynamic(
+  () => import('@/components/asset/asset-edit-dialog').then((m) => m.AssetEditDialog),
+  { ssr: false },
+);
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
 import { type Asset, type AssetStatus } from '@/lib/sample-assets';

@@ -9,7 +9,12 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { type Contract } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
-import { ContractUploadDialog, type RentalContractExtracted } from '@/components/contract/contract-upload-dialog';
+import dynamic from 'next/dynamic';
+import type { RentalContractExtracted } from '@/components/contract/contract-upload-dialog';
+const ContractUploadDialog = dynamic(
+  () => import('@/components/contract/contract-upload-dialog').then((m) => m.ContractUploadDialog),
+  { ssr: false },
+);
 import { cn } from '@/lib/cn';
 
 const CONTRACT_FIELDS: FieldDef[] = [

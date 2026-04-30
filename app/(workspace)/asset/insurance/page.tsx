@@ -4,7 +4,11 @@ import { useState, useMemo } from 'react';
 import { Trash, FileArrowDown, X } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
-import { InsuranceRegisterDialog } from '@/components/insurance/insurance-register-dialog';
+import dynamic from 'next/dynamic';
+const InsuranceRegisterDialog = dynamic(
+  () => import('@/components/insurance/insurance-register-dialog').then((m) => m.InsuranceRegisterDialog),
+  { ssr: false },
+);
 import { type InsurancePolicy, daysToExpiry, SAMPLE_INSURANCE } from '@/lib/sample-insurance';
 import { exportToExcel } from '@/lib/excel-export';
 
