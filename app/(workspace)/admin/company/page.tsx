@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilSimple, Trash } from '@phosphor-icons/react';
+import { PencilSimple } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { type Company } from '@/lib/sample-companies';
@@ -35,18 +35,11 @@ export default function AdminCompanyPage() {
     setSelected(c);
   };
 
-  const handleDelete = () => {
-    if (!selected) return;
-    if (!confirm(`${selected.name} (${selected.code}) 삭제할까요?`)) return;
-    setCompanies((prev) => prev.filter((x) => x.code !== selected.code));
-    setSelected(null);
-  };
-
+  // 삭제는 개발도구(/dev) 에서 최고관리자만.
   const existingCodes = companies.map((c) => c.code);
 
   const ctxItems: ContextMenuItem[] = [
     { label: '수정', icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
-    { label: '삭제', icon: <Trash size={12} weight="bold" />, onClick: handleDelete, danger: true },
   ];
 
   return (
@@ -58,9 +51,6 @@ export default function AdminCompanyPage() {
           <>
             <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}>
               <PencilSimple size={14} weight="bold" /> 수정
-            </button>
-            <button className="btn" disabled={!selected} onClick={handleDelete}>
-              <Trash size={14} weight="bold" /> 삭제
             </button>
             <CompanyRegisterDialog
               open={registerOpen}

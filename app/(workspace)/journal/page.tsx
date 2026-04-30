@@ -500,7 +500,7 @@ export default function JournalPage() {
     }
 
     const next: JournalEntry = {
-      id: `j-${Date.now()}`,
+      id: `j-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       no: `J-${new Date().getFullYear()}-${String(entries.length + 1).padStart(4, '0')}`,
       companyCode: matchedAsset?.companyCode ?? 'CP01',
       kind,
@@ -686,7 +686,7 @@ export default function JournalPage() {
                     const now = new Date();
                     const at = `${now.toISOString().slice(0, 10)} ${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, '0')}`;
                     const entry: JournalEntry = {
-                      id: `j-${Date.now()}`,
+                      id: `j-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       no: `J-${now.getFullYear()}-${String(entries.length + 1).padStart(4, '0')}`,
                       companyCode: 'CP01',
                       kind: 'ignition',

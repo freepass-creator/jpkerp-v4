@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trash, TrashSimple } from '@phosphor-icons/react';
+import { ref, onValue, set } from 'firebase/database';
 import { PageShell } from '@/components/layout/page-shell';
+import { getRtdb } from '@/lib/firebase/client';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -14,14 +16,19 @@ import { cn } from '@/lib/cn';
  * 잘못 등록된 데이터 삭제용 단일 진입점. 운영 안정 후 권한 제한 추가.
  */
 
-type Tab = 'companies' | 'assets' | 'contracts' | 'ledger';
+type Tab = 'companies' | 'assets' | 'contracts' | 'ledger' | 'other';
 
 const TABS: { v: Tab; label: string }[] = [
   { v: 'companies', label: '회사' },
   { v: 'assets', label: '자산' },
   { v: 'contracts', label: '계약' },
   { v: 'ledger', label: '계좌내역' },
+  { v: 'other', label: '기타 노드' },
 ];
+
+const KNOWN_PATHS = new Set(['companies', 'assets', 'contracts', 'ledger']);
+
+type OtherNode = { key: string; count: number };
 
 export default function DevPage() {
   const [tab, setTab] = useState<Tab>('companies');
@@ -29,12 +36,31 @@ export default function DevPage() {
   const [assets, setAssets] = useAssetStore();
   const [contracts, setContracts] = useContractStore();
   const [entries, setEntries] = useLedgerStore();
+  const [otherNodes, setOtherNodes] = useState<OtherNode[]>([]);
 
-  const counts = {
+  // 기타 탭 — RTDB 루트 자식 키 중 KNOWN_PATHS 외 모든 노드 카운트
+  useEffect(() => {
+    if (tab !== 'other') return;
+    const unsub = onValue(ref(getRtdb(), '/'), (snap) => {
+      const root = (snap.val() ?? {}) as Record<string, unknown>;
+      const list: OtherNode[] = [];
+      for (const [k, v] of Object.entries(root)) {
+        if (KNOWN_PATHS.has(k)) continue;
+        const count = v && typeof v === 'object' ? Object.keys(v as object).length : 0;
+        list.push({ key: k, count });
+      }
+      list.sort((a, b) => a.key.localeCompare(b.key));
+      setOtherNodes(list);
+    });
+    return unsub;
+  }, [tab]);
+
+  const counts: Record<Tab, number> = {
     companies: companies.length,
     assets: assets.length,
     contracts: contracts.length,
     ledger: entries.length,
+    other: otherNodes.length,
   };
 
   function clearCurrent() {
@@ -50,11 +76,12 @@ export default function DevPage() {
       if (counts.contracts === 0) return;
       if (!confirm(`계약 전체 ${counts.contracts}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
       setContracts([]);
-    } else {
+    } else if (tab === 'ledger') {
       if (counts.ledger === 0) return;
       if (!confirm(`계좌내역 전체 ${counts.ledger}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
       setEntries([]);
     }
+    // 기타 탭은 행별 삭제만 (전체 삭제 위험)
   }
 
   return (
@@ -75,9 +102,11 @@ export default function DevPage() {
       }
       footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
       footerRight={
-        <button className="btn" disabled={counts[tab] === 0} onClick={clearCurrent}>
-          <TrashSimple size={14} weight="bold" /> 전체 삭제
-        </button>
+        tab !== 'other' ? (
+          <button className="btn" disabled={counts[tab] === 0} onClick={clearCurrent}>
+            <TrashSimple size={14} weight="bold" /> 전체 삭제
+          </button>
+        ) : null
       }
     >
       <div className="table-wrap">
@@ -85,8 +114,47 @@ export default function DevPage() {
         {tab === 'assets' && <AssetsTable assets={assets} setAssets={setAssets} />}
         {tab === 'contracts' && <ContractsTable contracts={contracts} setContracts={setContracts} />}
         {tab === 'ledger' && <LedgerTable entries={entries} setEntries={setEntries} />}
+        {tab === 'other' && <OtherNodesTable nodes={otherNodes} />}
       </div>
     </PageShell>
+  );
+}
+
+/* ─── 기타 노드 ─── */
+function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
+  const removeNode = async (key: string, count: number) => {
+    if (!confirm(`/${key} 노드 전체 ${count}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try {
+      await set(ref(getRtdb(), key), null);
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  return (
+    <table className="table">
+      <thead>
+        <tr>
+          <th>노드 경로</th>
+          <th className="num">건수</th>
+          <th className="center" style={{ width: 120 }}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {nodes.length === 0 ? (
+          <tr><td colSpan={3} className="center dim" style={{ padding: '32px 0' }}>jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
+        ) : nodes.map((n) => (
+          <tr key={n.key}>
+            <td className="mono text-medium">/{n.key}</td>
+            <td className="num">{n.count}</td>
+            <td className="center">
+              <button className="btn btn-sm" onClick={() => removeNode(n.key, n.count)}>
+                <Trash size={12} weight="bold" /> 노드 삭제
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

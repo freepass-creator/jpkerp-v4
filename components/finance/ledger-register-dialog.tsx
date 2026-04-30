@@ -318,7 +318,7 @@ function ManualForm({
   function submit() {
     if (!canSubmit) return;
     onSubmit({
-      id: `l-${Date.now()}`,
+      id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode,
       account: account || undefined,
       txDate,

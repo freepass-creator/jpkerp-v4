@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { PencilSimple, Copy, Trash, TrashSimple, Plus } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Plus } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
 import { type LedgerEntry, type LedgerMethod } from '@/lib/sample-finance';
@@ -47,7 +47,7 @@ export default function FinanceLedgerPage() {
 
   function fromForm(d: Record<string, string>): Omit<LedgerEntry, 'subject' | 'matchedContract'> {
     return {
-      id: `l-${Date.now()}`,
+      id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: d.companyCode || 'CP01',
       account: d.account || undefined,
       txDate: d.txDate || new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -79,25 +79,7 @@ export default function FinanceLedgerPage() {
     setEntries((p) => [{ ...fromForm(d), subject: undefined, matchedContract: undefined } as LedgerEntry, ...p]);
     setDuplicateOpen(false);
   };
-  const handleDelete = () => {
-    if (!selected) return;
-    if (!confirm(`거래 ${selected.txDate} (${selected.memo}) 를 삭제할까요?`)) return;
-    setEntries((p) => p.filter((x) => x.id !== selected.id));
-    setSelected(null);
-  };
-  const handleDeleteFiltered = () => {
-    const ids = new Set(filteredRows.map((r) => r.id));
-    if (ids.size === 0) return;
-    if (!confirm(`현재 화면(필터 적용 후) ${ids.size}건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setEntries((p) => p.filter((x) => !ids.has(x.id)));
-    setSelected(null);
-  };
-  const handleDeleteAll = () => {
-    if (entries.length === 0) return;
-    if (!confirm(`전체 ${entries.length}건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    setEntries([]);
-    setSelected(null);
-  };
+  // 삭제 기능은 개발도구(/dev) 에 일원화. 일반 페이지에서는 제공하지 않음.
 
   const editInitial: Record<string, string> = selected ? Object.fromEntries(
     Object.entries(selected).map(([k, v]) => [k, v == null ? '' : String(v)])
@@ -116,7 +98,6 @@ export default function FinanceLedgerPage() {
   const ctxItems: ContextMenuItem[] = [
     { label: '수정', icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
     { label: '복사', icon: <Copy size={12} weight="bold" />,         onClick: () => setDuplicateOpen(true) },
-    { label: '삭제', icon: <Trash size={12} weight="bold" />,        onClick: handleDelete, danger: true },
     { label: '', divider: true, onClick: () => {} },
     { label: '거래 등록', icon: <Plus size={12} weight="bold" />,    onClick: () => setRegisterOpen(true) },
   ];
@@ -185,13 +166,6 @@ export default function FinanceLedgerPage() {
           })}>엑셀</button>
           <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}><PencilSimple size={14} weight="bold" /> 수정</button>
           <button className="btn" disabled={!selected} onClick={() => setDuplicateOpen(true)}><Copy size={14} weight="bold" /> 복사</button>
-          <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
-          <button className="btn" disabled={filteredCount === 0} onClick={handleDeleteFiltered} title="현재 필터 결과만 삭제">
-            <Trash size={14} weight="bold" /> 화면 삭제 ({filteredCount})
-          </button>
-          <button className="btn" disabled={entries.length === 0} onClick={handleDeleteAll} title="전체 거래 일괄 삭제">
-            <TrashSimple size={14} weight="bold" /> 전체 삭제
-          </button>
           <LedgerRegisterDialog
             open={registerOpen}
             onOpenChange={setRegisterOpen}

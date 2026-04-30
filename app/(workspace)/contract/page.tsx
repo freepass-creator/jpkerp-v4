@@ -56,7 +56,7 @@ export default function ContractListPage() {
 
   function fromForm(d: Record<string, string>): Contract {
     return {
-      id: `c-${Date.now()}`,
+      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: d.companyCode || 'CP01',
       contractNo: d.contractNo || `C-${new Date().getFullYear()}-NEW`,
       plate: d.plate || '',
