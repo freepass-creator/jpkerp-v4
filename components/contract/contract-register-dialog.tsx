@@ -312,11 +312,12 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
           <TabsContent value="sheet">
             <div className="space-y-2">
               <div className="alert alert-info">
-                구글시트에서 복사 → 아래 영역 붙여넣기. 첫 줄이 헤더면 자동 인식.
-                <br />
-                <strong>컬럼 순서 (헤더 미사용 시)</strong>: {SHEET_HEADERS.map(([, l]) => l).join(' / ')}
-                <br />
-                <strong>신분</strong>: 개인 / 사업자 / 법인 중 하나.
+                <div>
+                  구글시트에서 복사 → 아래 영역 붙여넣기. 첫 줄이 헤더면 자동 인식.
+                  <br />
+                  <strong>컬럼 순서</strong>: {SHEET_HEADERS.map(([, l]) => l).join(' / ')} · <strong>신분</strong>: 개인 / 사업자 / 법인
+                </div>
+                <SheetTemplateActions />
               </div>
               <textarea
                 className="input"
@@ -392,6 +393,36 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
         </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* 시트 템플릿 복사 — 헤더만 / 헤더+예시 한 줄 */
+const SHEET_HEADER_LINE = SHEET_HEADERS.map(([, l]) => l).join('\t');
+const SHEET_EXAMPLE_LINE = ['CP01', '01도1234', '홍길동', '개인', '900101-1234567', '010-1234-5678', '2025-01-01', '2026-12-31', '500000', '1000000'].join('\t');
+
+function SheetTemplateActions() {
+  const [copied, setCopied] = useState<'' | 'header' | 'example'>('');
+  async function copy(text: string, kind: 'header' | 'example') {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied(''), 1200);
+    } catch {
+      alert('클립보드 복사 실패 — 수동 복사하세요');
+    }
+  }
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      <button className="btn btn-sm" onClick={() => copy(SHEET_HEADER_LINE, 'header')}>
+        {copied === 'header' ? '복사됨 ✓' : '헤더 복사'}
+      </button>
+      <button className="btn btn-sm" onClick={() => copy(`${SHEET_HEADER_LINE}\n${SHEET_EXAMPLE_LINE}`, 'example')}>
+        {copied === 'example' ? '복사됨 ✓' : '헤더 + 예시 복사'}
+      </button>
+      <span className="text-weak text-xs" style={{ alignSelf: 'center' }}>
+        구글시트 첫 셀(A1)에 붙여넣으면 컬럼 자동 분리
+      </span>
+    </div>
   );
 }
 
