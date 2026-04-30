@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
 import {
@@ -75,9 +75,13 @@ export default function FinanceDailyPage() {
     return c;
   }, [filteredEntries]);
 
-  function updateEntry(id: string, patch: Partial<LedgerEntry>) {
+  const updateEntry = useCallback((id: string, patch: Partial<LedgerEntry>) => {
     setEntries((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
-  }
+  }, [setEntries]);
+
+  // JpkTable row handler — 안정화
+  const getEntryId = useCallback((r: LedgerEntry) => r.id, []);
+  const getDailyId = useCallback((r: DailyRow) => r.key, []);
 
   /** 일자×회사 집계 */
   const daily = useMemo<DailyRow[]>(() => {
@@ -256,7 +260,7 @@ export default function FinanceDailyPage() {
         <JpkTable<LedgerEntry>
           columns={matchColumns}
           rows={entries}
-          getRowId={(r) => r.id}
+          getRowId={getEntryId}
           storageKey="finance.daily.match"
           onFilteredChange={setFilteredEntries}
         />
@@ -264,7 +268,7 @@ export default function FinanceDailyPage() {
         <JpkTable<DailyRow>
           columns={summaryColumns}
           rows={daily}
-          getRowId={(r) => r.key}
+          getRowId={getDailyId}
           storageKey="finance.daily.summary"
           onFilteredChange={setFilteredDaily}
         />

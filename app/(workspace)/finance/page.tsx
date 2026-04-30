@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { PencilSimple, Copy, Trash, TrashSimple, Plus } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
@@ -117,6 +117,14 @@ export default function FinanceLedgerPage() {
     { label: '거래 등록', icon: <Plus size={12} weight="bold" />,    onClick: () => setRegisterOpen(true) },
   ];
 
+  // JpkTable row handler — useCallback 으로 안정화 (React.memo row 가 prop ref 비교)
+  const getEntryId = useCallback((r: LedgerEntry) => r.id, []);
+  const handleRowClick = useCallback((r: LedgerEntry) => setSelected(r), []);
+  const handleRowContextMenu = useCallback((r: LedgerEntry, _i: number, ev: React.MouseEvent) => {
+    setSelected(r);
+    setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY });
+  }, []);
+
   const columns = useMemo<JpkColumn<LedgerEntry>[]>(() => [
     { headerName: '회사코드', field: 'companyCode', width: 80 },
     { headerName: '계좌', field: 'account', width: 200,
@@ -191,13 +199,10 @@ export default function FinanceLedgerPage() {
           ref={tableRef}
           columns={columns}
           rows={entries}
-          getRowId={(r) => r.id}
+          getRowId={getEntryId}
           storageKey="finance.ledger"
-          onRowClick={(r) => setSelected(r)}
-          onRowContextMenu={(r, _i, ev) => {
-            setSelected(r);
-            setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY });
-          }}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
           onFilteredChange={setFilteredRows}
           selectedKey={selected?.id ?? null}
         />

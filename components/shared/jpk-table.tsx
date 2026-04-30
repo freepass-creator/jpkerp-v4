@@ -18,6 +18,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -413,41 +414,19 @@ function JpkTableInner<T>(
                 <td colSpan={columns.length} className="jpk-table-empty">데이터 없음</td>
               </tr>
             ) : sortedRows.map((row, rowIndex) => {
-              const key = getRowId ? getRowId(row, rowIndex) : String(rowIndex);
-              const isSelected = selectedKey === key;
+              const rowKey = getRowId ? getRowId(row, rowIndex) : String(rowIndex);
               return (
-                <tr
-                  key={key}
-                  onClick={() => {
-                    if (selectedKeyProp === undefined) setSelectedKeyInner(key);
-                    onRowClick?.(row, rowIndex);
-                  }}
-                  onContextMenu={onRowContextMenu ? (ev) => {
-                    ev.preventDefault();
-                    if (selectedKeyProp === undefined) setSelectedKeyInner(key);
-                    onRowContextMenu(row, rowIndex, ev);
-                  } : undefined}
-                  className={isSelected ? 'is-selected' : undefined}
-                >
-                  {columns.map((c) => {
-                    const value = readValue(c, row, rowIndex);
-                    const display = c.cellRenderer
-                      ? c.cellRenderer({ value, data: row, rowIndex })
-                      : c.valueFormatter
-                        ? c.valueFormatter({ value, data: row })
-                        : value === null || value === undefined ? '' : String(value);
-                    const style = resolveCellStyle(c, value, row);
-                    return (
-                      <td
-                        key={`${c.headerName}-${String(c.field ?? '')}`}
-                        className={c.align ? `align-${c.align}` : undefined}
-                        style={style}
-                      >
-                        {display}
-                      </td>
-                    );
-                  })}
-                </tr>
+                <JpkTableRow<T>
+                  key={rowKey}
+                  rowKey={rowKey}
+                  row={row}
+                  rowIndex={rowIndex}
+                  columns={columns}
+                  isSelected={selectedKey === rowKey}
+                  onRowClick={onRowClick}
+                  onRowContextMenu={onRowContextMenu}
+                  onSelectInternal={selectedKeyProp === undefined ? setSelectedKeyInner : undefined}
+                />
               );
             })}
           </tbody>
@@ -460,6 +439,60 @@ function JpkTableInner<T>(
 export const JpkTable = forwardRef(JpkTableInner) as <T>(
   props: JpkTableProps<T> & { ref?: React.Ref<JpkTableApi<T> | null> },
 ) => React.ReactElement;
+
+/* ─── JpkTableRow — React.memo 로 isSelected 변경 시 영향받은 row 만 리렌더 ───
+   row 클릭 시 100+ row 가 모두 리렌더되던 비용을 → 이전 selected + 새 selected 2개만 리렌더로 축소. */
+type JpkTableRowProps<T> = {
+  row: T;
+  rowKey: string;
+  rowIndex: number;
+  columns: JpkColumn<T>[];
+  isSelected: boolean;
+  onRowClick?: (row: T, index: number) => void;
+  onRowContextMenu?: (row: T, index: number, ev: React.MouseEvent) => void;
+  onSelectInternal?: (key: string) => void;
+};
+
+function JpkTableRowInner<T>({
+  row, rowKey, rowIndex, columns, isSelected,
+  onRowClick, onRowContextMenu, onSelectInternal,
+}: JpkTableRowProps<T>) {
+  return (
+    <tr
+      onClick={() => {
+        onSelectInternal?.(rowKey);
+        onRowClick?.(row, rowIndex);
+      }}
+      onContextMenu={onRowContextMenu ? (ev) => {
+        ev.preventDefault();
+        onSelectInternal?.(rowKey);
+        onRowContextMenu(row, rowIndex, ev);
+      } : undefined}
+      className={isSelected ? 'is-selected' : undefined}
+    >
+      {columns.map((c) => {
+        const value = readValue(c, row, rowIndex);
+        const display = c.cellRenderer
+          ? c.cellRenderer({ value, data: row, rowIndex })
+          : c.valueFormatter
+            ? c.valueFormatter({ value, data: row })
+            : value === null || value === undefined ? '' : String(value);
+        const style = resolveCellStyle(c, value, row);
+        return (
+          <td
+            key={`${c.headerName}-${String(c.field ?? '')}`}
+            className={c.align ? `align-${c.align}` : undefined}
+            style={style}
+          >
+            {display}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+const JpkTableRow = memo(JpkTableRowInner) as <T>(props: JpkTableRowProps<T>) => React.ReactElement;
 
 interface FilterPopupProps<T> {
   column: JpkColumn<T>;
