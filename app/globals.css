@@ -767,7 +767,7 @@ input[type="checkbox"], input[type="radio"] {
 .toolbar {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: 6px 8px;
   display: flex; align-items: center; gap: 6px;
   height: 38px;
   flex-shrink: 0;
@@ -793,7 +793,7 @@ input[type="checkbox"], input[type="radio"] {
 .app-footer {
   background: var(--bg-header);
   border-top: 1px solid var(--border);
-  padding: 5px 12px;
+  padding: 5px 8px;
   height: 32px;
   display: flex; align-items: center; gap: 14px;
   color: var(--text-weak);
@@ -803,13 +803,12 @@ input[type="checkbox"], input[type="radio"] {
 .app-footer .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
 /* ═══════════════ Tabs (사각 박스 버튼) ═══════════════
-   좌우 padding 12px — filterbar(.filterbar)·footer(.app-footer) 와 일치.
-   첫 탭의 외곽 좌측이 아래 영역 콘텐츠와 동일 X 좌표에 정렬. */
+   모든 zone (tabs/filterbar/statbar/app-footer) 좌우 padding 8px 통일 — 외곽 정렬. */
 .tabs {
   display: flex;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: 6px 8px;
   gap: 4px;
   flex-shrink: 0;
 }
@@ -860,7 +859,7 @@ input[type="checkbox"], input[type="radio"] {
 .statbar {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: 6px 8px;
   display: flex;
   gap: 18px;
   align-items: center;
@@ -917,7 +916,7 @@ input[type="checkbox"], input[type="radio"] {
 .filterbar {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: 6px 8px;
   display: flex;
   gap: 4px;
   align-items: center;
