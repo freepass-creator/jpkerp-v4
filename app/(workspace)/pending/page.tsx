@@ -23,7 +23,7 @@ const SECTIONS = [
 type SectionKey = typeof SECTIONS[number]['key'];
 
 export default function PendingPage() {
-  const [section, setSection] = useState<SectionKey>('pending');
+  const [section, setSection] = useState<SectionKey>('journal');
   const current = SECTIONS.find((s) => s.key === section)!;
 
   return (
