@@ -9,6 +9,7 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { type Contract } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
+import { nextSequenceCode } from '@/lib/code-gen';
 import dynamic from 'next/dynamic';
 import type { RentalContractExtracted } from '@/components/contract/contract-upload-dialog';
 const ContractUploadDialog = dynamic(
@@ -19,7 +20,7 @@ import { cn } from '@/lib/cn';
 
 const CONTRACT_FIELDS: FieldDef[] = [
   { key: 'companyCode',    label: '회사코드',  placeholder: 'CP01', required: true },
-  { key: 'contractNo',     label: '계약번호',  placeholder: 'C-2026-NNNN', required: true },
+  { key: 'contractNo',     label: '계약번호',  placeholder: '비워두면 자동 (C-2026-0001)' },
   { key: 'plate',          label: '차량번호',  required: true },
   { key: 'customerName',   label: '고객명',    required: true },
   { key: 'customerKind',   label: '신분',      type: 'select', options: ['개인', '사업자'] },
@@ -29,6 +30,11 @@ const CONTRACT_FIELDS: FieldDef[] = [
   { key: 'monthlyAmount',  label: '월 청구액', type: 'number' },
   { key: 'deposit',        label: '보증금',    type: 'number' },
 ];
+
+/** 수정 시 — 식별자(회사코드·계약번호)는 변경 불가. */
+const CONTRACT_EDIT_FIELDS: FieldDef[] = CONTRACT_FIELDS.map((f) =>
+  f.key === 'companyCode' || f.key === 'contractNo' ? { ...f, readOnly: true } : f,
+);
 
 export default function ContractListPage() {
   const [contracts, setContracts] = useContractStore();
@@ -55,10 +61,12 @@ export default function ContractListPage() {
   );
 
   function fromForm(d: Record<string, string>): Contract {
+    // contractNo 미입력 시 자동 생성 — C-YYYY-NNNN 시퀀스. 한 번 부여되면 변경 불가.
+    const contractNo = d.contractNo?.trim() || nextSequenceCode('C', contracts.map((c) => c.contractNo));
     return {
       id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: d.companyCode || 'CP01',
-      contractNo: d.contractNo || `C-${new Date().getFullYear()}-NEW`,
+      contractNo,
       plate: d.plate || '',
       customerName: d.customerName || '',
       customerKind: (d.customerKind as '개인' | '사업자') || '개인',
@@ -265,7 +273,7 @@ export default function ContractListPage() {
 
       <ContractUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onExtracted={handleExtracted} />
       <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
-        title="계약 수정" fields={CONTRACT_FIELDS} initial={editInitial}
+        title="계약 수정" fields={CONTRACT_EDIT_FIELDS} initial={editInitial}
         submitLabel="수정" onSubmit={handleUpdate} />
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
         title="계약 복사 (스펙 복제)" fields={CONTRACT_FIELDS} initial={dupInitial}

@@ -29,6 +29,8 @@ export type FieldDef = {
   placeholder?: string;
   colSpan?: 1 | 2 | 3 | 4;
   required?: boolean;
+  /** 변경 불가 — 등록 후 식별자(코드 등) 잠금용 */
+  readOnly?: boolean;
 };
 
 export type FieldSection = {
@@ -107,11 +109,24 @@ export function EntityFormDialog({
 
 function Field({ f, value, onChange }: { f: FieldDef; value: string; onChange: (v: string) => void }) {
   const span = f.colSpan === 4 ? 'col-span-4' : f.colSpan === 3 ? 'col-span-3' : f.colSpan === 2 ? 'col-span-2' : '';
+  const lockedStyle = f.readOnly
+    ? { background: 'var(--bg-disabled)', color: 'var(--text-sub)', cursor: 'not-allowed' }
+    : undefined;
+  const lockedTitle = f.readOnly ? '등록 후 변경 불가' : undefined;
   return (
     <label className={`block ${span}`}>
-      <span className={`label${f.required ? ' label-required' : ''}`}>{f.label}</span>
+      <span className={`label${f.required ? ' label-required' : ''}`}>
+        {f.label}{f.readOnly && <span className="text-weak"> (변경 불가)</span>}
+      </span>
       {f.type === 'select' ? (
-        <select className="input w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+        <select
+          className="input w-full"
+          value={value}
+          onChange={(e) => !f.readOnly && onChange(e.target.value)}
+          disabled={f.readOnly}
+          title={lockedTitle}
+          style={lockedStyle}
+        >
           <option value="">- {f.placeholder ?? '선택'}</option>
           {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -120,16 +135,22 @@ function Field({ f, value, onChange }: { f: FieldDef; value: string; onChange: (
           className="input w-full"
           rows={3}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => !f.readOnly && onChange(e.target.value)}
           placeholder={f.placeholder}
+          readOnly={f.readOnly}
+          title={lockedTitle}
+          style={lockedStyle}
         />
       ) : (
         <input
           type={f.type === 'number' || f.type === 'date' ? f.type : 'text'}
           className="input w-full"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => !f.readOnly && onChange(e.target.value)}
           placeholder={f.placeholder}
+          readOnly={f.readOnly}
+          title={lockedTitle}
+          style={lockedStyle}
         />
       )}
     </label>

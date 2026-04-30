@@ -6,6 +6,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import type { Company, CompanyAccount, CompanyCard } from '@/lib/sample-companies';
+import { nextCompanyCode } from '@/lib/code-gen';
 
 /**
  * 회사 등록 — 자산등록 다이얼로그와 동일 패턴 (Tabs):
@@ -53,16 +54,6 @@ type Props = {
   showTrigger?: boolean;
 };
 
-/** CP01, CP02 ... 시퀀스에서 비어있는 다음 번호 추천 */
-function suggestNextCode(existing: string[]): string {
-  const used = new Set(existing);
-  for (let i = 1; i < 100; i++) {
-    const code = `CP${String(i).padStart(2, '0')}`;
-    if (!used.has(code)) return code;
-  }
-  return 'CP01';
-}
-
 export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCodes = [], open: openProp, onOpenChange, showTrigger = true }: Props) {
   const isEdit = Boolean(initial);
   const [openInner, setOpenInner] = useState(false);
@@ -101,7 +92,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         cards: initial.cards ? [...initial.cards] : [],
       });
     } else {
-      setForm((prev) => prev.code ? prev : { ...prev, code: suggestNextCode(existingCodes) });
+      setForm((prev) => prev.code ? prev : { ...prev, code: nextCompanyCode(existingCodes) });
     }
   }, [open, initial, existingCodes]);
 
@@ -232,7 +223,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         )}
 
         {/* 폼 — 신규/수정 공용 */}
-        <CompanyForm form={form} setForm={setForm} />
+        <CompanyForm form={form} setForm={setForm} isEdit={isEdit} />
 
         {error && <div className="alert alert-warn" style={{ marginTop: 8 }}><Warning size={14} /> <span>{error}</span></div>}
 
@@ -298,13 +289,13 @@ function OcrStage({ busy, onPick, preview }: { busy: boolean; onPick: (f: File) 
 }
 
 /* ─── 회사 폼 (OCR + 수동 공용) ─────────────────────── */
-function CompanyForm({ form, setForm }: { form: FormState; setForm: (f: (prev: FormState) => FormState) => void }) {
+function CompanyForm({ form, setForm, isEdit }: { form: FormState; setForm: (f: (prev: FormState) => FormState) => void; isEdit?: boolean }) {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
     <div className="space-y-3" style={{ marginTop: 12 }}>
       <div className="form-grid">
-        <Input label="회사코드 *" value={form.code} onChange={(v) => set('code', v)} placeholder="CP03" colSpan={1} />
+        <Input label={isEdit ? '회사코드 (변경 불가)' : '회사코드 *'} value={form.code} onChange={(v) => set('code', v)} placeholder="CP03" colSpan={1} readOnly={isEdit} />
         <Input label="법인명 / 상호 *" value={form.name} onChange={(v) => set('name', v)} colSpan={3} />
         <Input label="대표자" value={form.ceo} onChange={(v) => set('ceo', v)} colSpan={1} />
         <Input label="사업자등록번호 *" value={form.bizNo} onChange={(v) => set('bizNo', v)} placeholder="000-00-00000" colSpan={1} />
@@ -364,13 +355,22 @@ function updateAt<T>(arr: T[], i: number, v: T): T[] {
 
 /* ─── 작은 폼 컴포넌트 ─────────────────────────────── */
 function Input({
-  label, value, onChange, placeholder, type = 'text', colSpan = 1,
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; colSpan?: 1|2|3|4 }) {
+  label, value, onChange, placeholder, type = 'text', colSpan = 1, readOnly = false,
+}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; colSpan?: 1|2|3|4; readOnly?: boolean }) {
   const span = colSpan === 4 ? 'col-span-4' : colSpan === 3 ? 'col-span-3' : colSpan === 2 ? 'col-span-2' : '';
   return (
     <label className={`block ${span}`}>
       <span className="label">{label}</span>
-      <input className="input w-full" type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <input
+        className="input w-full"
+        type={type}
+        value={value}
+        onChange={(e) => !readOnly && onChange(e.target.value)}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        style={readOnly ? { background: 'var(--bg-disabled)', color: 'var(--text-sub)', cursor: 'not-allowed' } : undefined}
+        title={readOnly ? '코드는 등록 후 변경 불가' : undefined}
+      />
     </label>
   );
 }
