@@ -774,13 +774,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .toolbar .spacer { flex: 1; }
 
-.filterbar {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-soft);
-  padding: 5px 12px;
-  display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
-  flex-shrink: 0;
-}
+/* .filterbar 정의는 line 895 (zone) 한 곳에만 — 중복 제거. */
 
 .statbar {
   background: var(--bg-card);
@@ -889,6 +883,32 @@ input[type="checkbox"], input[type="radio"] {
   display: inline-block;
   vertical-align: middle;
   margin: 0 4px;
+}
+
+/* ═══════════════ 표준 페이지 영역 / 빈 상태 ═══════════════
+   페이지마다 산발적으로 padding: '24px 0' / '32px 0' / '16px 24px' 등을
+   인라인으로 쓰지 말고 아래 클래스로 통일.
+
+   .empty-row     : <td colSpan={N} className="empty-row">데이터 없음</td>
+   .page-section  : <div className="page-section">  설정 / placeholder 등 풀 페이지 콘텐츠
+   .page-section-narrow : 720px 폭 제한 (긴 폼)                                    */
+
+.empty-row {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--text-weak);
+}
+
+.page-section {
+  padding: 20px 24px;
+}
+.page-section-narrow {
+  padding: 20px 24px;
+  max-width: 720px;
+}
+.page-section-center {
+  padding: 40px 24px;
+  text-align: center;
 }
 
 /* ═══════════════ Filterbar (zone) ═══════════════ */

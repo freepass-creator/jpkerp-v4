@@ -113,7 +113,7 @@ export default function FinanceTaxbillPage() {
             </tr></thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={12} className="center dim" style={{ padding: '24px 0' }}>{view} 데이터 없음</td></tr>
+                <tr><td colSpan={12} className="empty-row">{view} 데이터 없음</td></tr>
               ) : (
                 filtered.map((t) => (
                   <tr key={t.id} className={cn(selected?.id === t.id && 'selected')}

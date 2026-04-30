@@ -32,7 +32,7 @@ export default function SettingsPage() {
         </span>
       }
     >
-      <div style={{ padding: '16px 24px', maxWidth: 720 }}>
+      <div className="page-section-narrow">
         {tab === 'account' ? <AccountSettings /> : <SystemSettings />}
       </div>
     </PageShell>

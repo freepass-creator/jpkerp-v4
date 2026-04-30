@@ -83,7 +83,7 @@ export default function ContractIdlePage() {
           <tbody>
             {idle.length === 0 ? (
               <tr>
-                <td colSpan={11} className="center dim" style={{ padding: '24px 0' }}>
+                <td colSpan={11} className="empty-row">
                   휴차 차량 없음 — 모든 자산이 계약 운행 중
                 </td>
               </tr>

@@ -147,7 +147,7 @@ export default function ContractOverduePage() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="center dim" style={{ padding: '24px 0' }}>
+                <td colSpan={10} className="empty-row">
                   미수 없음 — 모든 계약 회차 정상 수납
                 </td>
               </tr>

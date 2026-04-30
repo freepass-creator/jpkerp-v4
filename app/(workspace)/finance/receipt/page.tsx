@@ -100,7 +100,7 @@ export default function FinanceReceiptPage() {
           </tr></thead>
           <tbody>
             {receipts.length === 0 ? (
-              <tr><td colSpan={10} className="center dim" style={{ padding: '24px 0' }}>해당 조건의 수납 데이터 없음</td></tr>
+              <tr><td colSpan={10} className="empty-row">해당 조건의 수납 데이터 없음</td></tr>
             ) : receipts.map((r) => {
               const c = r.matchedContract ? contractMap.get(r.matchedContract) : undefined;
               return (

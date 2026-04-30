@@ -289,7 +289,7 @@ function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
       </thead>
       <tbody>
         {nodes.length === 0 ? (
-          <tr><td colSpan={4} className="center dim" style={{ padding: '32px 0' }}>jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
+          <tr><td colSpan={4} className="empty-row">jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
         ) : nodes.map((n) => (
           <Fragment key={n.key}>
             <tr onClick={() => toggle(n.key)} style={{ cursor: 'pointer' }}>
@@ -369,7 +369,7 @@ function CompaniesTable({ companies, setCompanies }: {
       </thead>
       <tbody>
         {companies.length === 0 ? (
-          <tr><td colSpan={7} className="center dim" style={{ padding: '32px 0' }}>등록된 회사 없음</td></tr>
+          <tr><td colSpan={7} className="empty-row">등록된 회사 없음</td></tr>
         ) : companies.map((c, i) => (
           <tr key={c.code || `__${i}__`}>
             <td className="plate text-medium">{c.code}</td>
@@ -416,7 +416,7 @@ function AssetsTable({ assets, setAssets }: {
       </thead>
       <tbody>
         {assets.length === 0 ? (
-          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 자산 없음</td></tr>
+          <tr><td colSpan={9} className="empty-row">등록된 자산 없음</td></tr>
         ) : assets.map((a) => (
           <tr key={a.id}>
             <td className="plate">{a.companyCode}</td>
@@ -465,7 +465,7 @@ function ContractsTable({ contracts, setContracts }: {
       </thead>
       <tbody>
         {contracts.length === 0 ? (
-          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 계약 없음</td></tr>
+          <tr><td colSpan={9} className="empty-row">등록된 계약 없음</td></tr>
         ) : contracts.map((c) => (
           <tr key={c.id}>
             <td className="plate">{c.companyCode}</td>
@@ -514,7 +514,7 @@ function LedgerTable({ entries, setEntries }: {
       </thead>
       <tbody>
         {entries.length === 0 ? (
-          <tr><td colSpan={9} className="center dim" style={{ padding: '32px 0' }}>등록된 거래 없음</td></tr>
+          <tr><td colSpan={9} className="empty-row">등록된 거래 없음</td></tr>
         ) : entries.map((e) => (
           <tr key={e.id}>
             <td className="plate">{e.companyCode}</td>

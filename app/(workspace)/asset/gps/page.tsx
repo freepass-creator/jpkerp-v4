@@ -27,7 +27,7 @@ export default function AssetGpsPage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={7} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={7} className="empty-row">
                 GPS 단말 등록된 차량 없음
               </td>
             </tr>

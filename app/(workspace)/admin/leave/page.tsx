@@ -27,7 +27,7 @@ export default function AdminLeavePage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={9} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={9} className="empty-row">
                 휴가 신청 데이터 없음
               </td>
             </tr>

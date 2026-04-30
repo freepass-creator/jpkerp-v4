@@ -586,7 +586,7 @@ export default function PenaltyPage() {
                         을 클릭해 고지서를 업로드하세요.
                       </button>
                     ) : (
-                      <div className="center dim" style={{ padding: '32px 0' }}>
+                      <div className="empty-row">
                         처리완료 이력이 없습니다. 처리중 탭에서 [변경부과 PDF]를 생성하면 여기로 이동합니다.
                       </div>
                     )}

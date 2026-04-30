@@ -27,7 +27,7 @@ export default function ContractExpirePage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={8} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={8} className="empty-row">
                 만기 도래 계약 없음
               </td>
             </tr>

@@ -50,7 +50,7 @@ export default function AssetRepairPage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={15} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={15} className="empty-row">
                 수선 이력 없음 — [+ 수선 등록] 또는 업무일지에서 차량수선 입력 시 자동 누적
               </td>
             </tr>

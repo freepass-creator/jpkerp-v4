@@ -27,7 +27,7 @@ export default function AssetLoanPage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={7} className="center dim" style={{ padding: '24px 0' }}>
+              <td colSpan={7} className="empty-row">
                 할부 데이터 없음
               </td>
             </tr>

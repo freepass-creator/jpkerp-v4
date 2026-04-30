@@ -58,7 +58,7 @@ export default function ContractEndedPage() {
           <tbody>
             {ended.length === 0 ? (
               <tr>
-                <td colSpan={10} className="center dim" style={{ padding: '24px 0' }}>
+                <td colSpan={10} className="empty-row">
                   종료된 계약 없음
                 </td>
               </tr>

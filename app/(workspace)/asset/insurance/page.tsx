@@ -165,7 +165,7 @@ export default function AssetInsurancePage() {
           <tbody>
             {policies.length === 0 ? (
               <tr>
-                <td colSpan={50} className="center dim" style={{ padding: '32px 0' }}>
+                <td colSpan={50} className="empty-row">
                   보험증권이 없습니다. 우측 하단 [+ 보험 등록] 버튼으로 OCR 업로드하세요.
                 </td>
               </tr>

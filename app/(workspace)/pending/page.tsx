@@ -49,7 +49,7 @@ export default function PendingPage() {
 
 function PlaceholderSection({ label, hint, icon: Icon }: { label: string; hint: string; icon: typeof Hourglass }) {
   return (
-    <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+    <div className="page-section-center">
       <Icon size={32} className="mx-auto text-weak" />
       <div className="mt-2 text-medium">{label}</div>
       <div className="mt-1 text-weak">{hint}</div>
@@ -63,7 +63,7 @@ function JournalSection() {
   const [entries] = useJournalStore();
   if (entries.length === 0) {
     return (
-      <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+      <div className="page-section-center">
         <Notebook size={32} className="mx-auto text-weak" />
         <div className="mt-2 text-medium">업무일지 없음</div>
         <div className="mt-1 text-weak">업무작성 메뉴에서 입력한 기록이 여기에 누적됩니다.</div>
