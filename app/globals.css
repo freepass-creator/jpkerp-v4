@@ -156,8 +156,10 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  /* 전역 모노스페이스 — Consolas (한글은 자동 Malgun Gothic fallback) */
-  font-family: var(--font-mono);
+  /* 전역 본문 글꼴 — 설정 페이지에서 fontFamily 변경 시 --font 가 바뀜.
+     mono(기본): Consolas+굴림체, sans: Pretendard, system: OS 기본.
+     숫자·코드·plate 셀은 .mono / .plate 클래스로 별도 --font-mono 적용. */
+  font-family: var(--font);
   font-size: var(--font-size);
   line-height: var(--line-height);
   font-weight: var(--font-weight);
