@@ -55,27 +55,52 @@ export default function PendingPage() {
     [overdue],
   );
 
+  // 푸터 통계 — 섹션별 다른 정보
+  const footerLeft = (() => {
+    switch (section) {
+      case 'pending':
+        return <span className="stat-item">미결 <strong>{counts.pending}</strong></span>;
+      case 'overdue':
+        return (
+          <>
+            <span className="stat-item">미납 계약 <strong>{counts.overdue}</strong></span>
+            {overdueTotalAmount > 0 && <span className="stat-item alert">미납 합계 <strong>{overdueTotalAmount.toLocaleString('ko-KR')}원</strong></span>}
+          </>
+        );
+      case 'idle':
+        return <span className="stat-item">휴차 <strong>{counts.idle}</strong></span>;
+      case 'journal':
+        return <span className="stat-item">기록 <strong>{counts.journal}</strong></span>;
+    }
+  })();
+
   return (
     <PageShell
-      footerLeft={
-        <>
-          {SECTIONS.map((s) => (
+      filterbar={
+        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+          {SECTIONS.map((s, i) => (
             <button
               key={s.key}
-              className={cn('btn btn-sm', section === s.key && 'btn-primary')}
+              type="button"
               onClick={() => setSection(s.key)}
+              className={section === s.key ? 'btn btn-primary' : 'btn'}
+              style={{
+                borderRadius: 0,
+                border: 'none',
+                borderRight: i < SECTIONS.length - 1 ? '1px solid var(--border)' : 'none',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}
             >
-              <s.icon size={12} weight="bold" /> {s.label}
-              <span className="badge" style={{ marginLeft: 4, padding: '0 5px' }}>{s.count}</span>
+              <s.icon size={12} weight="bold" />
+              {s.label}
+              <span className={cn('badge', section === s.key ? '' : '')} style={{ marginLeft: 2, padding: '0 5px', background: section === s.key ? 'rgba(255,255,255,0.2)' : undefined }}>
+                {s.count}
+              </span>
             </button>
           ))}
-          {section === 'overdue' && overdueTotalAmount > 0 && (
-            <span className="stat-item alert" style={{ marginLeft: 12 }}>
-              미납 합계 <strong>{overdueTotalAmount.toLocaleString('ko-KR')}원</strong>
-            </span>
-          )}
-        </>
+        </div>
       }
+      footerLeft={footerLeft}
     >
       {section === 'pending' && <PendingSection items={pending} />}
       {section === 'overdue' && <OverdueSection rows={overdue} />}

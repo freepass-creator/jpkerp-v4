@@ -287,14 +287,31 @@ function Segmented({
   onChange: (v: string) => void;
   wrap?: boolean;
 }) {
+  // wrap=true 일 때는 chip 그리드 — 각 버튼이 독립 박스로 명확히 보임.
+  // wrap=false (3~4개) 는 segmented (붙어있는 토글바) 유지.
+  if (wrap) {
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={value === o.value ? 'btn btn-primary' : 'btn'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            {o.icon}{o.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div style={{
       display: 'inline-flex',
-      flexWrap: wrap ? 'wrap' : 'nowrap',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius)',
       overflow: 'hidden',
-      gap: wrap ? 0 : undefined,
     }}>
       {options.map((o, i) => (
         <button
@@ -305,8 +322,7 @@ function Segmented({
           style={{
             borderRadius: 0,
             border: 'none',
-            borderRight: !wrap && i < options.length - 1 ? '1px solid var(--border)' : 'none',
-            borderTop: wrap && i >= 5 ? '1px solid var(--border)' : 'none',
+            borderRight: i < options.length - 1 ? '1px solid var(--border)' : 'none',
             display: 'inline-flex', alignItems: 'center', gap: 4,
           }}
         >
