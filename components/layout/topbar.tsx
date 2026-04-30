@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { MagnifyingGlass, CaretRight, User, Bell } from '@phosphor-icons/react';
+import { MagnifyingGlass, CaretRight, User, Bell, SignOut } from '@phosphor-icons/react';
+import { useAuth, logout } from '@/lib/use-auth';
 import { MENU } from '@/lib/menu';
 import { ASSET_SUBTABS } from '@/lib/asset-subtabs';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
@@ -111,21 +112,44 @@ export function Topbar() {
         )}
       </div>
 
-      {/* 우측 — 알림 + 로그인 */}
-      <div className="ml-auto flex items-center gap-2">
-        <button className="btn-ghost btn btn-icon" title="알림">
-          <Bell size={14} />
-        </button>
-        <div className="topbar-user">
+      {/* 우측 — 알림 + 사용자 + 로그아웃 */}
+      <UserPanel />
+    </header>
+  );
+}
+
+function UserPanel() {
+  const { user } = useAuth();
+  if (!user) return null;
+  const name = user.displayName ?? user.email?.split('@')[0] ?? '사용자';
+  const email = user.email ?? '';
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <button className="btn-ghost btn btn-icon" title="알림">
+        <Bell size={14} />
+      </button>
+      <div className="topbar-user">
+        {user.photoURL ? (
+          <img src={user.photoURL} alt={name} className="topbar-user-avatar" referrerPolicy="no-referrer" />
+        ) : (
           <div className="topbar-user-avatar">
             <User size={12} weight="bold" />
           </div>
-          <div className="leading-tight">
-            <div className="text-medium">담당자</div>
-            <div className="text-weak">staff@jpk.local</div>
-          </div>
+        )}
+        <div className="leading-tight">
+          <div className="text-medium">{name}</div>
+          <div className="text-weak">{email}</div>
         </div>
       </div>
-    </header>
+      <button
+        className="btn-ghost btn btn-icon"
+        title="로그아웃"
+        onClick={() => {
+          if (confirm('로그아웃 하시겠어요?')) logout();
+        }}
+      >
+        <SignOut size={14} />
+      </button>
+    </div>
   );
 }

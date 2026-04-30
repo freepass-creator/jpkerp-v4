@@ -1,5 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getDatabase, type Database } from 'firebase/database';
+import { getAuth, type Auth } from 'firebase/auth';
 
 /**
  * Firebase 클라이언트 — RTDB 사용.
@@ -17,6 +18,7 @@ const firebaseConfig = {
 
 let _app: FirebaseApp | null = null;
 let _rtdb: Database | null = null;
+let _auth: Auth | null = null;
 
 export function getFirebaseApp(): FirebaseApp {
   if (_app) return _app;
@@ -35,4 +37,9 @@ export function getFirebaseApp(): FirebaseApp {
 export function getRtdb(): Database {
   if (!_rtdb) _rtdb = getDatabase(getFirebaseApp());
   return _rtdb;
+}
+
+export function getFirebaseAuth(): Auth {
+  if (!_auth) _auth = getAuth(getFirebaseApp());
+  return _auth;
 }
