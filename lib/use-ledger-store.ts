@@ -18,6 +18,8 @@ const LOCAL_KEY_LEGACY = 'jpkerp-v4:ledger';
 let cache: LedgerEntry[] = [];
 const listeners = new Set<(v: LedgerEntry[]) => void>();
 let subscribed = false;
+/** RTDB 가 자체 write 를 echo 로 다시 fire 하는 걸 거르기 위한 직렬화 캐시 */
+let lastSerialized = '';
 
 function asArray(val: unknown): LedgerEntry[] {
   if (!val) return [];
@@ -63,6 +65,9 @@ function ensureSubscription() {
   subscribed = true;
   void migrateLocalToRtdb().finally(() => {
     onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
+      const json = JSON.stringify(snap.val() ?? null);
+      if (json === lastSerialized) return; // 우리가 방금 쓴 echo — 무시
+      lastSerialized = json;
       const v = asArray(snap.val());
       cache = v;
       listeners.forEach((l) => l(v));
@@ -85,8 +90,11 @@ export function useLedgerStore() {
     const prev = cache;
     const next = typeof updater === 'function' ? (updater as (p: LedgerEntry[]) => LedgerEntry[])(prev) : updater;
     cache = next;
+    const stripped = stripUndef(next);
+    // RTDB echo dedup 용 — 이 직렬화가 onValue 로 돌아오면 무시
+    lastSerialized = JSON.stringify(stripped.length === 0 ? null : stripped);
     listeners.forEach((l) => l(next));
-    set(ref(getRtdb(), RTDB_PATH), stripUndef(next)).catch((e) => console.error('[ledger-store] write failed', e));
+    set(ref(getRtdb(), RTDB_PATH), stripped).catch((e) => console.error('[ledger-store] write failed', e));
   }, []);
 
   return [entries, setEntries] as const;

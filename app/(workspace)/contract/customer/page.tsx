@@ -1,8 +1,9 @@
 'use client';
 
 import { PageShell } from '@/components/layout/page-shell';
+import { useMemo } from 'react';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_CONTRACTS } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
 /**
@@ -31,53 +32,44 @@ type Lessee = {
 // 개인 5년 / 사업자 10년 보존 정책
 const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10 };
 
-// 활성 계약 → 임차인 자동 lookup
-const ACTIVE_LESSEES: Lessee[] = SAMPLE_CONTRACTS
-  .filter((c) => c.status === '운행중')
-  .map((c, i) => ({
-    id: `ls-${c.id}`,
-    companyCode: c.companyCode,
-    code: `LS-${String(i + 1).padStart(4, '0')}`,
-    name: c.customerName,
-    kind: c.customerKind ?? '개인',
-    phone: c.customerPhone ?? '',
-    identNumber: c.customerKind === '사업자' ? '110-22-12345' : '880101-1******',
-    currentPlate: c.plate,
-    contractNo: c.contractNo,
-    status: '유지중' as LesseeStatus,
-    contractEndDate: c.endDate,
-  }));
-
-// 종료된 임차인 sample (폐기 도래 표시용)
-const ARCHIVED_LESSEES: Lessee[] = [
-  {
-    id: 'ls-old-1',
-    companyCode: 'CP01',
-    code: 'LS-9001',
-    name: '이순신',
-    kind: '개인',
-    phone: '010-7777-8888',
-    identNumber: '780101-1******',
-    status: '종료',
-    contractEndDate: '2021-05-12',  // 5년 거의 도래 — 폐기 임박
-  },
-  {
-    id: 'ls-old-2',
-    companyCode: 'CP02',
-    code: 'LS-9002',
-    name: '동방주식회사',
-    kind: '사업자',
-    phone: '02-555-1234',
-    identNumber: '215-81-67890',
-    status: '종료',
-    contractEndDate: '2018-03-20',
-  },
-];
-
 export default function ContractCustomerPage() {
+  const [contracts] = useContractStore();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const lessees = [...ACTIVE_LESSEES, ...ARCHIVED_LESSEES];
+
+  const lessees = useMemo<Lessee[]>(() => {
+    const active = contracts
+      .filter((c) => c.status === '운행중')
+      .map((c, i) => ({
+        id: `ls-${c.id}`,
+        companyCode: c.companyCode,
+        code: `LS-${String(i + 1).padStart(4, '0')}`,
+        name: c.customerName,
+        kind: c.customerKind ?? '개인',
+        phone: c.customerPhone ?? '',
+        identNumber: c.customerKind === '사업자' ? '-' : '-',
+        currentPlate: c.plate,
+        contractNo: c.contractNo,
+        status: '유지중' as LesseeStatus,
+        contractEndDate: c.endDate,
+      }));
+    const ended = contracts
+      .filter((c) => c.status === '만기' || c.status === '해지')
+      .map((c, i) => ({
+        id: `ls-end-${c.id}`,
+        companyCode: c.companyCode,
+        code: `LS-${String(active.length + i + 1).padStart(4, '0')}`,
+        name: c.customerName,
+        kind: c.customerKind ?? '개인',
+        phone: c.customerPhone ?? '',
+        identNumber: '-',
+        currentPlate: undefined,
+        contractNo: c.contractNo,
+        status: '종료' as LesseeStatus,
+        contractEndDate: c.endDate,
+      }));
+    return [...active, ...ended];
+  }, [contracts]);
 
   function retentionEndDate(l: Lessee): Date | null {
     if (!l.contractEndDate) return null;

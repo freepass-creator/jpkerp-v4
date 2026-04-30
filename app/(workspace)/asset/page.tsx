@@ -8,7 +8,8 @@ import { AssetRegisterDialog } from '@/components/asset/asset-register-dialog';
 import { AssetEditDialog, type EditMode } from '@/components/asset/asset-edit-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
-import { SAMPLE_ASSETS, type Asset, type AssetStatus } from '@/lib/sample-assets';
+import { type Asset, type AssetStatus } from '@/lib/sample-assets';
+import { useAssetStore } from '@/lib/use-asset-store';
 import { downloadContractTemplate } from '@/lib/contract-template';
 
 /** 자산 페이지 미결 지표 — 추후 실데이터로 교체 */
@@ -21,7 +22,7 @@ const ASSET_PENDING = {
 
 
 export default function AssetListPage() {
-  const [assets, setAssets] = useState<Asset[]>(SAMPLE_ASSETS);
+  const [assets, setAssets] = useAssetStore();
   const [selected, setSelected] = useState<Asset | null>(null);
 
   // 수정/복사 다이얼로그 상태

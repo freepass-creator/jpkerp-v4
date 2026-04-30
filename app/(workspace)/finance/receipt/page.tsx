@@ -3,8 +3,9 @@
 import { useState, useMemo } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS, FINANCE_SUBTAB_PENDING } from '@/lib/finance-subtabs';
-import { SAMPLE_LEDGER, RECEIPT_SUBJECTS } from '@/lib/sample-finance';
-import { SAMPLE_CONTRACTS } from '@/lib/sample-contracts';
+import { RECEIPT_SUBJECTS } from '@/lib/sample-finance';
+import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useContractStore } from '@/lib/use-contract-store';
 import { PERIODS, periodRange, isInRange, type Period } from '@/lib/period-filter';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
@@ -15,17 +16,19 @@ import { cn } from '@/lib/cn';
 export default function FinanceReceiptPage() {
   const [period, setPeriod] = useState<Period>('이번달');
   const [subjectFilter, setSubjectFilter] = useState<string>('전체');
+  const [ledger] = useLedgerStore();
+  const [contracts] = useContractStore();
 
-  const contractMap = useMemo(() => new Map(SAMPLE_CONTRACTS.map((c) => [c.contractNo, c])), []);
+  const contractMap = useMemo(() => new Map(contracts.map((c) => [c.contractNo, c])), [contracts]);
 
   const receipts = useMemo(() => {
     const range = periodRange(period);
-    return SAMPLE_LEDGER.filter((e) =>
+    return ledger.filter((e) =>
       e.deposit && e.subject && (RECEIPT_SUBJECTS as readonly string[]).includes(e.subject) &&
       (subjectFilter === '전체' || e.subject === subjectFilter) &&
       isInRange(e.txDate, range),
     );
-  }, [period, subjectFilter]);
+  }, [ledger, period, subjectFilter]);
 
   const totalIn = receipts.reduce((s, r) => s + (r.deposit ?? 0), 0);
   const bySubject: Record<string, number> = {};

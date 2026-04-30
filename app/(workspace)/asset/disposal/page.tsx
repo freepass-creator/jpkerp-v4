@@ -3,10 +3,11 @@
 import { PageShell } from '@/components/layout/page-shell';
 import { AssetGrid } from '@/components/asset/asset-grid';
 import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
-import { SAMPLE_ASSETS } from '@/lib/sample-assets';
+import { useAssetStore } from '@/lib/use-asset-store';
 
 export default function AssetDisposalPage() {
-  const disposed = SAMPLE_ASSETS.filter((a) => a.status === '매각');
+  const [assets] = useAssetStore();
+  const disposed = assets.filter((a) => a.status === '매각');
 
   return (
     <PageShell

@@ -2,8 +2,8 @@
 
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_ASSETS } from '@/lib/sample-assets';
-import { SAMPLE_CONTRACTS } from '@/lib/sample-contracts';
+import { useAssetStore } from '@/lib/use-asset-store';
+import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
 /**
@@ -11,19 +11,22 @@ import { cn } from '@/lib/cn';
  * 계약현황 + 휴차현황 = 총 자산대수
  */
 export default function ContractIdlePage() {
+  const [assets] = useAssetStore();
+  const [contracts] = useContractStore();
+
   // 활성 계약이 있는 차량번호 set
   const activeContractPlates = new Set(
-    SAMPLE_CONTRACTS.filter((c) => c.status === '운행중').map((c) => c.plate),
+    contracts.filter((c) => c.status === '운행중').map((c) => c.plate),
   );
 
   // 매각 / 등록예정 제외, 활성 계약 없는 자산 = 휴차
-  const idle = SAMPLE_ASSETS.filter(
+  const idle = assets.filter(
     (a) => a.status !== '매각' && a.status !== '등록예정' && !activeContractPlates.has(a.plate),
   );
 
   // 마지막 계약 lookup
   const lastContractByPlate = new Map<string, string>();
-  for (const c of SAMPLE_CONTRACTS) {
+  for (const c of contracts) {
     const prev = lastContractByPlate.get(c.plate);
     if (!prev || c.endDate > prev) lastContractByPlate.set(c.plate, c.endDate);
   }
@@ -38,7 +41,7 @@ export default function ContractIdlePage() {
     return Math.max(0, Math.floor((today.getTime() - baseDate.getTime()) / 86400000));
   }
 
-  const totalAssets = SAMPLE_ASSETS.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
+  const totalAssets = assets.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
   const inContract = activeContractPlates.size;
 
   return (

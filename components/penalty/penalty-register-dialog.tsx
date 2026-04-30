@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { Upload, X, CircleNotch, CheckCircle, Warning, Plus } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { SAMPLE_CONTRACTS } from '@/lib/sample-contracts';
-import { findCompany } from '@/lib/sample-companies';
+import { findContractByPlate } from '@/lib/use-contract-store';
+import { useCompanyStore } from '@/lib/use-company-store';
+import { useContractStore } from '@/lib/use-contract-store';
 import type { PenaltyWorkItem } from '@/lib/penalty-pdf';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { runWithConcurrency } from '@/lib/parallel';
@@ -36,13 +37,11 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function matchContract(carNumber: string) {
-  if (!carNumber) return null;
-  const norm = carNumber.replace(/\s/g, '');
-  return SAMPLE_CONTRACTS.find((c) => c.plate.replace(/\s/g, '') === norm) ?? null;
-}
-
 export function PenaltyRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
+  const [contracts] = useContractStore();
+  const [companies] = useCompanyStore();
+  const findCompanyByCode = (code?: string) => code ? companies.find((c) => c.code === code) ?? null : null;
+
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
@@ -110,7 +109,7 @@ export function PenaltyRegisterDialog({ onCreate, open: openProp, onOpenChange, 
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const ex = json.extracted as Record<string, unknown>;
           const carNumber = (ex.car_number as string) ?? '';
-          const matched = matchContract(carNumber);
+          const matched = findContractByPlate(contracts, carNumber);
 
           setItems((prev) => prev.map((it) => it.id === id ? {
             ...it,
@@ -135,7 +134,7 @@ export function PenaltyRegisterDialog({ onCreate, open: openProp, onOpenChange, 
               product_type: '장기렌트',
               partner_code: matched.companyCode,
             } : null,
-            _company: matched ? findCompany(matched.companyCode) ?? null : null,
+            _company: matched ? findCompanyByCode(matched.companyCode) : null,
             _ocrStatus: 'done',
             _status: 'done',
           } : it));

@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { CaretRight } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_CONTRACTS, summarizeContract } from '@/lib/sample-contracts';
+import { summarizeContract } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
 /**
@@ -14,7 +15,8 @@ import { cn } from '@/lib/cn';
  */
 export default function ContractScheduleMasterPage() {
   const router = useRouter();
-  const summaries = SAMPLE_CONTRACTS.map(summarizeContract);
+  const [contracts] = useContractStore();
+  const summaries = contracts.map(summarizeContract);
 
   const totals = summaries.reduce(
     (acc, s) => {

@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react';
 import { PencilSimple, Copy, Trash, Plus, Upload } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_ASSETS } from '@/lib/sample-assets';
-import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
+import { useAssetStore } from '@/lib/use-asset-store';
+import { useContractStore } from '@/lib/use-contract-store';
+import { type Contract } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { ContractUploadDialog, type RentalContractExtracted } from '@/components/contract/contract-upload-dialog';
@@ -25,7 +26,8 @@ const CONTRACT_FIELDS: FieldDef[] = [
 ];
 
 export default function ContractListPage() {
-  const [contracts, setContracts] = useState<Contract[]>(SAMPLE_CONTRACTS);
+  const [contracts, setContracts] = useContractStore();
+  const [assets] = useAssetStore();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -36,10 +38,10 @@ export default function ContractListPage() {
   const [registerInitial, setRegisterInitial] = useState<Record<string, string>>({});
 
   const totals = useMemo(() => {
-    const totalAssets = SAMPLE_ASSETS.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
+    const totalAssets = assets.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
     const active = contracts.filter((c) => c.status === '운행중').length;
     return { totalAssets, active, idle: totalAssets - active };
-  }, [contracts]);
+  }, [contracts, assets]);
 
   /** 계약현황은 종료(만기/해지) 제외 — 종료 계약은 /contract/ended 에서 관리. */
   const visibleContracts = useMemo(

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_CONTRACTS, type Contract, type ContractStatus } from '@/lib/sample-contracts';
+import { type ContractStatus } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
 /**
@@ -14,7 +15,7 @@ import { cn } from '@/lib/cn';
 const ENDED_STATUSES: ContractStatus[] = ['만기', '해지'];
 
 export default function ContractEndedPage() {
-  const [contracts] = useState<Contract[]>(SAMPLE_CONTRACTS);
+  const [contracts] = useContractStore();
   const ended = useMemo(
     () => contracts.filter((c) => ENDED_STATUSES.includes(c.status))
       .sort((a, b) => (b.endDate ?? '').localeCompare(a.endDate ?? '')),

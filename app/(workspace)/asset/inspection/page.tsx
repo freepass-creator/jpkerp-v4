@@ -2,7 +2,7 @@
 
 import { PageShell } from '@/components/layout/page-shell';
 import { ASSET_SUBTABS, ASSET_SUBTAB_PENDING } from '@/lib/asset-subtabs';
-import { SAMPLE_ASSETS } from '@/lib/sample-assets';
+import { useAssetStore } from '@/lib/use-asset-store';
 import { cn } from '@/lib/cn';
 
 /**
@@ -10,11 +10,12 @@ import { cn } from '@/lib/cn';
  * 만기까지 D-day 컬럼 색상 코딩 (D-30 빨강 / D-90 주황).
  */
 export default function AssetInspectionPage() {
+  const [assets] = useAssetStore();
   return (
     <PageShell
       subTabs={ASSET_SUBTABS}
       subTabPending={ASSET_SUBTAB_PENDING}
-      footerLeft={<span className="stat-item">전체 <strong>{SAMPLE_ASSETS.length}</strong></span>}
+      footerLeft={<span className="stat-item">전체 <strong>{assets.length}</strong></span>}
       footerRight={<button className="btn btn-primary">+ 검사 등록</button>}
     >
       <div className="table-wrap">
@@ -34,7 +35,7 @@ export default function AssetInspectionPage() {
             </tr>
           </thead>
           <tbody>
-            {SAMPLE_ASSETS.map((a) => {
+            {assets.map((a) => {
               const dday = computeDday(a.inspectionTo);
               const ddayClass = ddayCellClass(dday);
               return (

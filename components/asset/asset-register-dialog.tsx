@@ -6,7 +6,42 @@ import { Dialog, DialogTrigger, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/cn';
 import { RegistrationForm } from './registration-form';
+import { runWithConcurrency } from '@/lib/parallel';
 import type { Asset } from '@/lib/sample-assets';
+
+const OCR_CONCURRENCY = 30;
+
+/** /api/ocr/extract 응답(VEHICLE_REG_SCHEMA) → Asset 필드 매핑 */
+function mapVehicleRegToAsset(ex: Record<string, unknown>): Partial<Asset> {
+  const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  return {
+    companyCode: 'CP01',
+    plate: str(ex.car_number) ?? '',
+    vehicleClass: str(ex.category_hint) ?? '',
+    usage: str(ex.usage_type) ?? '',
+    vehicleName: str(ex.car_name) ?? '',
+    modelType: str(ex.type_number),
+    manufactureDate: ex.car_year ? String(ex.car_year) : undefined,
+    vin: str(ex.vin) ?? '',
+    engineType: str(ex.engine_type),
+    ownerLocation: str(ex.address),
+    ownerName: str(ex.owner_name) ?? '',
+    ownerRegNumber: str(ex.owner_biz_no),
+    firstRegistDate: str(ex.first_registration_date) ?? '',
+    length: num(ex.length_mm),
+    width: num(ex.width_mm),
+    height: num(ex.height_mm),
+    totalWeight: num(ex.gross_weight_kg),
+    capacity: num(ex.seats),
+    displacement: num(ex.displacement),
+    fuelType: str(ex.fuel_type),
+    maker: str(ex.manufacturer),
+    modelName: str(ex.car_model),
+    detailModel: str(ex.detail_model),
+    status: '대기',
+  };
+}
 
 type Props = {
   onCreate: (asset: Partial<Asset>) => void;
@@ -35,53 +70,43 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
   const [parsedList, setParsedList] = useState<ParsedItem[]>([]);
   const [parsing, setParsing] = useState(false);
 
-  function ocrStub(file: File): Partial<Asset> {
-    // 실제 OCR API 연동 전 stub — 첨부 등록증(01도9893 모닝) 파싱 결과 흉내
-    return {
-      companyCode: 'CP01',
-      documentNo: '7836830517987332',
-      firstRegistDate: '2017-09-21',
-      certIssueDate: '2025-12-22',
-      plate: `${file.name.slice(0, 2)}도${Math.floor(1000 + Math.random() * 9000)}`,
-      vehicleClass: '경형 승용',
-      usage: '자가용',
-      vehicleName: '모닝',
-      modelType: 'JA51BA-T6-P',
-      manufactureDate: '2017-09',
-      vin: 'KNAB5511BHT151725',
-      engineType: 'G3LA',
-      ownerLocation: '경기도 연천군 전곡읍 은천로 97',
-      ownerName: '스위치플랜(주)',
-      ownerRegNumber: '110111-8596368',
-      approvalNumber: 'A01-1-00062-0019-1416',
-      length: 3595, width: 1595, height: 1485,
-      totalWeight: 1280, capacity: 5, maxLoad: 0,
-      displacement: 998, ratedOutput: '76/6200', cylinders: '3',
-      fuelType: '휘발유(무연)', fuelEfficiency: 14.7,
-      mortgageType: '저당설정', mortgageDate: '2024-10-21',
-      inspectionFrom: '2024-08-21', inspectionTo: '2026-08-20',
-      mileage: 50199, inspectionType: '종합검사(경과)',
-      acquisitionPrice: 14386363,
-      maker: '기아', modelName: '모닝',
-      status: '대기',
-    };
-  }
-
   async function runOcr() {
     if (certQueue.length === 0) return;
     setParsing(true);
 
-    // 실제 OCR이라면 Promise.all로 병렬 처리. 지금은 stub이라 짧은 delay만.
-    await new Promise((r) => setTimeout(r, 400 + 200 * certQueue.length));
-
-    const items: ParsedItem[] = certQueue.map((f, i) => ({
-      id: `p-${Date.now()}-${i}`,
+    // 1) 큐의 placeholder 행을 즉시 추가해 사용자에게 진행 표시
+    const stamp = Date.now();
+    const files = certQueue;
+    const placeholders: ParsedItem[] = files.map((f, i) => ({
+      id: `p-${stamp}-${i}`,
       fileName: f.name,
-      data: ocrStub(f),
+      data: { companyCode: 'CP01', status: '대기' as const },
     }));
-    setParsedList(items);
-    setCertQueue([]);
-    setParsing(false);
+    setParsedList(placeholders);
+
+    // 2) 동시성 제한 병렬 OCR — 파일별 /api/ocr/extract type=vehicle_reg
+    try {
+      await runWithConcurrency(files, OCR_CONCURRENCY, async (file, i) => {
+        const id = `p-${stamp}-${i}`;
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('type', 'vehicle_reg');
+          const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (!json.ok) throw new Error(json.error || 'OCR 실패');
+          const ex = json.extracted as Record<string, unknown>;
+          const data = mapVehicleRegToAsset(ex);
+          setParsedList((prev) => prev.map((p) => (p.id === id ? { ...p, data } : p)));
+        } catch (err) {
+          console.error('[asset OCR]', err);
+          // 실패 행은 placeholder 그대로 유지 — 사용자가 X 로 제거하거나 개별 입력으로 보완
+        }
+      });
+    } finally {
+      setCertQueue([]);
+      setParsing(false);
+    }
   }
 
   function addCertFiles(files: FileList | File[]) {

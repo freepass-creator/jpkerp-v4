@@ -4,15 +4,17 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, CalendarBlank } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_CONTRACTS, summarizeContract, type ScheduleEvent } from '@/lib/sample-contracts';
+import { summarizeContract, type ScheduleEvent } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
 
 export default function ContractScheduleDetailPage() {
   const router = useRouter();
   const params = useParams();
   const contractId = params?.contractId as string | undefined;
+  const [contracts] = useContractStore();
 
-  const contract = SAMPLE_CONTRACTS.find((c) => c.contractNo === contractId);
+  const contract = contracts.find((c) => c.contractNo === contractId);
 
   if (!contract) {
     return (

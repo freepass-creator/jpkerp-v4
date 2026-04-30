@@ -8,7 +8,8 @@ import {
   SAMPLE_JOURNAL, type JournalEntry, type JournalKind,
 } from '@/lib/sample-journal';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
-import { SAMPLE_CONTRACTS, type Contract } from '@/lib/sample-contracts';
+import { type Contract } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
 import type { Asset } from '@/lib/sample-assets';
 import { PcForm } from '@/components/journal/pc-form';
 import { IocForm } from '@/components/journal/ioc-form';
@@ -318,7 +319,7 @@ export default function JournalPage() {
   const at = atTime ? `${atDate} ${atTime}` : atDate;
 
   const [assets] = useAssetStore();
-  const contracts = SAMPLE_CONTRACTS; // TODO: useContractStore() 만들면 교체
+  const [contracts] = useContractStore();
 
   const usesCommonPlate = !KINDS_WITHOUT_COMMON_PLATE.includes(kind);
 

@@ -3,8 +3,9 @@
 import { useMemo } from 'react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS, CONTRACT_SUBTAB_PENDING } from '@/lib/contract-subtabs';
-import { SAMPLE_CONTRACTS, summarizeContract } from '@/lib/sample-contracts';
-import { SAMPLE_LEDGER } from '@/lib/sample-finance';
+import { summarizeContract } from '@/lib/sample-contracts';
+import { useContractStore } from '@/lib/use-contract-store';
+import { useLedgerStore } from '@/lib/use-ledger-store';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
 
@@ -30,6 +31,9 @@ type OverdueRow = {
 };
 
 export default function ContractOverduePage() {
+  const [contracts] = useContractStore();
+  const [ledger] = useLedgerStore();
+
   // 매 렌더마다 new Date() 만드는 걸 피하기 위해 useMemo로 고정
   const today = useMemo(() => {
     const d = new Date();
@@ -40,18 +44,18 @@ export default function ContractOverduePage() {
   // 자금일보에서 계약별 입금 합계 계산
   const paidByContract = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of SAMPLE_LEDGER) {
+    for (const e of ledger) {
       if (e.deposit && e.matchedContract && e.subject === '대여료') {
         m.set(e.matchedContract, (m.get(e.matchedContract) ?? 0) + e.deposit);
       }
     }
     return m;
-  }, []);
+  }, [ledger]);
 
   // 계약별 회차별 미수 계산 (수납 회차에 대해 가장 최근부터 내림차순으로 차감)
   const rows: OverdueRow[] = useMemo(() => {
     const out: OverdueRow[] = [];
-    for (const c of SAMPLE_CONTRACTS) {
+    for (const c of contracts) {
       const summary = summarizeContract(c);
       const totalPaid = paidByContract.get(c.contractNo) ?? 0;
       const receiptEvents = c.events.filter((e) => e.type === '수납').sort((a, b) => a.dueDate.localeCompare(b.dueDate));
@@ -85,7 +89,7 @@ export default function ContractOverduePage() {
       void summary;
     }
     return out.sort((a, b) => b.daysOverdue - a.daysOverdue);
-  }, [paidByContract, today]);
+  }, [contracts, paidByContract, today]);
 
   const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
   const contractsWithOverdue = new Set(rows.map((r) => r.contractNo)).size;

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Upload, X, CircleNotch, CheckCircle, Warning, Plus } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { SAMPLE_ASSETS } from '@/lib/sample-assets';
+import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { runWithConcurrency } from '@/lib/parallel';
@@ -36,13 +36,10 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function matchAsset(carNumber?: string) {
-  if (!carNumber) return null;
-  const norm = carNumber.replace(/\s/g, '');
-  return SAMPLE_ASSETS.find((a) => a.plate.replace(/\s/g, '') === norm) ?? null;
-}
-
 export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
+  const [assets] = useAssetStore();
+  const matchAsset = (carNumber?: string) => findAssetByPlate(assets, carNumber ?? '');
+
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
