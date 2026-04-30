@@ -8,6 +8,9 @@ import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useAssetStore } from '@/lib/use-asset-store';
+import { useContractStore } from '@/lib/use-contract-store';
+import type { Asset } from '@/lib/sample-assets';
 import type { Contract, CustomerKind } from '@/lib/sample-contracts';
 
 /**
@@ -52,8 +55,12 @@ const SHEET_HEADERS: Array<[keyof ContractDraft, string]> = [
   ['deposit',        '보증금'],
 ];
 
-/* ─── OCR (rental_contract) → ContractDraft 매핑 ─── */
-function mapContractOcr(raw: Record<string, unknown>): Partial<ContractDraft> {
+/* ─── OCR (rental_contract) → ContractDraft 매핑 ───
+   plate 가 등록 자산과 매칭되면 그 자산의 companyCode 자동 채움. */
+function mapContractOcr(
+  raw: Record<string, unknown>,
+  assets: readonly Asset[],
+): Partial<ContractDraft> {
   const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const kindRaw = str(raw.contractor_kind);
@@ -61,9 +68,11 @@ function mapContractOcr(raw: Record<string, unknown>): Partial<ContractDraft> {
     kindRaw === '법인' ? '법인'
     : kindRaw === '사업자' ? '사업자'
     : '개인';
+  const plate = str(raw.car_number);
+  const matchedAsset = plate ? assets.find((a) => a.plate === plate) : undefined;
   return {
-    companyCode: '',                                     // OCR에 없음 — 사용자 선택
-    plate: str(raw.car_number),
+    companyCode: matchedAsset?.companyCode ?? '',       // 자산 매칭 시 자동 / 아니면 사용자 선택
+    plate,
     customerName: str(raw.contractor_name),
     customerKind,
     customerIdent: str(raw.contractor_ident),
@@ -78,7 +87,7 @@ function mapContractOcr(raw: Record<string, unknown>): Partial<ContractDraft> {
 /* ─── 시트 (TSV) 파싱 ─── */
 type SheetRow = { data: Partial<ContractDraft>; errors: string[] };
 
-function parseSheet(text: string): SheetRow[] {
+function parseSheet(text: string, assets: readonly Asset[]): SheetRow[] {
   const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) return [];
 
@@ -108,6 +117,11 @@ function parseSheet(text: string): SheetRow[] {
         (data as Record<string, unknown>)[key] = val;
       }
     });
+    // 회사코드 비었지만 plate 가 등록 자산과 일치하면 자동 채움
+    if (!data.companyCode && data.plate) {
+      const matched = assets.find((a) => a.plate === data.plate);
+      if (matched) data.companyCode = matched.companyCode;
+    }
     // 필수 검증
     if (!data.companyCode) errors.push('회사코드 누락');
     if (!data.plate) errors.push('차량번호 누락');
@@ -141,6 +155,8 @@ type Props = {
 
 export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
   const [companies] = useCompanyStore();
+  const [assets] = useAssetStore();
+  const [contracts] = useContractStore();
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
@@ -158,13 +174,13 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
       id, fileName: file.name, _status: 'pending',
       data: { ...EMPTY_DRAFT },
     }),
-    applyResult: (prev, raw) => ({ ...prev, data: { ...prev.data, ...mapContractOcr(raw) } }),
+    applyResult: (prev, raw) => ({ ...prev, data: { ...prev.data, ...mapContractOcr(raw, assets) } }),
   });
   const ocrOk = ocr.items.filter((i) => i._status === 'done' && validateDraft(i.data).length === 0);
 
   /* 시트 다건 */
   const [sheetText, setSheetText] = useState('');
-  const sheetRows = useMemo(() => parseSheet(sheetText), [sheetText]);
+  const sheetRows = useMemo(() => parseSheet(sheetText, assets), [sheetText, assets]);
   const sheetOk = sheetRows.filter((r) => r.errors.length === 0);
 
   /* 개별 단건 */
@@ -384,7 +400,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
 
           {/* ── 개별 입력 ── */}
           <TabsContent value="manual">
-            <ManualForm draft={draft} setDraft={setDraft} companies={companies} />
+            <ManualForm draft={draft} setDraft={setDraft} companies={companies} assets={assets} contracts={contracts} />
             <DialogFooter>
               <DialogClose asChild><button className="btn">취소</button></DialogClose>
               <button className="btn btn-primary" onClick={commitManual}>등록</button>
@@ -436,15 +452,57 @@ function ContractItemStatus({ item, errors }: { item: ContractWorkItem; errors: 
   return <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>;
 }
 
-/* 단건 입력 폼 — 필수 10개 */
+/**
+ * 단건 입력 폼 — 필수 10개.
+ *
+ * 자동 채움:
+ *  · 차량번호 입력 → 등록 자산과 일치 시 회사코드 자동 매칭
+ *  · 고객명 입력 → 이전 계약자와 일치 시 신분/등록번호/연락처 자동 채움
+ */
 function ManualForm({
-  draft, setDraft, companies,
+  draft, setDraft, companies, assets, contracts,
 }: {
   draft: Partial<ContractDraft>;
   setDraft: (d: Partial<ContractDraft>) => void;
   companies: ReturnType<typeof useCompanyStore>[0];
+  assets: readonly Asset[];
+  contracts: readonly Contract[];
 }) {
   const set = <K extends keyof ContractDraft>(k: K, v: ContractDraft[K]) => setDraft({ ...draft, [k]: v });
+
+  // 고객명 unique 목록 — 가장 최근 계약 우선 (autocomplete 후보)
+  const uniqueCustomers = useMemo(() => {
+    const map = new Map<string, Contract>();
+    for (let i = contracts.length - 1; i >= 0; i--) {
+      const c = contracts[i];
+      if (c.customerName && !map.has(c.customerName)) map.set(c.customerName, c);
+    }
+    return Array.from(map.values());
+  }, [contracts]);
+
+  function onPlateChange(plate: string) {
+    const matched = assets.find((a) => a.plate === plate);
+    if (matched) {
+      setDraft({ ...draft, plate, companyCode: matched.companyCode });
+    } else {
+      setDraft({ ...draft, plate });
+    }
+  }
+
+  function onCustomerNameChange(name: string) {
+    const matched = uniqueCustomers.find((c) => c.customerName === name);
+    if (matched) {
+      setDraft({
+        ...draft,
+        customerName: name,
+        customerKind: matched.customerKind,
+        customerIdent: matched.customerIdent,
+        customerPhone: matched.customerPhone,
+      });
+    } else {
+      setDraft({ ...draft, customerName: name });
+    }
+  }
 
   return (
     <div className="form-grid" style={{ marginTop: 4 }}>
@@ -457,11 +515,23 @@ function ManualForm({
       </label>
       <label className="block col-span-1">
         <span className="label label-required">차량번호</span>
-        <input className="input w-full" value={draft.plate ?? ''} onChange={(e) => set('plate', e.target.value)} placeholder="01도1234" />
+        <input className="input w-full" list="contract-plate-list" value={draft.plate ?? ''}
+               onChange={(e) => onPlateChange(e.target.value)} placeholder="01도1234 (자산에서 검색)" />
+        <datalist id="contract-plate-list">
+          {assets.map((a) => (
+            <option key={a.id} value={a.plate}>{a.companyCode} · {a.vehicleName || a.vehicleClass || ''}</option>
+          ))}
+        </datalist>
       </label>
       <label className="block col-span-2">
         <span className="label label-required">고객명</span>
-        <input className="input w-full" value={draft.customerName ?? ''} onChange={(e) => set('customerName', e.target.value)} />
+        <input className="input w-full" list="contract-customer-list" value={draft.customerName ?? ''}
+               onChange={(e) => onCustomerNameChange(e.target.value)} placeholder="이전 계약자 검색 가능" />
+        <datalist id="contract-customer-list">
+          {uniqueCustomers.map((c) => (
+            <option key={c.id} value={c.customerName}>{c.customerKind} · {c.customerPhone || c.customerIdent}</option>
+          ))}
+        </datalist>
       </label>
       <label className="block col-span-1">
         <span className="label label-required">신분</span>
