@@ -13,14 +13,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="auth-loading">
-        <div className="auth-loading__brand">
-          <span className="auth-brand__base">team</span>
-          <span className="auth-brand__main">jpk</span>{' '}
-          <span className="auth-brand__erp">ERP</span>
-        </div>
-        <CircleNotch size={28} className="auth-spin" style={{ color: '#1B2A4A' }} />
-        <div style={{ fontSize: 12, color: '#5f6368' }}>인증 확인 중...</div>
+      <div style={{
+        height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 8, background: 'var(--bg-page)', color: 'var(--text-sub)', fontSize: 12,
+      }}>
+        <CircleNotch size={14} className="auth-spin" style={{ color: 'var(--brand)' }} />
+        <span>로딩 중...</span>
       </div>
     );
   }
