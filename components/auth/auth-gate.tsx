@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CircleNotch } from '@phosphor-icons/react';
 import { useAuth, login } from '@/lib/use-auth';
 
 /**
@@ -18,7 +19,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <span className="auth-brand__main">jpk</span>{' '}
           <span className="auth-brand__erp">ERP</span>
         </div>
-        <i className="auth-loading__spinner ph ph-spinner" />
+        <CircleNotch size={28} className="auth-spin" style={{ color: '#1B2A4A' }} />
+        <div style={{ fontSize: 12, color: '#5f6368' }}>인증 확인 중...</div>
       </div>
     );
   }
@@ -94,7 +96,11 @@ function LoginScreen() {
           </div>
           {error && <p className="auth-message" role="alert">{error}</p>}
           <button type="submit" className="auth-submit" disabled={busy}>
-            {busy ? '접속 중...' : '로그인'}
+            {busy ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                <CircleNotch size={14} className="auth-spin" /> 접속 중...
+              </span>
+            ) : '로그인'}
           </button>
         </form>
         <p className="auth-guide">기존 jpkerp 계정으로 로그인</p>

@@ -1290,6 +1290,7 @@ input[type="checkbox"], input[type="radio"] {
   animation: auth-spin 0.9s linear infinite;
   display: inline-block;
 }
+.auth-spin { animation: auth-spin 0.9s linear infinite; display: inline-block; }
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 
 .auth-card {

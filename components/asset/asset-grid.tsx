@@ -155,7 +155,7 @@ export function AssetGrid({ assets, selectedId, onRowClick, onRowContextMenu }: 
             <td>{val(a.modelName)}</td>
             <td>{val(a.detailModel)}</td>
             <td>{val(a.detailTrim)}</td>
-            <td>{val(a.options?.join(', '))}</td>
+            <td>{val(Array.isArray(a.options) ? a.options.join(', ') : a.options)}</td>
             <td>{val(a.exteriorColor)}</td>
             <td>{val(a.interiorColor)}</td>
             <td className="center">{val(a.driveType)}</td>
