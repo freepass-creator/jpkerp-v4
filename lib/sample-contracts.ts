@@ -1,5 +1,5 @@
 export type ContractStatus = '운행중' | '대기' | '만기' | '해지';
-export type ScheduleType = '수납' | '검사' | '정비' | '보험' | '반납' | '기타';
+export type ScheduleType = '출고' | '수납' | '검사' | '정비' | '보험' | '반납' | '기타';
 export type ScheduleStatus = '예정' | '완료' | '지연' | '취소';
 
 export type ScheduleEvent = {
@@ -52,6 +52,16 @@ export function generateContractSchedule(
   if (end < start) return [];
 
   const events: ScheduleEvent[] = [];
+
+  // 0번: 출고 — 계약 시작일에 차량 인도. 정상 출고 확인 시 완료 처리.
+  events.push({
+    id: `d-${startDate}`,
+    type: '출고',
+    dueDate: startDate,
+    status: '예정',
+    note: '차량 인도 — 외관/주행거리/연료 점검 + 키 전달 후 완료 처리',
+  });
+
   const dayOfMonth = start.getDate();
   let cycle = 1;
   let cursor = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);

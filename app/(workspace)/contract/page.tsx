@@ -35,7 +35,7 @@ const CONTRACT_DUPLICATE_FIELDS: FieldDef[] = CONTRACT_EDIT_FIELDS.map((f) =>
 
 export default function ContractListPage() {
   const [contracts, setContracts] = useContractStore();
-  const [assets] = useAssetStore();
+  const [assets, setAssets] = useAssetStore();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -89,7 +89,14 @@ export default function ContractListPage() {
   }
 
   function handleCreate(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>) {
-    setContracts((prev) => [fromDraft(draft), ...prev]);
+    const contract = fromDraft(draft);
+    setContracts((prev) => [contract, ...prev]);
+    // cascade: 자산 상태 전환 — '등록예정' → '대기' (출고 대기). 이미 운행중/정비/매각이면 손대지 않음.
+    setAssets((prev) => prev.map((a) =>
+      a.plate === contract.plate && a.companyCode === contract.companyCode && a.status === '등록예정'
+        ? { ...a, status: '대기' as const }
+        : a,
+    ));
   }
 
   function handleUpdate(d: Record<string, string>) {

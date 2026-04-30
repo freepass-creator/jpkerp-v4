@@ -1,9 +1,10 @@
 'use client';
 
 import { Fragment, useState, useEffect } from 'react';
-import { Trash, TrashSimple, CaretRight, CaretDown } from '@phosphor-icons/react';
+import { Trash, TrashSimple, CaretRight, CaretDown, CurrencyKrw, Truck } from '@phosphor-icons/react';
 import { ref, onValue, set, get } from 'firebase/database';
 import { PageShell } from '@/components/layout/page-shell';
+import { Dialog, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { getRtdb } from '@/lib/firebase/client';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
@@ -63,25 +64,59 @@ export default function DevPage() {
     other: otherNodes.length,
   };
 
-  function clearCurrent() {
-    if (tab === 'companies') {
-      if (counts.companies === 0) return;
-      if (!confirm(`회사 전체 ${counts.companies}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-      setCompanies([]);
-    } else if (tab === 'assets') {
-      if (counts.assets === 0) return;
-      if (!confirm(`자산 전체 ${counts.assets}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-      setAssets([]);
-    } else if (tab === 'contracts') {
-      if (counts.contracts === 0) return;
-      if (!confirm(`계약 전체 ${counts.contracts}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-      setContracts([]);
-    } else if (tab === 'ledger') {
-      if (counts.ledger === 0) return;
-      if (!confirm(`계좌내역 전체 ${counts.ledger}건 삭제할까요? 되돌릴 수 없습니다.`)) return;
-      setEntries([]);
-    }
-    // 기타 탭은 행별 삭제만 (전체 삭제 위험)
+  const [purgeOpen, setPurgeOpen] = useState(false);
+
+  /** 다이얼로그에서 선택된 노드들 삭제 — selected 가 비어있으면 noop. */
+  function purge(selected: { companies: boolean; assets: boolean; contracts: boolean; ledger: boolean }) {
+    const lines: string[] = [];
+    if (selected.companies && counts.companies > 0) lines.push(`회사 ${counts.companies}`);
+    if (selected.assets && counts.assets > 0) lines.push(`자산 ${counts.assets}`);
+    if (selected.contracts && counts.contracts > 0) lines.push(`계약 ${counts.contracts}`);
+    if (selected.ledger && counts.ledger > 0) lines.push(`계좌내역 ${counts.ledger}`);
+    if (lines.length === 0) return;
+    if (!confirm(`다음을 삭제합니다.\n${lines.join(' · ')}\n\n되돌릴 수 없습니다. 계속할까요?`)) return;
+    if (selected.companies) setCompanies([]);
+    if (selected.assets) setAssets([]);
+    if (selected.contracts) setContracts([]);
+    if (selected.ledger) setEntries([]);
+    setPurgeOpen(false);
+  }
+
+  /** 시드 — 수납생성: 모든 계약의 미경과 회차를 일괄 완료 처리 (보증금 포함 가정). */
+  function seedReceipts() {
+    if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
+    if (!confirm(`전체 계약 ${contracts.length}건의 만기 도래한 수납 회차 + 보증금을 일괄 납부 처리합니다.\n계속할까요?`)) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setContracts((prev) => prev.map((c) => ({
+      ...c,
+      events: c.events.map((e) =>
+        e.type === '수납' && e.dueDate <= today && e.status === '예정'
+          ? { ...e, status: '완료' as const, doneDate: e.dueDate }
+          : e,
+      ),
+    })));
+  }
+
+  /** 시드 — 출고생성: 모든 계약의 출고 이벤트 완료 + 자산 상태 운행중 전환. */
+  function seedDeliveries() {
+    if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
+    if (!confirm(`전체 계약 ${contracts.length}건의 출고를 완료 처리하고 매칭 자산을 운행중으로 전환합니다.\n계속할까요?`)) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const platesInContracts = new Set(contracts.map((c) => c.plate));
+    setContracts((prev) => prev.map((c) => ({
+      ...c,
+      status: '운행중' as const,
+      events: c.events.map((e) =>
+        e.type === '출고' && e.status === '예정'
+          ? { ...e, status: '완료' as const, doneDate: today }
+          : e,
+      ),
+    })));
+    setAssets((prev) => prev.map((a) =>
+      platesInContracts.has(a.plate) && (a.status === '대기' || a.status === '등록예정')
+        ? { ...a, status: '운행중' as const }
+        : a,
+    ));
   }
 
   return (
@@ -102,11 +137,17 @@ export default function DevPage() {
       }
       footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
       footerRight={
-        tab !== 'other' ? (
-          <button className="btn" disabled={counts[tab] === 0} onClick={clearCurrent}>
-            <TrashSimple size={14} weight="bold" /> 전체 삭제
+        <>
+          <button className="btn" onClick={seedReceipts} title="모든 계약의 만기 도래 회차 + 보증금 일괄 납부 처리">
+            <CurrencyKrw size={14} weight="bold" /> 수납생성
           </button>
-        ) : null
+          <button className="btn" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
+            <Truck size={14} weight="bold" /> 출고생성
+          </button>
+          <button className="btn" onClick={() => setPurgeOpen(true)}>
+            <TrashSimple size={14} weight="bold" /> 데이터 삭제
+          </button>
+        </>
       }
     >
       <div className="table-wrap">
@@ -116,7 +157,80 @@ export default function DevPage() {
         {tab === 'ledger' && <LedgerTable entries={entries} setEntries={setEntries} />}
         {tab === 'other' && <OtherNodesTable nodes={otherNodes} />}
       </div>
+
+      <PurgeDialog open={purgeOpen} onOpenChange={setPurgeOpen} counts={counts} onPurge={purge} />
     </PageShell>
+  );
+}
+
+/* ─── 데이터 삭제 다이얼로그 ─── */
+function PurgeDialog({
+  open, onOpenChange, counts, onPurge,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  counts: Record<Tab, number>;
+  onPurge: (sel: { companies: boolean; assets: boolean; contracts: boolean; ledger: boolean }) => void;
+}) {
+  const [sel, setSel] = useState({ companies: false, assets: false, contracts: false, ledger: false });
+
+  // 다이얼로그 열릴 때마다 선택 초기화
+  useEffect(() => {
+    if (open) setSel({ companies: false, assets: false, contracts: false, ledger: false });
+  }, [open]);
+
+  const total = counts.companies + counts.assets + counts.contracts + counts.ledger;
+  const selectedCount = (sel.companies ? counts.companies : 0)
+                      + (sel.assets ? counts.assets : 0)
+                      + (sel.contracts ? counts.contracts : 0)
+                      + (sel.ledger ? counts.ledger : 0);
+  const someSelected = selectedCount > 0;
+
+  const ROWS: Array<[keyof typeof sel, string, number]> = [
+    ['companies', '회사', counts.companies],
+    ['assets', '자산', counts.assets],
+    ['contracts', '계약', counts.contracts],
+    ['ledger', '계좌내역', counts.ledger],
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="데이터 삭제" size="md">
+        <div className="space-y-3">
+          <div className="alert alert-warn">
+            삭제는 되돌릴 수 없습니다. 운영 데이터가 있는지 다시 한 번 확인하세요.
+          </div>
+          <div className="space-y-1">
+            {ROWS.map(([key, label, count]) => (
+              <label key={key} className="flex items-center justify-between p-2"
+                     style={{ border: '1px solid var(--border)', cursor: count === 0 ? 'not-allowed' : 'pointer', opacity: count === 0 ? 0.5 : 1 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" disabled={count === 0}
+                         checked={sel[key]}
+                         onChange={(e) => setSel((p) => ({ ...p, [key]: e.target.checked }))} />
+                  <span className="text-medium">{label}</span>
+                </span>
+                <span className="text-sub">{count.toLocaleString('ko-KR')}건</span>
+              </label>
+            ))}
+          </div>
+          <div className="text-weak text-xs">
+            기타 노드 삭제는 [기타 노드] 탭에서 노드별로 진행 — 운영 외 데이터 보호용.
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild><button className="btn">취소</button></DialogClose>
+          <button className="btn" disabled={!someSelected} onClick={() => onPurge(sel)}>
+            선택 삭제 {someSelected && `(${selectedCount.toLocaleString('ko-KR')}건)`}
+          </button>
+          <button className="btn btn-primary" disabled={total === 0}
+                  onClick={() => onPurge({ companies: true, assets: true, contracts: true, ledger: true })}>
+            모두 삭제 {total > 0 && `(${total.toLocaleString('ko-KR')}건)`}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
