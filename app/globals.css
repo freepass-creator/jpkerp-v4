@@ -369,7 +369,7 @@ td.num, td.date, th.num, th.date {
 }
 .sb-item:hover { background: var(--bg-stripe); color: var(--text-main); }
 .sb-item.active {
-  background: var(--brand-bg);
+  /* 배경은 사이드바 본체와 동일 — 활성 표시는 좌측 막대 + brand 텍스트로만 */
   color: var(--brand);
   border-left-color: var(--brand);
   font-weight: var(--font-weight-medium);
