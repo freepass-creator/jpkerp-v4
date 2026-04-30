@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, FileXls, Pencil, Plus, FilePdf, Image as ImageIcon, X, CheckCircle } from '@phosphor-icons/react';
-import { Dialog, DialogTrigger, DialogContent } from '@/components/ui/dialog';
+import { Upload, FileXls, Pencil, Plus, X, CheckCircle, CircleNotch, Warning } from '@phosphor-icons/react';
+import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { cn } from '@/lib/cn';
 import { RegistrationForm } from './registration-form';
 import { runWithConcurrency } from '@/lib/parallel';
 import type { Asset } from '@/lib/sample-assets';
@@ -12,6 +11,15 @@ import { findCompanyByOwner, type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
 
 const OCR_CONCURRENCY = 30;
+
+type Status = 'pending' | 'done' | 'failed';
+type WorkItem = {
+  id: string;
+  fileName: string;
+  data: Partial<Asset>;
+  _status: Status;
+  _error?: string;
+};
 
 /**
  * /api/ocr/extract 응답(VEHICLE_REG_SCHEMA) → Asset 필드 매핑.
@@ -30,41 +38,36 @@ function mapVehicleRegToAsset(
   const matched = findCompanyByOwner(ownerName, ownerRegNumber, companies);
   return {
     companyCode: matched?.code ?? '',
-    // 헤더
     documentNo: str(ex.document_no),
     firstRegistDate: str(ex.first_registration_date) ?? '',
     certIssueDate: str(ex.cert_issue_date),
-    // 본문 ① ~ ⑩
     plate: str(ex.car_number) ?? '',
-    vehicleClass: str(ex.category_hint) ?? '',     // ②
-    usage: str(ex.usage_type) ?? '',               // ③
-    vehicleName: str(ex.car_name) ?? '',           // ④
-    modelType: str(ex.type_number),                // ⑤ 형식
-    manufactureDate: str(ex.car_year_month),       // ⑤ 제작연월 YYYY-MM
-    vin: str(ex.vin) ?? '',                        // ⑥
-    engineType: str(ex.engine_type),               // ⑦
-    ownerLocation: str(ex.address),                // ⑧
-    ownerName: ownerName ?? '',                    // ⑨
-    ownerRegNumber,                                // ⑩
-    // 1. 제원 ⑪ ~ ㉔
-    approvalNumber: str(ex.approval_number),       // ⑪
-    length: num(ex.length_mm),                     // ⑫
-    width: num(ex.width_mm),                       // ⑬
-    height: num(ex.height_mm),                     // ⑭
-    totalWeight: num(ex.gross_weight_kg),          // ⑮
-    capacity: num(ex.seats),                       // ⑯
-    maxLoad: num(ex.max_load_kg),                  // ⑰
-    displacement: num(ex.displacement),            // ⑱
-    ratedOutput: str(ex.rated_output),             // ⑲
-    cylinders: str(ex.cylinders),                  // ⑳
-    fuelType: str(ex.fuel_type),                   // ㉑
-    fuelEfficiency: num(ex.fuel_efficiency),       // ㉑
-    // 4. 검사 ㉚ ~ ㉟
-    inspectionFrom: str(ex.inspection_from),       // ㉚
-    inspectionTo: str(ex.inspection_to),           // ㉛
-    mileage: num(ex.mileage),                      // ㉝
-    inspectionType: str(ex.inspection_type),       // ㉟
-    // 푸터
+    vehicleClass: str(ex.category_hint) ?? '',
+    usage: str(ex.usage_type) ?? '',
+    vehicleName: str(ex.car_name) ?? '',
+    modelType: str(ex.type_number),
+    manufactureDate: str(ex.car_year_month),
+    vin: str(ex.vin) ?? '',
+    engineType: str(ex.engine_type),
+    ownerLocation: str(ex.address),
+    ownerName: ownerName ?? '',
+    ownerRegNumber,
+    approvalNumber: str(ex.approval_number),
+    length: num(ex.length_mm),
+    width: num(ex.width_mm),
+    height: num(ex.height_mm),
+    totalWeight: num(ex.gross_weight_kg),
+    capacity: num(ex.seats),
+    maxLoad: num(ex.max_load_kg),
+    displacement: num(ex.displacement),
+    ratedOutput: str(ex.rated_output),
+    cylinders: str(ex.cylinders),
+    fuelType: str(ex.fuel_type),
+    fuelEfficiency: num(ex.fuel_efficiency),
+    inspectionFrom: str(ex.inspection_from),
+    inspectionTo: str(ex.inspection_to),
+    mileage: num(ex.mileage),
+    inspectionType: str(ex.inspection_type),
     acquisitionPrice: num(ex.acquisition_price),
     status: '대기',
   };
@@ -72,17 +75,9 @@ function mapVehicleRegToAsset(
 
 type Props = {
   onCreate: (asset: Partial<Asset>) => void;
-  /** 외부 컨트롤 — controlled mode. 미제공 시 내부 상태 사용 */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** 트리거 버튼 표시 여부 (기본 true) */
   showTrigger?: boolean;
-};
-
-type ParsedItem = {
-  id: string;
-  fileName: string;
-  data: Partial<Asset>;
 };
 
 export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
@@ -94,28 +89,40 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     if (!isControlled) setOpenInner(v);
     onOpenChange?.(v);
   };
-  const [certQueue, setCertQueue] = useState<File[]>([]);
-  const [parsedList, setParsedList] = useState<ParsedItem[]>([]);
-  const [parsing, setParsing] = useState(false);
 
-  async function runOcr() {
-    if (certQueue.length === 0) return;
-    setParsing(true);
+  const [items, setItems] = useState<WorkItem[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
 
-    // 1) 큐의 placeholder 행을 즉시 추가해 사용자에게 진행 표시
+  function reset() {
+    setItems([]);
+    setBusy(false);
+    setProgress(null);
+  }
+
+  /** 업로드 즉시 OCR 시작 — 과태료와 동일 패턴. */
+  async function handleFiles(files: FileList | File[]) {
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    setBusy(true);
+
     const stamp = Date.now();
-    const files = certQueue;
-    const placeholders: ParsedItem[] = files.map((f, i) => ({
-      id: `p-${stamp}-${i}`,
+    const placeholders: WorkItem[] = arr.map((f, i) => ({
+      id: `p-${stamp}-${i}-${Math.random().toString(36).slice(2, 5)}`,
       fileName: f.name,
       data: { companyCode: '', status: '대기' as const },
+      _status: 'pending',
     }));
-    setParsedList(placeholders);
+    setItems((prev) => [...prev, ...placeholders]);
+    setProgress((prev) => ({
+      done: prev?.done ?? 0,
+      total: (prev?.total ?? 0) + arr.length,
+    }));
 
-    // 2) 동시성 제한 병렬 OCR — 파일별 /api/ocr/extract type=vehicle_reg
     try {
-      await runWithConcurrency(files, OCR_CONCURRENCY, async (file, i) => {
-        const id = `p-${stamp}-${i}`;
+      await runWithConcurrency(arr, OCR_CONCURRENCY, async (file, i) => {
+        const id = placeholders[i].id;
         try {
           const fd = new FormData();
           fd.append('file', file);
@@ -125,50 +132,29 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const ex = json.extracted as Record<string, unknown>;
           const data = mapVehicleRegToAsset(ex, companies);
-          setParsedList((prev) => prev.map((p) => (p.id === id ? { ...p, data } : p)));
+          setItems((prev) => prev.map((it) => it.id === id ? { ...it, data, _status: 'done' as const } : it));
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
           console.error('[asset OCR]', err);
-          // 실패 행은 placeholder 그대로 유지 — 사용자가 X 로 제거하거나 개별 입력으로 보완
+          setItems((prev) => prev.map((it) => it.id === id ? { ...it, _status: 'failed' as const, _error: msg } : it));
+        } finally {
+          setProgress((p) => p ? { done: p.done + 1, total: p.total } : null);
         }
       });
     } finally {
-      setCertQueue([]);
-      setParsing(false);
+      setBusy(false);
+      setProgress(null);
     }
   }
 
-  function addCertFiles(files: FileList | File[]) {
-    setCertQueue((prev) => [...prev, ...Array.from(files)]);
+  function removeItem(id: string) {
+    setItems((p) => p.filter((i) => i.id !== id));
   }
 
-  function removeCertAt(i: number) {
-    setCertQueue((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  function removeParsedAt(id: string) {
-    setParsedList((prev) => prev.filter((p) => p.id !== id));
-  }
-
-  function reset() {
-    setCertQueue([]);
-    setParsedList([]);
-    setParsing(false);
-  }
-
-  function registerOne(item: ParsedItem) {
-    onCreate(item.data);
-    setParsedList((prev) => {
-      const next = prev.filter((p) => p.id !== item.id);
-      if (next.length === 0) {
-        setOpen(false);
-        setTimeout(reset, 100);
-      }
-      return next;
-    });
-  }
-
-  function registerAll() {
-    parsedList.forEach((p) => onCreate(p.data));
+  function commitAll() {
+    const ok = items.filter((i) => i._status === 'done');
+    if (ok.length === 0) return;
+    ok.forEach((i) => onCreate(i.data));
     setOpen(false);
     setTimeout(reset, 100);
   }
@@ -177,6 +163,9 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     setOpen(o);
     if (!o) reset();
   }
+
+  const okCount = items.filter((i) => i._status === 'done').length;
+  const matchedCount = items.filter((i) => i._status === 'done' && i.data.companyCode).length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -203,23 +192,126 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
           </TabsList>
 
           <TabsContent value="ocr">
-            {parsedList.length > 0 ? (
-              <ParsedListView
-                items={parsedList}
-                onRemove={removeParsedAt}
-                onRegisterAll={registerAll}
-                onRegisterOne={registerOne}
-                onCancelAll={() => { setOpen(false); setTimeout(reset, 100); }}
-              />
-            ) : (
-              <UploadStage
-                certQueue={certQueue}
-                onCertAdd={addCertFiles}
-                onCertRemove={removeCertAt}
-                parsing={parsing}
-                onAnalyze={runOcr}
-              />
-            )}
+            <div className="space-y-3">
+              <label
+                className={`dropzone block ${dragging ? 'dragging' : ''} ${busy ? 'busy' : ''}`}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (!busy) setDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }}
+                onDrop={(e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  setDragging(false);
+                  if (busy) return;
+                  const files = e.dataTransfer?.files;
+                  if (files && files.length > 0) handleFiles(files);
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFiles(e.target.files);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {progress ? (
+                  <>
+                    <CircleNotch size={26} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
+                    <div className="mt-2 text-medium">OCR 진행 중... <strong>{progress.done}</strong> / {progress.total}</div>
+                    <div className="mt-1 text-weak">Gemini가 자동차등록증을 읽고 있습니다</div>
+                  </>
+                ) : dragging ? (
+                  <>
+                    <Upload size={26} className="mx-auto" style={{ color: 'var(--brand)' }} />
+                    <div className="mt-2 text-medium">여기에 놓기</div>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={26} className="mx-auto text-weak" />
+                    <div className="mt-2 text-medium">자동차등록증 업로드 — 클릭 또는 드래그&드롭</div>
+                    <div className="mt-1 text-weak">JPG / PNG / PDF — 업로드 즉시 OCR 시작. 법인번호로 회사 자동 매칭.</div>
+                  </>
+                )}
+              </label>
+
+              {items.length > 0 && (
+                <div className="border" style={{ borderColor: 'var(--border)', overflowX: 'auto', maxHeight: 360 }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 28 }}></th>
+                        <th>회사</th>
+                        <th>차량번호</th>
+                        <th>차종</th>
+                        <th>차명</th>
+                        <th>차대번호</th>
+                        <th>성명(명칭)</th>
+                        <th className="date">최초등록일</th>
+                        <th className="num">출고가격</th>
+                        <th className="center" style={{ width: 50 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((p) => {
+                        const d = p.data;
+                        return (
+                          <tr key={p.id}>
+                            <td className="center">
+                              {p._status === 'pending' ? (
+                                <CircleNotch size={14} className="spin" style={{ color: 'var(--brand)' }} />
+                              ) : p._status === 'failed' ? (
+                                <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
+                              ) : d.companyCode ? (
+                                <CheckCircle size={14} weight="fill" style={{ color: '#10b981' }} />
+                              ) : (
+                                <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
+                              )}
+                            </td>
+                            <td className="plate">
+                              {p._status === 'pending' ? <span className="text-weak">…</span>
+                                : d.companyCode ? d.companyCode
+                                : <span className="text-red" title="등록된 회사 없음 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
+                            </td>
+                            <td className="plate text-medium">{d.plate || '-'}</td>
+                            <td className="dim">{d.vehicleClass || '-'}</td>
+                            <td>{d.vehicleName || '-'}</td>
+                            <td className="mono dim truncate" style={{ maxWidth: 160 }} title={d.vin}>{d.vin || '-'}</td>
+                            <td className="dim">{d.ownerName || '-'}</td>
+                            <td className="date">{d.firstRegistDate || '-'}</td>
+                            <td className="num">{d.acquisitionPrice ? d.acquisitionPrice.toLocaleString('ko-KR') : '-'}</td>
+                            <td className="center">
+                              <button className="btn-ghost btn btn-sm" onClick={() => removeItem(p.id)} title="제거">
+                                <X size={11} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {items.length > 0 && (
+                <div className="text-weak text-xs">
+                  총 {items.length}건 · 분석완료 <strong>{okCount}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <button className="btn">취소</button>
+              </DialogClose>
+              <button className="btn btn-primary" disabled={okCount === 0 || busy} onClick={commitAll}>
+                {okCount > 0 ? `${okCount}건 등록` : '등록'}
+              </button>
+            </DialogFooter>
           </TabsContent>
 
           <TabsContent value="manual">
@@ -236,306 +328,3 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     </Dialog>
   );
 }
-
-/* ─── 1. 업로드 단계 — 등록증 다중 선택 → 목록 → [분석 시작] ─── */
-function UploadStage({
-  certQueue,
-  onCertAdd,
-  onCertRemove,
-  parsing,
-  onAnalyze,
-}: {
-  certQueue: File[];
-  onCertAdd: (files: FileList | File[]) => void;
-  onCertRemove: (i: number) => void;
-  parsing: boolean;
-  onAnalyze: () => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <CertMultiSlot files={certQueue} onAdd={onCertAdd} onRemove={onCertRemove} />
-
-      <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-        {certQueue.length === 0 && <span className="text-weak">자동차등록증을 먼저 올려주세요</span>}
-        {certQueue.length > 0 && (
-          <span className="text-sub">{certQueue.length}장 — 분석 시작 누르면 한꺼번에 OCR 처리</span>
-        )}
-        <button
-          className="btn btn-primary"
-          disabled={certQueue.length === 0 || parsing}
-          onClick={onAnalyze}
-        >
-          {parsing ? '분석 중...' : '분석 시작'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ─── 2. 분석 결과 미리보기 — 행별 등록/제거 (개별입력 폼 안 띄움) ───
-   상세 수정이 필요하면 일단 등록 후 수정 버튼으로 처리. */
-function ParsedListView({
-  items,
-  onRemove,
-  onRegisterAll,
-  onRegisterOne,
-  onCancelAll,
-}: {
-  items: ParsedItem[];
-  onRemove: (id: string) => void;
-  onRegisterAll: () => void;
-  onRegisterOne: (item: ParsedItem) => void;
-  onCancelAll: () => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="alert alert-info">
-        <CheckCircle size={14} className="mt-0.5 flex-shrink-0" />
-        <div>
-          <strong>{items.length}장</strong> 분석 완료. 내용 확인 후 등록하세요. 정정 필요한 자산은 등록 후 [수정] 버튼으로 편집.
-        </div>
-      </div>
-
-      <div className="border" style={{ borderColor: 'var(--border)', overflowX: 'auto' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              {/* 파일명 + 식별자 */}
-              <th>파일명</th>
-              <th>회사코드</th>
-
-              {/* 등록증 ① ~ ⑩ */}
-              <th>차량번호</th>
-              <th>차종</th>
-              <th>용도</th>
-              <th>차명</th>
-              <th>형식</th>
-              <th className="date">제작연월</th>
-              <th>차대번호</th>
-              <th>원동기형식</th>
-              <th>사용본거지</th>
-              <th>성명(명칭)</th>
-              <th>생년월일(법인등록번호)</th>
-
-              {/* 1. 제원 ⑪ ~ ㉔ */}
-              <th>제원관리번호</th>
-              <th className="num">길이</th>
-              <th className="num">너비</th>
-              <th className="num">높이</th>
-              <th className="num">총중량</th>
-              <th className="num">승차정원</th>
-              <th className="num">최대적재량</th>
-              <th className="num">배기량/구동축전지 용량</th>
-              <th>정격출력</th>
-              <th>기통수</th>
-              <th>연료종류</th>
-              <th className="num">연료소비율</th>
-              <th>구동축전지 셀 제조사</th>
-              <th>구동축전지 셀 형태</th>
-              <th>구동축전지 셀 주요원료</th>
-
-              {/* 2. 등록번호판 교부 ㉕ ~ ㉗ */}
-              <th>구분</th>
-              <th className="date">번호판 발급일</th>
-              <th>발급대행자확인</th>
-
-              {/* 3. 저당권 ㉘ ~ ㉙ */}
-              <th>구분(설정/말소)</th>
-              <th className="date">날짜</th>
-
-              {/* 등록증 메타 */}
-              <th>문서확인번호</th>
-              <th className="date">최초등록일</th>
-              <th className="date">등록증 발급일</th>
-              <th className="num">자동차 출고(취득)가격</th>
-
-              {/* 부가 (선택입력) */}
-              <th>제조사</th>
-              <th>모델명</th>
-              <th>세부모델</th>
-              <th>세부트림</th>
-              <th>선택옵션</th>
-              <th>외부색상</th>
-              <th>내부색상</th>
-              <th className="center">구동방식</th>
-
-              {/* 동작 — sticky 우측 */}
-              <th className="center" style={{ width: 110, position: 'sticky', right: 0, background: 'var(--bg-header)' }}>동작</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((p) => {
-              const d = p.data;
-              return (
-                <tr key={p.id}>
-                  {/* 파일명 + 식별자 */}
-                  <td className="mono dim truncate" style={{ maxWidth: 160 }} title={p.fileName}>{p.fileName}</td>
-                  <td className="plate">
-                    {d.companyCode
-                      ? d.companyCode
-                      : <span className="text-red" title="등록된 회사와 매칭 실패 — 등록 후 회사코드 수동 지정 필요">미매칭</span>}
-                  </td>
-
-                  {/* 등록증 ① ~ ⑩ */}
-                  <td className="plate text-medium">{v(d.plate)}</td>
-                  <td className="dim">{v(d.vehicleClass)}</td>
-                  <td className="dim">{v(d.usage)}</td>
-                  <td>{v(d.vehicleName)}</td>
-                  <td className="mono">{v(d.modelType)}</td>
-                  <td className="date">{v(d.manufactureDate)}</td>
-                  <td className="mono dim">{v(d.vin)}</td>
-                  <td className="mono">{v(d.engineType)}</td>
-                  <td className="dim">{v(d.ownerLocation)}</td>
-                  <td>{v(d.ownerName)}</td>
-                  <td className="mono dim">{v(d.ownerRegNumber)}</td>
-
-                  {/* 1. 제원 */}
-                  <td className="mono dim">{v(d.approvalNumber)}</td>
-                  <td className="num">{n(d.length)}</td>
-                  <td className="num">{n(d.width)}</td>
-                  <td className="num">{n(d.height)}</td>
-                  <td className="num">{n(d.totalWeight)}</td>
-                  <td className="num">{n(d.capacity)}</td>
-                  <td className="num">{n(d.maxLoad)}</td>
-                  <td className="num">{n(d.displacement)}</td>
-                  <td className="mono">{v(d.ratedOutput)}</td>
-                  <td>{v(d.cylinders)}</td>
-                  <td>{v(d.fuelType)}</td>
-                  <td className="num">{n(d.fuelEfficiency)}</td>
-                  <td>{v(d.batteryMaker)}</td>
-                  <td>{v(d.batteryShape)}</td>
-                  <td>{v(d.batteryMaterial)}</td>
-
-                  {/* 2. 등록번호판 교부 */}
-                  <td>{v(d.plateIssueType)}</td>
-                  <td className="date">{v(d.plateIssueDate)}</td>
-                  <td>{v(d.plateIssueAgent)}</td>
-
-                  {/* 3. 저당권 */}
-                  <td>{v(d.mortgageType)}</td>
-                  <td className="date">{v(d.mortgageDate)}</td>
-
-                  {/* 메타 */}
-                  <td className="mono dim">{v(d.documentNo)}</td>
-                  <td className="date">{v(d.firstRegistDate)}</td>
-                  <td className="date">{v(d.certIssueDate)}</td>
-                  <td className="num">{n(d.acquisitionPrice)}</td>
-
-                  {/* 부가 */}
-                  <td>{v(d.maker)}</td>
-                  <td>{v(d.modelName)}</td>
-                  <td>{v(d.detailModel)}</td>
-                  <td>{v(d.detailTrim)}</td>
-                  <td>{v(d.options?.join(', '))}</td>
-                  <td>{v(d.exteriorColor)}</td>
-                  <td>{v(d.interiorColor)}</td>
-                  <td className="center">{v(d.driveType)}</td>
-
-                  {/* 동작 — sticky 우측 */}
-                  <td className="center" style={{ position: 'sticky', right: 0, background: 'var(--bg-card)' }}>
-                    <div className="flex items-center gap-1 justify-center">
-                      <button className="btn btn-sm btn-primary" onClick={() => onRegisterOne(p)} title="이 차량만 등록">
-                        등록
-                      </button>
-                      <button className="btn btn-sm" onClick={() => onRemove(p.id)} title="목록에서 제외">
-                        <X size={11} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-        <span className="text-sub">{items.length}건 대기 중</span>
-        <button className="btn" onClick={onCancelAll}>
-          <X size={12} weight="bold" /> 전체 취소
-        </button>
-        <button className="btn btn-primary" onClick={onRegisterAll}>
-          <CheckCircle size={14} weight="bold" /> 전체 등록
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* 등록증 다중 업로드 슬롯 — 여러 장 누적 + 항목별 제거 */
-function CertMultiSlot({
-  files,
-  onAdd,
-  onRemove,
-}: {
-  files: File[];
-  onAdd: (files: FileList | File[]) => void;
-  onRemove: (i: number) => void;
-}) {
-  if (files.length === 0) {
-    return (
-      <label className="block border border-dashed py-12 text-center cursor-pointer hover:bg-stripe">
-        <input
-          type="file"
-          accept="image/*,.pdf"
-          className="hidden"
-          multiple
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              onAdd(e.target.files);
-              e.target.value = '';
-            }
-          }}
-        />
-        <Upload size={28} className="mx-auto text-weak" />
-        <div className="mt-2 text-medium">자동차등록증 <span className="text-red">*</span></div>
-        <div className="mt-1 text-weak">JPG / PNG / PDF — 여러 장 동시 업로드 가능</div>
-      </label>
-    );
-  }
-
-  return (
-    <div className="border p-3 flex flex-col" style={{ borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-medium">자동차등록증 <span className="text-sub">· {files.length}장</span></span>
-        <label className="btn btn-sm cursor-pointer">
-          <Plus size={12} weight="bold" /> 추가
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            className="hidden"
-            multiple
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                onAdd(e.target.files);
-                e.target.value = '';
-              }
-            }}
-          />
-        </label>
-      </div>
-      <div className="flex-1 max-h-48 overflow-y-auto space-y-1">
-        {files.map((f, i) => {
-          const isImage = f.type.startsWith('image/');
-          const isPdf = f.type === 'application/pdf';
-          return (
-            <div key={`${f.name}-${i}`} className={cn('flex items-center gap-2 p-2 bg-stripe')}>
-              {isImage ? <ImageIcon size={16} className="text-sub" /> : isPdf ? <FilePdf size={16} className="text-sub" /> : <Upload size={16} className="text-sub" />}
-              <div className="flex-1 min-w-0">
-                <div className="truncate">{f.name}</div>
-                <div className="text-weak">{(f.size / 1024).toFixed(1)} KB</div>
-              </div>
-              <button className="btn-ghost btn btn-sm" onClick={() => onRemove(i)} title="제거">
-                <X size={11} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* 셀 헬퍼 — 빈 값은 빈 문자열, 숫자는 ko-KR 포맷 */
-function v(s?: string): string { return s ?? ''; }
-function n(num?: number): string { return num === undefined || num === null ? '' : num.toLocaleString('ko-KR'); }
