@@ -31,6 +31,7 @@ export default function IntegrityPage() {
   const counts = useMemo(() => {
     const c: Record<IntegrityKind, number> = {
       회사미매칭자산: 0, 회사미매칭계약: 0, plate불일치: 0, 계좌내역누락: 0,
+      자산필드누락: 0, 계약필드누락: 0, 회사필드누락: 0,
     };
     for (const r of rows) c[r.kind]++;
     return c;
@@ -69,10 +70,13 @@ export default function IntegrityPage() {
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>
-          {counts.회사미매칭자산 > 0 && <span className="stat-item alert">회사 미매칭 자산 <strong>{counts.회사미매칭자산}</strong></span>}
-          {counts.회사미매칭계약 > 0 && <span className="stat-item alert">회사 미매칭 계약 <strong>{counts.회사미매칭계약}</strong></span>}
+          {counts.회사미매칭자산 > 0 && <span className="stat-item alert">회사미매칭 자산 <strong>{counts.회사미매칭자산}</strong></span>}
+          {counts.회사미매칭계약 > 0 && <span className="stat-item alert">회사미매칭 계약 <strong>{counts.회사미매칭계약}</strong></span>}
           {counts.plate불일치 > 0 && <span className="stat-item alert">plate 불일치 <strong>{counts.plate불일치}</strong></span>}
           {counts.계좌내역누락 > 0 && <span className="stat-item alert">계좌내역 누락 <strong>{counts.계좌내역누락}</strong></span>}
+          {counts.자산필드누락 > 0 && <span className="stat-item">자산 필드누락 <strong>{counts.자산필드누락}</strong></span>}
+          {counts.계약필드누락 > 0 && <span className="stat-item">계약 필드누락 <strong>{counts.계약필드누락}</strong></span>}
+          {counts.회사필드누락 > 0 && <span className="stat-item">회사 필드누락 <strong>{counts.회사필드누락}</strong></span>}
         </>
       }
     >
@@ -102,6 +106,9 @@ function KindBadge({ kind }: { kind: IntegrityKind }) {
     회사미매칭계약: { tone: 'badge-orange', label: '회사 미매칭 계약' },
     plate불일치:    { tone: 'badge-red',    label: 'plate 불일치' },
     계좌내역누락:    { tone: 'badge-red',    label: '계좌내역 누락' },
+    자산필드누락:    { tone: 'badge-orange', label: '자산 필드 누락' },
+    계약필드누락:    { tone: 'badge-orange', label: '계약 필드 누락' },
+    회사필드누락:    { tone: 'badge-orange', label: '회사 필드 누락' },
   };
   const { tone, label } = map[kind];
   return <span className={cn('badge', tone)}>{label}</span>;

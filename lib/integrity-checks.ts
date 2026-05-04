@@ -14,7 +14,14 @@ import type { Contract } from './sample-contracts';
 import type { Company } from './sample-companies';
 import type { LedgerEntry } from './sample-finance';
 
-export type IntegrityKind = '회사미매칭자산' | '회사미매칭계약' | 'plate불일치' | '계좌내역누락';
+export type IntegrityKind =
+  | '회사미매칭자산'
+  | '회사미매칭계약'
+  | 'plate불일치'
+  | '계좌내역누락'
+  | '자산필드누락'
+  | '계약필드누락'
+  | '회사필드누락';
 
 export type IntegrityRow = {
   id: string;
@@ -115,6 +122,86 @@ export function checkMissingLedgerThisMonth(
     }));
 }
 
+/** 자산 필수 필드 누락 — 차량번호·차대번호·차명·최초등록일·소유자명. */
+export function checkAssetRequiredFields(assets: readonly Asset[]): IntegrityRow[] {
+  const out: IntegrityRow[] = [];
+  for (const a of assets) {
+    if (a.status === '매각') continue;
+    const missing: string[] = [];
+    if (!a.plate)            missing.push('차량번호');
+    if (!a.vin)              missing.push('차대번호');
+    if (!a.vehicleName)      missing.push('차명');
+    if (!a.firstRegistDate)  missing.push('최초등록일');
+    if (!a.ownerName)        missing.push('소유자명');
+    if (missing.length === 0) continue;
+    out.push({
+      id: `arf-${a.id}`,
+      kind: '자산필드누락',
+      companyCode: a.companyCode,
+      plate: a.plate ?? '',
+      target: a.vehicleName || a.vehicleClass || '(차명 미입력)',
+      description: `필수 항목 누락: ${missing.join(', ')}`,
+      href: `/asset?selected=${a.id}`,
+    });
+  }
+  return out;
+}
+
+/** 계약 필수 필드 누락 — 차량번호·고객명·신분·등록번호·연락처·시작/만기·월대여료. */
+export function checkContractRequiredFields(contracts: readonly Contract[]): IntegrityRow[] {
+  const out: IntegrityRow[] = [];
+  for (const c of contracts) {
+    if (c.status === '만기' || c.status === '해지') continue;
+    const missing: string[] = [];
+    if (!c.plate)          missing.push('차량번호');
+    if (!c.customerName)   missing.push('고객명');
+    if (!c.customerKind)   missing.push('신분');
+    if (!c.customerIdent)  missing.push('등록번호');
+    if (!c.customerPhone)  missing.push('연락처');
+    if (!c.startDate)      missing.push('시작일');
+    if (!c.endDate)        missing.push('만기일');
+    if (!c.monthlyAmount)  missing.push('월대여료');
+    if (missing.length === 0) continue;
+    out.push({
+      id: `crf-${c.id}`,
+      kind: '계약필드누락',
+      companyCode: c.companyCode,
+      plate: c.plate ?? '',
+      target: c.customerName || '(고객명 미입력)',
+      description: `필수 항목 누락: ${missing.join(', ')}`,
+      href: `/contract?selected=${c.id}`,
+      extra: c.contractNo,
+    });
+  }
+  return out;
+}
+
+/** 회사 필수 필드 누락 — 사업자번호·대표자·본점주소·업태·업종·대표전화. */
+export function checkCompanyRequiredFields(companies: readonly Company[]): IntegrityRow[] {
+  const out: IntegrityRow[] = [];
+  for (const c of companies) {
+    const missing: string[] = [];
+    if (!c.name)         missing.push('회사명');
+    if (!c.bizNo)        missing.push('사업자등록번호');
+    if (!c.ceo)          missing.push('대표자');
+    if (!c.hqAddress)    missing.push('본점주소');
+    if (!c.bizType)      missing.push('업태');
+    if (!c.bizCategory)  missing.push('업종');
+    if (!c.phone)        missing.push('대표전화');
+    if (missing.length === 0) continue;
+    out.push({
+      id: `corf-${c.code}`,
+      kind: '회사필드누락',
+      companyCode: c.code,
+      plate: '',
+      target: c.name || '(회사명 미입력)',
+      description: `필수 항목 누락: ${missing.join(', ')}`,
+      href: `/admin/company`,
+    });
+  }
+  return out;
+}
+
 /** 모두 합쳐서 한 배열. 정렬: 종류 → 회사 → plate */
 export function collectIntegrity(
   assets: readonly Asset[],
@@ -127,6 +214,9 @@ export function collectIntegrity(
     ...checkCompanyMissingContracts(contracts),
     ...checkPlateMismatch(assets, contracts),
     ...checkMissingLedgerThisMonth(companies, entries),
+    ...checkAssetRequiredFields(assets),
+    ...checkContractRequiredFields(contracts),
+    ...checkCompanyRequiredFields(companies),
   ];
   all.sort((a, b) => a.kind.localeCompare(b.kind) || a.companyCode.localeCompare(b.companyCode) || a.plate.localeCompare(b.plate));
   return all;
