@@ -43,14 +43,14 @@ export default function AssetInsurancePage() {
       {
         key: `cycle${c}_date`, header: `${c}회차일`, type: 'date' as const,
         getter: (r: Record<string, unknown>) => {
-          const ins = (r as unknown as InsurancePolicy).installments?.find((it) => it.cycle === c);
+          const ins = toInstallments((r as unknown as InsurancePolicy).installments).find((it) => it.cycle === c);
           return ins?.dueDate ?? '';
         },
       },
       {
         key: `cycle${c}_amt`, header: `${c}회차금액`, type: 'number' as const,
         getter: (r: Record<string, unknown>) => {
-          const ins = (r as unknown as InsurancePolicy).installments?.find((it) => it.cycle === c);
+          const ins = toInstallments((r as unknown as InsurancePolicy).installments).find((it) => it.cycle === c);
           return ins?.amount ?? '';
         },
       },
@@ -218,7 +218,7 @@ export default function AssetInsurancePage() {
                     <td className="mono dim">{val(p.autoDebitAccount)}</td>
                     <td className="dim">{val(p.autoDebitHolder)}</td>
                     {Array.from({ length: MAX_CYCLES }, (_, i) => i + 1).map((c) => {
-                      const ins = p.installments?.find((it) => it.cycle === c);
+                      const ins = toInstallments(p.installments).find((it) => it.cycle === c);
                       return (
                         <Fragment key={c}>
                           <td className="date mono dim">{ins?.dueDate || ''}</td>
@@ -253,4 +253,12 @@ function val(s?: string | number): React.ReactNode {
 function numFmt(n?: number): React.ReactNode {
   if (n === undefined || n === null) return '';
   return n.toLocaleString('ko-KR');
+}
+
+/** RTDB가 sparse 배열을 object로 저장하는 케이스 방어 — 항상 배열 보장. */
+function toInstallments(v: InsurancePolicy['installments']): NonNullable<InsurancePolicy['installments']> {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'object') return Object.values(v as Record<string, NonNullable<InsurancePolicy['installments']>[number]>);
+  return [];
 }
