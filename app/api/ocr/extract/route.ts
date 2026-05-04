@@ -270,7 +270,15 @@ interface TypeSpec {
 const TYPE_SPECS: Record<string, TypeSpec> = {
   vehicle_reg: {
     label: '자동차등록증',
-    prompt: `이 문서는 한국 자동차등록증입니다. 차량번호는 \`\\d{2,3}[가-힣]\\d{4}\` 포맷만 유효합니다. 한글이 없거나 17자/하이픈 포함이면 절대 car_number로 넣지 마세요. 값 없으면 null.`,
+    prompt: `이 문서는 한국 자동차등록증입니다.
+
+**car_number (① 자동차등록번호)** 추출 규칙:
+- 등록증 최상단 ① 항목에 "자동차등록번호" 라벨로 명시됨
+- 포맷 \`\\d{2,3}[가-힣]\\d{4}\` (예: "01도9893", "123가4567")
+- **수입차도 한국 plate 동일 — BMW/Tesla/MINI 등 외산도 한국 등록증엔 한국번호판 표기**
+- 중간에 공백·점·하이픈 있어도 raw 그대로 반환 (서버에서 정규화)
+- 17자 영문/숫자 = 차대번호(VIN) → 절대 car_number 아님
+- 차량번호판 칸이 비어있거나 미발급 상태면 null`,
     schema: VEHICLE_REG_SCHEMA,
   },
   business_reg: {
@@ -503,11 +511,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 차량번호 후처리 — 잘못 잡은 garbage 제거
+    // 차량번호 후처리 — 한국 plate 패턴이 wrapping text 안에 있어도 추출.
+    // 예: "차량번호: 01도9893" / "[01도9893]" / "01-도-9893" → "01도9893"
+    // VIN(영문+숫자 17자)은 한글이 없으니 자동 배제.
     if ((docType === 'vehicle_reg' || docType === 'penalty' || docType === 'insurance_policy' || docType === 'rental_contract') && parsed.car_number && typeof parsed.car_number === 'string') {
-      const cn = parsed.car_number.replace(/[\s-]/g, '');
-      const valid = /^\d{2,3}[가-힣]\d{4}$/.test(cn);
-      parsed.car_number = valid ? cn : null;
+      const m = String(parsed.car_number).match(/(\d{2,3})\s*[\-.·]?\s*([가-힣])\s*[\-.·]?\s*(\d{4})/);
+      parsed.car_number = m ? `${m[1]}${m[2]}${m[3]}` : null;
     }
 
     if (docType === 'vehicle_reg' && !parsed.detail_model && parsed.car_name) {
