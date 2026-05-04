@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { Coins } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { RECEIPT_SUBJECTS } from '@/lib/sample-finance';
 import { useLedgerStore } from '@/lib/use-ledger-store';
@@ -91,6 +93,14 @@ export default function FinanceReceiptPage() {
         })}>엑셀</button>
         <button className="btn btn-primary">+ 수납 처리</button>
       </>}>
+      {receipts.length === 0 ? (
+        <EmptyState
+          icon={Coins}
+          title="수납 내역 없음"
+          description="수납 처리된 회차가 없습니다."
+          hint={<>① 계약별 수납 회차에서 [수납완료] 클릭<br />② 또는 자동이체 결과 업로드 시 자동 매칭<br />③ 미수 회차 자동 정리</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead><tr>
@@ -99,9 +109,7 @@ export default function FinanceReceiptPage() {
             <th className="num">수납액</th><th>거래방법</th><th>적요</th>
           </tr></thead>
           <tbody>
-            {receipts.length === 0 ? (
-              <tr><td colSpan={10} className="empty-row">해당 조건의 수납 데이터 없음</td></tr>
-            ) : receipts.map((r) => {
+            {receipts.map((r) => {
               const c = r.matchedContract ? contractMap.get(r.matchedContract) : undefined;
               return (
                 <tr key={r.id}>
@@ -121,6 +129,7 @@ export default function FinanceReceiptPage() {
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

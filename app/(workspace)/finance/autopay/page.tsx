@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash, PencilSimple } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, ArrowsClockwise } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_AUTOPAY, type Autopay } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
@@ -92,6 +93,14 @@ export default function FinanceAutopayPage() {
           <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 자동이체 등록</button>
         </>}
       >
+        {items.length === 0 ? (
+          <EmptyState
+            icon={ArrowsClockwise}
+            title="자동이체 결과 없음"
+            description="자동이체 결과 엑셀을 업로드하세요."
+            hint={<>① 결제대행사에서 자동이체 결과 엑셀 다운로드<br />② [+ 결과 업로드] 클릭<br />③ 계약별 자동 매칭 → 수납내역 갱신</>}
+          />
+        ) : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr>
@@ -122,6 +131,7 @@ export default function FinanceAutopayPage() {
             </tbody>
           </table>
         </div>
+        )}
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })} items={selected ? ctxItems : []} />

@@ -1,6 +1,8 @@
 'use client';
 
+import { Pause } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -63,6 +65,14 @@ export default function ContractIdlePage() {
         </>
       }
     >
+      {idle.length === 0 ? (
+        <EmptyState
+          icon={Pause}
+          title="휴차 중 차량 없음"
+          description="현재 운행/계약 없이 대기 중인 차량이 없습니다."
+          hint={<>① 자산 등록 + 계약 매칭 안 된 차량<br />② 반납 완료 → 자산 대기 → 여기 표시<br />③ 다음 계약 매칭 대상</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -81,14 +91,7 @@ export default function ContractIdlePage() {
             </tr>
           </thead>
           <tbody>
-            {idle.length === 0 ? (
-              <tr>
-                <td colSpan={11} className="empty-row">
-                  휴차 차량 없음 — 모든 자산이 계약 운행 중
-                </td>
-              </tr>
-            ) : (
-              idle.map((a) => {
+            {idle.map((a) => {
                 const lastEnd = lastContractByPlate.get(a.plate);
                 const days = idleDays(a.plate, a.firstRegistDate);
                 const ddCls = days >= 30 ? 'overdue' : days >= 7 ? 'due-soon' : '';
@@ -111,11 +114,11 @@ export default function ContractIdlePage() {
                     </td>
                   </tr>
                 );
-              })
-            )}
+              })}
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

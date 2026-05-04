@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilSimple } from '@phosphor-icons/react';
+import { PencilSimple, Buildings } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
@@ -61,6 +62,14 @@ export default function AdminCompanyPage() {
           </>
         }
       >
+        {companies.length === 0 ? (
+          <EmptyState
+            icon={Buildings}
+            title="등록된 회사 없음"
+            description="사업자등록증 OCR 또는 수기 입력으로 회사를 등록하세요."
+            hint={<>① 우측 하단 [+ 회사등록] 클릭 → 사업자등록증 PDF/이미지 다중 업로드 → 즉시 OCR 분석<br />② 사업자번호·법인번호·대표·주소 자동 추출<br />③ 자산·계약은 회사 매칭이 선행되어야 정상 동작</>}
+          />
+        ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -79,9 +88,7 @@ export default function AdminCompanyPage() {
               </tr>
             </thead>
             <tbody>
-              {companies.length === 0 ? (
-                <tr><td colSpan={11} className="empty-row">등록된 회사가 없습니다. 우측 하단 [+ 회사 등록]으로 사업자등록증 OCR 진행하세요.</td></tr>
-              ) : companies.map((c, i) => (
+              {companies.map((c, i) => (
                 <tr key={c.code || `__${i}__`} className={cn(selected?.code === c.code && 'selected')}
                     onClick={() => setSelected(c)}
                     onContextMenu={(ev) => { ev.preventDefault(); setSelected(c); setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY }); }}>
@@ -101,6 +108,7 @@ export default function AdminCompanyPage() {
             </tbody>
           </table>
         </div>
+        )}
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })}

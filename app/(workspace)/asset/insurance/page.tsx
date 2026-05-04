@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { Trash, FileArrowDown, X } from '@phosphor-icons/react';
+import { Trash, FileArrowDown, X, Shield } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import dynamic from 'next/dynamic';
 const InsuranceRegisterDialog = dynamic(
@@ -118,6 +119,14 @@ export default function AssetInsurancePage() {
         </>
       }
     >
+      {policies.length === 0 ? (
+        <EmptyState
+          icon={Shield}
+          title="등록된 보험증권 없음"
+          description="자동차보험증권/공제 가입증명서를 OCR로 업로드하세요."
+          hint={<>① 우측 하단 [+ 보험 등록] 클릭 → PDF/이미지 다중 업로드 → 즉시 OCR 분석<br />② 차량번호로 자산 자동 매칭<br />③ 분납 회차·자동이체·만기 자동 추출</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -164,14 +173,7 @@ export default function AssetInsurancePage() {
             </tr>
           </thead>
           <tbody>
-            {policies.length === 0 ? (
-              <tr>
-                <td colSpan={50} className="empty-row">
-                  보험증권이 없습니다. 우측 하단 [+ 보험 등록] 버튼으로 OCR 업로드하세요.
-                </td>
-              </tr>
-            ) : (
-              policies.map((p) => {
+            {policies.map((p) => {
                 const days = daysToExpiry(p);
                 const expClass = days !== null && days < 0 ? 'text-red'
                   : days !== null && days <= 30 ? 'text-amber' : 'dim';
@@ -237,11 +239,11 @@ export default function AssetInsurancePage() {
                     </td>
                   </tr>
                 );
-              })
-            )}
+              })}
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

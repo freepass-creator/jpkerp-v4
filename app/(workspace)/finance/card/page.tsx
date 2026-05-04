@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash, PencilSimple, Copy } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, Copy, CreditCard } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_CARD, type CardUsage } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
@@ -92,6 +93,14 @@ export default function FinanceCardPage() {
           <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
           <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 카드 사용 입력</button>
         </>}>
+        {items.length === 0 ? (
+          <EmptyState
+            icon={CreditCard}
+            title="카드 사용 내역 없음"
+            description="법인카드 사용 명세를 업로드하세요."
+            hint={<>① 카드사 명세 엑셀/CSV 다운로드<br />② [+ 업로드] 클릭<br />③ 자동 분류 (유류·정비·통신 등) → 매월 정산</>}
+          />
+        ) : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr>
@@ -121,6 +130,7 @@ export default function FinanceCardPage() {
             </tbody>
           </table>
         </div>
+        )}
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })} items={selected ? ctxItems : []} />

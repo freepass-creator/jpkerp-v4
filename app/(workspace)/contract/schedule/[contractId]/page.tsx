@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, CalendarBlank, CheckCircle, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { ArrowLeft, CalendarBlank, CheckCircle, ArrowCounterClockwise, Notebook } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract, type ScheduleEvent, type Contract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -149,28 +150,37 @@ export default function ContractScheduleDetailPage() {
       {/* 계약 요약 헤더 */}
       <ContractHeader contract={contract} />
 
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th className="center">구분</th>
-              <th className="num">회차</th>
-              <th className="date">예정일</th>
-              <th className="center">D-day</th>
-              <th className="date">실시일</th>
-              <th className="num">금액</th>
-              <th className="center">상태</th>
-              <th>비고</th>
-              <th className="center" style={{ width: 90 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedEvents.map((e) => (
-              <ScheduleRow key={e.id} event={e} onToggle={() => toggleEvent(e.id)} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {sortedEvents.length === 0 ? (
+        <EmptyState
+          icon={Notebook}
+          title="이벤트 없음"
+          description="이 계약에 등록된 출고/수납/반납 이벤트가 없습니다."
+          hint={<>계약 등록 시 자동 생성됩니다. 비어있으면 계약 데이터 (시작일·종료일·월대여료) 확인이 필요합니다.</>}
+        />
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="center">구분</th>
+                <th className="num">회차</th>
+                <th className="date">예정일</th>
+                <th className="center">D-day</th>
+                <th className="date">실시일</th>
+                <th className="num">금액</th>
+                <th className="center">상태</th>
+                <th>비고</th>
+                <th className="center" style={{ width: 90 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedEvents.map((e) => (
+                <ScheduleRow key={e.id} event={e} onToggle={() => toggleEvent(e.id)} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </PageShell>
   );
 }

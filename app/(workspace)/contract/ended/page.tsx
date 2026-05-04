@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
+import { CheckCircle } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { type ContractStatus } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -39,6 +41,14 @@ export default function ContractEndedPage() {
       }
       footerRight={<button className="btn">엑셀</button>}
     >
+      {ended.length === 0 ? (
+        <EmptyState
+          icon={CheckCircle}
+          title="종료된 계약 없음"
+          description="만기·해지로 종료된 계약이 여기에 누적됩니다."
+          hint={<>① 계약 만기 → 반납완료 처리 시 이동<br />② 중도해지 처리도 동일<br />③ 종료 계약은 통계·정산 용으로 보존</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -56,14 +66,7 @@ export default function ContractEndedPage() {
             </tr>
           </thead>
           <tbody>
-            {ended.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="empty-row">
-                  종료된 계약 없음
-                </td>
-              </tr>
-            ) : (
-              ended.map((c) => (
+            {ended.map((c) => (
                 <tr key={c.id}>
                   <td className="plate">{c.companyCode}</td>
                   <td className="plate">{c.plate}</td>
@@ -80,11 +83,11 @@ export default function ContractEndedPage() {
                     </span>
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
+import { WarningCircle } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -128,6 +130,14 @@ export default function ContractOverduePage() {
         </>
       }
     >
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={WarningCircle}
+          title="미수 없음"
+          description="납부일 경과 미수 회차가 없습니다."
+          hint={<>① 계약 등록 시 매월 수납 회차 자동 생성<br />② 납부일 경과 시 미수로 자동 표시<br />③ 수납완료 처리 또는 자동이체 결과 업로드 시 제거</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -145,14 +155,7 @@ export default function ContractOverduePage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="empty-row">
-                  미수 없음 — 모든 계약 회차 정상 수납
-                </td>
-              </tr>
-            ) : (
-              rows.map((r, i) => (
+            {rows.map((r, i) => (
                 <tr key={`${r.contractNo}-${r.cycle}-${i}`}>
                   <td className="plate">{r.companyCode}</td>
                   <td className="plate">{r.plate}</td>
@@ -165,11 +168,11 @@ export default function ContractOverduePage() {
                   <td className={cn('num', r.daysOverdue >= 30 ? 'overdue' : 'due-soon')}>{r.outstanding.toLocaleString('ko-KR')}</td>
                   <td className={cn('num', r.daysOverdue >= 30 ? 'overdue' : '')}>{r.daysOverdue}일</td>
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

@@ -1,39 +1,46 @@
 'use client';
 
+import { Calendar } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 
 export default function ContractExpirePage() {
+  const expiring: unknown[] = [];
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-     
+
       footerLeft={<span className="stat-item">만기도래 <strong>0</strong></span>}
       footerRight={<button className="btn btn-primary">+ 연장 처리</button>}
     >
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>회사코드</th>
-              <th>계약번호</th>
-              <th>차량번호</th>
-              <th>고객명</th>
-              <th className="date">만기일</th>
-              <th className="center">D-day</th>
-              <th>연장 의사</th>
-              <th className="center">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={8} className="empty-row">
-                만기 도래 계약 없음
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {expiring.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="만기 도래 계약 없음"
+          description="30일 이내 만기 계약이 없습니다."
+          hint={<>① 계약 종료일 30일 전부터 자동 표시<br />② 연장/반납 협의 진행<br />③ 반납완료 시 계약 만기 + 자산 대기로 전환</>}
+        />
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>회사코드</th>
+                <th>계약번호</th>
+                <th>차량번호</th>
+                <th>고객명</th>
+                <th className="date">만기일</th>
+                <th className="center">D-day</th>
+                <th>연장 의사</th>
+                <th className="center">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
+      )}
     </PageShell>
   );
 }

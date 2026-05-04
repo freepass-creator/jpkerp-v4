@@ -1,6 +1,8 @@
 'use client';
 
+import { ClipboardText } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { cn } from '@/lib/cn';
@@ -19,6 +21,14 @@ export default function AssetInspectionPage() {
       footerLeft={<span className="stat-item">전체 <strong>{assets.length}</strong></span>}
       footerRight={<button className="btn btn-primary">+ 검사 등록</button>}
     >
+      {assets.length === 0 ? (
+        <EmptyState
+          icon={ClipboardText}
+          title="검사 만기 도래 자산 없음"
+          description="등록증 ㉛ 검사 유효기간이 비어있거나 모두 여유 있습니다."
+          hint={<>① 자산등록증 ㉛ 검사 유효기간 칸 채우면 자동 표시<br />② 만기 30일 이내 알림<br />③ 정기검사 완료 후 등록증 ㉛ 갱신</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -61,6 +71,7 @@ export default function AssetInspectionPage() {
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

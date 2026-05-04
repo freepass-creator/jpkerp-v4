@@ -2,6 +2,8 @@
 
 import { PageShell } from '@/components/layout/page-shell';
 import { useMemo } from 'react';
+import { UserList } from '@phosphor-icons/react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
 import { cn } from '@/lib/cn';
@@ -115,6 +117,14 @@ export default function ContractCustomerPage() {
         </>
       }
     >
+      {lessees.length === 0 ? (
+        <EmptyState
+          icon={UserList}
+          title="등록된 임차인 없음"
+          description="계약 등록 시 임차인 마스터에 자동 누적됩니다."
+          hint={<>① 계약 등록 → 임차인 정보 저장<br />② 같은 고객 재계약 시 자동 매칭<br />③ 다중 차량 보유 고객 그룹화</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -164,6 +174,7 @@ export default function ContractCustomerPage() {
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

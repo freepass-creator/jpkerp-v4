@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, Trash, PencilSimple, Copy } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, Copy, Receipt } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_EXPENSE, EXPENSE_SUBJECTS, type Expense } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
@@ -132,6 +133,14 @@ export default function FinanceExpensePage() {
           <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
           <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 지출 입력</button>
         </>}>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            title="경비 지출 없음"
+            description="회사 운영 경비 항목이 없습니다."
+            hint={<>① [+ 지출등록] 클릭 → 영수증 OCR 또는 수기 입력<br />② 항목·금액·증빙 첨부<br />③ 월별 집계 → 손익 반영</>}
+          />
+        ) : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr>
@@ -163,6 +172,7 @@ export default function FinanceExpensePage() {
             </tbody>
           </table>
         </div>
+        )}
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })} items={selected ? ctxItems : []} />

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, Trash, PencilSimple } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, FileText } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_TAXBILL, type Taxbill } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
@@ -103,6 +104,14 @@ export default function FinanceTaxbillPage() {
           <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
           <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> {view} 등록</button>
         </>}>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="세금계산서 없음"
+            description="발행/수취 세금계산서가 없습니다."
+            hint={<>① 홈택스 연동 또는 수기 입력<br />② 매월 발행분 자동 매칭<br />③ 부가세 신고 자료 자동 집계</>}
+          />
+        ) : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr>
@@ -112,10 +121,7 @@ export default function FinanceTaxbillPage() {
               <th>결제 매칭</th><th className="center">상태</th><th>비고</th>
             </tr></thead>
             <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={12} className="empty-row">{view} 데이터 없음</td></tr>
-              ) : (
-                filtered.map((t) => (
+              {filtered.map((t) => (
                   <tr key={t.id} className={cn(selected?.id === t.id && 'selected')}
                       onClick={() => setSelected(t)}
                       onContextMenu={(e) => { e.preventDefault(); setSelected(t); setCtxMenu({ open: true, x: e.clientX, y: e.clientY }); }}>
@@ -132,11 +138,11 @@ export default function FinanceTaxbillPage() {
                     <td className="center"><span className={cn('badge', t.status === '발급' ? 'badge-green' : 'badge')}>{t.status}</span></td>
                     <td className="dim">{t.note ?? ''}</td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        )}
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
         onClose={() => setCtxMenu({ open: false, x: 0, y: 0 })} items={selected ? ctxItems : []} />
