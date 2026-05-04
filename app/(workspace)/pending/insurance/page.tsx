@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/cn';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -133,11 +134,13 @@ export default function PendingInsurancePage() {
       footerLeft={<span className="stat-item">보험 만기·없음 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>}
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <Shield size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">보험 임박 없음</div>
-          <div className="mt-1 text-weak">모든 운영 자산이 활성 보험 보유 중 (만기 30일 이상).</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={Shield}
+          title="보험 임박·없음 0건"
+          description="모든 운영 자산이 활성 보험 보유 중이며 만기가 30일 이상 남았습니다."
+          hint={<>자산관리 → 보험내역에서 [+ 보험 등록] 으로 증권 OCR. 차량번호로 자산 매칭 → 만기 자동 추적.</>}
+        />
       ) : (
         <JpkTable<InsuranceRow>
           ref={tableRef}

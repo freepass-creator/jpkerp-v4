@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { collectIdle, type IdleRow } from '@/lib/pending-aggregators';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
 
@@ -59,11 +60,13 @@ export default function IdlePage() {
       }
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <Pause size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">휴차 없음</div>
-          <div className="mt-1 text-weak">모든 자산이 매각 또는 운행중 계약과 매칭됩니다.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={Pause}
+          title="휴차 없음"
+          description="모든 자산이 운행중 계약과 매칭되어 있거나 매각 처리되었습니다."
+          hint={<>자산 등록 후 ① 계약 등록 → 출고 [완료] 까지 처리되면 운행중. 등록만 하고 계약 없으면 여기 휴차로 표시 → 빠른 계약 등록 필요</>}
+        />
       ) : (
         <JpkTable<IdleRow>
           ref={tableRef}

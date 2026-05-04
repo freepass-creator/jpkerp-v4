@@ -10,6 +10,8 @@ import { type Contract, type CustomerKind, generateContractSchedule } from '@/li
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FileText } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextSequenceCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
@@ -190,13 +192,22 @@ export default function ContractListPage() {
           </>
         }
       >
-        <ContractGrid
-          contracts={visibleContracts}
-          selectedId={selected?.id}
-          onRowClick={setSelected}
-          onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
-          globalSearch={search}
-        />
+        {visibleContracts.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="등록된 계약 없음"
+            description="OCR / 시트 / 단건 3가지 모드로 계약을 등록할 수 있습니다."
+            hint={<>① 우측 하단 [+ 계약등록] → 계약서 PDF 다중 OCR / 구글시트 다건 / 개별 입력 중 선택<br />② 차량번호 → 등록 자산과 자동 매칭, 임차인 → 이전 계약자 자동 채움<br />③ 등록 시 출고·매월 수납·반납 events 자동 생성 → 계약스케줄에서 처리</>}
+          />
+        ) : (
+          <ContractGrid
+            contracts={visibleContracts}
+            selectedId={selected?.id}
+            onRowClick={setSelected}
+            onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
+            globalSearch={search}
+          />
+        )}
       </PageShell>
 
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}

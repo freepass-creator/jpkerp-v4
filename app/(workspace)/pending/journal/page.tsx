@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL, type JournalEntry } from '@/lib/sample-journal';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 
 /** 업무일지 — 업무작성 entries 누적 (최신순). 컬럼 헤더 필터. */
@@ -51,11 +52,12 @@ export default function PendingJournalPage() {
       footerLeft={<span className="stat-item">기록 <strong>{filtered.length}</strong>{filtered.length !== entries.length && <span className="text-weak"> / {entries.length}</span>}</span>}
     >
       {entries.length === 0 ? (
-        <div className="page-section-center">
-          <Notebook size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">업무일지 없음</div>
-          <div className="mt-1 text-weak">업무작성 메뉴에서 입력한 기록이 여기에 누적됩니다.</div>
-        </div>
+        <EmptyState
+          icon={Notebook}
+          title="업무일지 없음"
+          description="아직 입력된 업무 기록이 없습니다."
+          hint={<>좌측 [업무작성] 메뉴 → 카테고리 (입출고/차량수선/고객응대/사고접수/시동제어/보험배서/상품등록/과태료/자산처분/기타) 선택 → 입력 → 자동 누적</>}
+        />
       ) : (
         <JpkTable<JournalEntry>
           ref={tableRef}

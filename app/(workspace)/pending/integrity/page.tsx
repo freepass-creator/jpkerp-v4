@@ -12,6 +12,7 @@ import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { collectIntegrity, type IntegrityRow, type IntegrityKind } from '@/lib/integrity-checks';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
 
@@ -95,11 +96,12 @@ export default function IntegrityPage() {
       }
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <CheckCircle size={32} className="mx-auto" style={{ color: 'var(--alert-green-text)' }} />
-          <div className="mt-2 text-medium">데이터 정합성 OK</div>
-          <div className="mt-1 text-weak">자산/계약/계좌내역 간 모순·누락 없음.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          title="데이터 정합성 OK"
+          description="자산/계약/회사/계좌내역 간 모순·누락 없습니다."
+          hint={<>모순 케이스: 회사 미매칭 / plate 불일치 / 매각자산 계약중 / 보험 없음 등 14종 자동 점검. 등록·수정 시 실시간 갱신.</>}
+        />
       ) : (
         <JpkTable<IntegrityRow>
           ref={tableRef}

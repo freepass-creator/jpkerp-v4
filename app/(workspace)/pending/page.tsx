@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL, type JournalEntry } from '@/lib/sample-journal';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { buildLocationMap } from '@/lib/vehicle-location';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
@@ -94,11 +95,12 @@ export default function PendingPage() {
       }
     >
       {items.length === 0 ? (
-        <div className="page-section-center">
-          <Hourglass size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">미결업무 없음</div>
-          <div className="mt-1 text-weak">업무작성에서 입력한 작업 중 처리완료 안 된 항목이 여기에 모입니다.</div>
-        </div>
+        <EmptyState
+          icon={Hourglass}
+          title="미결업무 없음"
+          description="업무작성에서 입력한 작업 중 처리완료 안 된 항목이 여기에 모입니다."
+          hint={<>① 좌측 [업무작성] 메뉴 → 카테고리 선택 → 차량·내용 입력 → 처리현황 [진행중/보류/처리불가] 로 등록 → 여기에 자동 누적<br />② 작업 끝나면 처리현황을 [처리완료] 로 변경하면 미결에서 빠짐</>}
+        />
       ) : (
         <JpkTable<JournalEntry>
           ref={tableRef}

@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useJournalStore } from '@/lib/use-journal-store';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { buildLocationMap } from '@/lib/vehicle-location';
 import { cn } from '@/lib/cn';
@@ -105,11 +106,13 @@ export default function PendingReturnPage() {
       footerLeft={<span className="stat-item">반납 임박 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>}
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <ArrowUDownLeft size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">반납 예정 없음</div>
-          <div className="mt-1 text-weak">30일 이내 반납 예정 계약이 없습니다.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={ArrowUDownLeft}
+          title="반납 예정 없음"
+          description="30일 이내 만기 도래하는 운행중 계약이 없습니다."
+          hint={<>계약 등록 시 만기일에 반납 event 자동 생성. 만기 임박하면 여기 자동 표시 + 임차인 통지 준비.</>}
+        />
       ) : (
         <JpkTable<ReturnRow>
           ref={tableRef}

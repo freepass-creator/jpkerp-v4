@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useContractStore } from '@/lib/use-contract-store';
 import { collectOverdue, type OverdueRow } from '@/lib/pending-aggregators';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 
 /** 미납현황 — 계약 단위 미납 회차 집계. 컬럼 헤더 필터. */
@@ -60,11 +61,13 @@ export default function OverduePage() {
       }
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <CurrencyKrw size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">미납 없음</div>
-          <div className="mt-1 text-weak">모든 계약의 만기 도래 회차가 납부 완료 상태입니다.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={CurrencyKrw}
+          title="미납 없음"
+          description="만기 도래한 모든 수납 회차가 납부 완료 상태입니다."
+          hint={<>수납은 두 경로로 처리: ① 계약스케줄 상세 → 회차 [완료] 클릭 / ② 계좌내역 업로드 → 입금 자동 매칭</>}
+        />
       ) : (
         <JpkTable<OverdueRow>
           ref={tableRef}

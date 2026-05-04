@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { Download, FileXls, Trash, PencilSimple, Copy, Plus } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { AssetGrid } from '@/components/asset/asset-grid';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Car } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import dynamic from 'next/dynamic';
 import type { EditMode } from '@/components/asset/asset-edit-dialog';
@@ -151,15 +153,24 @@ export default function AssetListPage() {
           </>
         }
       >
-        <div className="table-wrap">
-          <AssetGrid
-            assets={assets}
-            selectedId={selected?.id}
-            onRowClick={setSelected}
-            onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
-            globalSearch={search}
+        {assets.length === 0 ? (
+          <EmptyState
+            icon={Car}
+            title="등록된 자산 없음"
+            description="자동차등록증 OCR 또는 수기 입력으로 차량 자산을 등록하세요."
+            hint={<>① 우측 하단 [+ 자산등록] 클릭 → 등록증 PDF/이미지 다중 업로드 → 즉시 OCR 분석<br />② 회사·차량번호는 OCR이 자동 매칭. 누락 시 행에서 직접 입력 가능 (인라인)<br />③ 회사 등록이 먼저 (일반관리 → 회사정보)</>}
           />
-        </div>
+        ) : (
+          <div className="table-wrap">
+            <AssetGrid
+              assets={assets}
+              selectedId={selected?.id}
+              onRowClick={setSelected}
+              onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
+              globalSearch={search}
+            />
+          </div>
+        )}
       </PageShell>
 
       <ContextMenu

@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { getCurrentLocation } from '@/lib/vehicle-location';
 import { useJournalStore } from '@/lib/use-journal-store';
@@ -108,11 +109,13 @@ export default function InspectionPendingPage() {
       footerLeft={<span className="stat-item">전체 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>}
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <Wrench size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">만기 임박 검사 없음</div>
-          <div className="mt-1 text-weak">모든 차량의 검사 만기가 30일 이상 남았습니다.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={Wrench}
+          title="검사 만기 임박 없음"
+          description="모든 차량의 정기검사 만기가 30일 이상 남았습니다."
+          hint={<>자산등록증 ㉛ 검사 유효기간(까지) 기준으로 D-30 이내 자동 표시. 자산 등록 시 inspectionTo 가 채워져야 정확.</>}
+        />
       ) : (
         <JpkTable<InspectionRow>
           ref={tableRef}

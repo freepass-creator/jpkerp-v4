@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/cn';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -94,11 +95,13 @@ export default function PendingTaxPage() {
       footerLeft={<span className="stat-item">자동차세 임박 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>}
     >
       {rows.length === 0 ? (
-        <div className="page-section-center">
-          <Receipt size={32} className="mx-auto text-weak" />
-          <div className="mt-2 text-medium">자동차세 임박 없음</div>
-          <div className="mt-1 text-weak">등록된 자산이 없거나 모든 차량 자동차세 만기가 30일 이상 남았습니다.</div>
-        </div>
+        <EmptyState
+          variant="ok"
+          icon={Receipt}
+          title="자동차세 임박 없음"
+          description="등록된 자산이 없거나 모든 차량의 자동차세 납부 기한이 30일 이상 남았습니다."
+          hint={<>매년 6/30 (1기), 12/31 (2기) 정기 납부일 기준 D-30 이내 자동 표시. 자산 1대마다 연 2회 자동 알림.</>}
+        />
       ) : (
         <JpkTable<TaxRow>
           ref={tableRef}
