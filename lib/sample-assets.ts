@@ -80,6 +80,10 @@ export type Asset = {
 
   /* ─── 운영 상태 ─── */
   status: AssetStatus;
+
+  /* ─── 등록증 원본 (OCR 한 첫 페이지를 이미지 dataUrl 로 보관) ─── */
+  documentImageUrl?: string;
+  documentFileName?: string;
 };
 
 /** 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. 샘플 없음. */

@@ -14,6 +14,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
 import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
 import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
+import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 
 type DuplicateReason = 'plate' | 'vin' | null;
 type AssetWorkItem = OcrBatchItem & {
@@ -88,13 +89,22 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
 
   const ocr = useOcrBatch<AssetWorkItem>({
     docType: 'vehicle_reg',
-    createPlaceholder: (file, id) => ({
-      id, fileName: file.name, _status: 'pending',
-      data: { companyCode: '', status: '대기' as const },
-      _duplicate: null,
-    }),
+    createPlaceholder: async (file, id) => {
+      // 등록증 원본을 이미지 dataUrl 로 변환해서 자산에 보관 (PDF 첫 페이지 또는 그대로)
+      const documentImageUrl = await fileToImageDataUrl(file).catch(() => '');
+      return {
+        id, fileName: file.name, _status: 'pending',
+        data: {
+          companyCode: '', status: '대기' as const,
+          documentImageUrl, documentFileName: file.name,
+        },
+        _duplicate: null,
+      };
+    },
     applyResult: (prev, raw, allItems) => {
-      const data = mapVehicleRegToAsset(raw, companies);
+      const mapped = mapVehicleRegToAsset(raw, companies);
+      // OCR 매핑 결과 + placeholder 의 documentImageUrl 보존
+      const data = { ...prev.data, ...mapped };
       // 기존 자산 + 동일 배치의 다른 done 항목 모두 인덱스에 넣고 매칭
       const index = buildKeyIndex<Partial<Asset>>([
         ...assets,
@@ -106,27 +116,31 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     },
   });
 
-  const okItems = ocr.items.filter((i) => i._status === 'done' && !i._duplicate);
-  const matchedCount = okItems.filter((i) => i.data.companyCode).length;
+  // 분석완료 + 중복 아닌 행 (UI 표시용)
+  const doneItems = ocr.items.filter((i) => i._status === 'done' && !i._duplicate);
+  // 등록 가능 = 정상 차량번호(\d{2,3}[가-힣]\d{4}) + 회사코드 둘 다 있어야 함
+  const PLATE_RE = /^\d{2,3}[가-힣]\d{4}$/;
+  const registerableItems = doneItems.filter((i) =>
+    i.data.plate && PLATE_RE.test(i.data.plate) && i.data.companyCode,
+  );
+  const matchedCount = registerableItems.length;
   const duplicateCount = ocr.items.filter((i) => i._duplicate).length;
-  const noPlateCount = okItems.filter((i) => !i.data.plate).length;
-  const noCompanyCount = okItems.filter((i) => !i.data.companyCode).length;
+  const noPlateCount = doneItems.filter((i) => !i.data.plate).length;
+  const noCompanyCount = doneItems.filter((i) => i.data.plate && !i.data.companyCode).length;
 
   function commitAll() {
-    if (okItems.length === 0) return;
-    // 차량번호 / 회사 누락 경고 — OCR 실패한 항목들 등록 전에 한번 더 확인
-    const warnings: string[] = [];
-    if (noPlateCount > 0) warnings.push(`차량번호 누락: ${noPlateCount}건`);
-    if (noCompanyCount > 0) warnings.push(`회사 미매칭: ${noCompanyCount}건`);
-    if (warnings.length > 0) {
-      const ok = confirm(
-        `⚠ OCR 누락 항목이 있습니다:\n  · ${warnings.join('\n  · ')}\n\n그래도 등록할까요?\n(등록 후 [수정] 또는 정합성 페이지에서 정정 가능)`,
-      );
-      if (!ok) return;
+    if (registerableItems.length === 0) {
+      alert('등록 가능한 항목이 없습니다. 차량번호·회사 누락 항목은 행에서 직접 입력 후 등록하세요.');
+      return;
     }
-    okItems.forEach((i) => onCreate(i.data));
+    registerableItems.forEach((i) => onCreate(i.data));
     setOpen(false);
     setTimeout(ocr.reset, 100);
+  }
+
+  /** 행별 plate / companyCode 인라인 수정 */
+  function updateRowField(id: string, patch: Partial<AssetWorkItem['data']>) {
+    ocr.setItems((prev) => prev.map((it) => it.id === id ? { ...it, data: { ...it.data, ...patch } } : it));
   }
 
   function handleClose(o: boolean) {
@@ -192,12 +206,37 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                         return (
                           <tr key={p.id}>
                             <td className="center"><AssetItemStatus item={p} /></td>
+                            {/* 회사 — OCR 매칭 실패 시 인라인 select. 매칭됐으면 텍스트 */}
                             <td className="plate">
                               {p._status === 'pending' ? <span className="text-weak">…</span>
                                 : d.companyCode ? d.companyCode
-                                : <span className="text-weak">-</span>}
+                                : (
+                                  <select
+                                    className="input"
+                                    style={{ width: 90, padding: '0 4px', height: 22, fontSize: 11 }}
+                                    value=""
+                                    onChange={(e) => updateRowField(p.id, { companyCode: e.target.value })}
+                                  >
+                                    <option value="">회사 선택</option>
+                                    {companies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                  </select>
+                                )}
                             </td>
-                            <td className="plate text-medium">{d.plate || '-'}</td>
+                            {/* 차량번호 — OCR 추출 실패하거나 형식 안 맞으면 인라인 input */}
+                            <td className="plate text-medium">
+                              {p._status === 'pending' ? <span className="text-weak">…</span>
+                                : d.plate && PLATE_RE.test(d.plate) ? d.plate
+                                : (
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    style={{ width: 100, padding: '0 4px', height: 22, fontSize: 11 }}
+                                    placeholder="01도1234"
+                                    value={d.plate ?? ''}
+                                    onChange={(e) => updateRowField(p.id, { plate: e.target.value.trim() })}
+                                  />
+                                )}
+                            </td>
                             <td className="dim">{d.vehicleClass || '-'}</td>
                             <td>{d.vehicleName || '-'}</td>
                             <td className="mono dim truncate" style={{ maxWidth: 160 }} title={d.vin}>{d.vin || '-'}</td>
@@ -219,10 +258,10 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
 
               {ocr.items.length > 0 && (
                 <div className="text-weak text-xs">
-                  총 {ocr.items.length}건 · 등록 가능 <strong>{okItems.length}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
+                  총 {ocr.items.length}건 · 등록 가능 <strong>{registerableItems.length}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
                   {duplicateCount > 0 && <> · <span className="text-red">중복 {duplicateCount}건 제외</span></>}
-                  {noPlateCount > 0 && <> · <span className="text-red">차량번호 누락 {noPlateCount}건</span></>}
-                  {noCompanyCount > 0 && noPlateCount === 0 && <> · <span className="text-amber">회사 미매칭 {noCompanyCount}건</span></>}
+                  {noPlateCount > 0 && <> · <span className="text-red">차량번호 누락 {noPlateCount}건 (행에서 직접 입력)</span></>}
+                  {noCompanyCount > 0 && <> · <span className="text-amber">회사 미매칭 {noCompanyCount}건 (행에서 선택)</span></>}
                 </div>
               )}
             </div>
@@ -231,8 +270,8 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
               <DialogClose asChild>
                 <button className="btn">취소</button>
               </DialogClose>
-              <button className="btn btn-primary" disabled={okItems.length === 0 || ocr.busy} onClick={commitAll}>
-                {okItems.length > 0 ? `${okItems.length}건 등록` : '등록'}
+              <button className="btn btn-primary" disabled={registerableItems.length === 0 || ocr.busy} onClick={commitAll}>
+                {registerableItems.length > 0 ? `${registerableItems.length}건 등록` : '등록 (차량번호·회사 입력 필요)'}
               </button>
             </DialogFooter>
           </TabsContent>
