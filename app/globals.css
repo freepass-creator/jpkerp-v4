@@ -911,6 +911,33 @@ input[type="checkbox"], input[type="radio"] {
 }
 .help-list strong { color: var(--text-main); font-weight: var(--font-weight-medium); }
 
+/* 통합 검색 dropdown */
+.unified-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  margin-top: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: var(--z-dropdown);
+  max-height: 360px;
+  overflow-y: auto;
+}
+.unified-search-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+.unified-search-row:last-child { border-bottom: none; }
+.unified-search-row.active,
+.unified-search-row:hover {
+  background: var(--bg-hover);
+}
+
 .page-section {
   padding: 20px 24px;
 }
