@@ -39,7 +39,6 @@ export default function PendingPage() {
         <>
           <span className="stat-item">전체 <strong>{items.length}</strong></span>
           {counts['검사'] ? <span className="stat-item">검사 <strong>{counts['검사']}</strong></span> : null}
-          {counts['수납'] ? <span className="stat-item alert">수납 <strong>{counts['수납']}</strong></span> : null}
           {counts['출고'] ? <span className="stat-item">출고 <strong>{counts['출고']}</strong></span> : null}
           {counts['정비'] ? <span className="stat-item">정비 <strong>{counts['정비']}</strong></span> : null}
           {counts['보험'] ? <span className="stat-item">보험 <strong>{counts['보험']}</strong></span> : null}
@@ -63,7 +62,11 @@ export default function PendingPage() {
                 <th>차량번호</th>
                 <th>업무구분</th>
                 <th>상태</th>
-                <th>차명/차종</th>
+                <th>작업상태</th>
+                <th>차량상태</th>
+                <th>차명</th>
+                <th>위치</th>
+                <th>입고지</th>
                 <th>임차인</th>
                 <th>연락처</th>
                 <th className="num">회차</th>
@@ -83,7 +86,15 @@ export default function PendingPage() {
                       {p.status}
                     </span>
                   </td>
-                  <td className="dim truncate" style={{ maxWidth: 220 }} title={p.vehicleName}>{p.vehicleName || '-'}</td>
+                  <td>
+                    <span className={cn('badge', p.workStatus === '지연' ? 'badge-red' : '')}>
+                      {p.workStatus}
+                    </span>
+                  </td>
+                  <td className="dim">{p.vehicleStatus}</td>
+                  <td className="dim truncate" style={{ maxWidth: 160 }} title={p.vehicleName}>{p.vehicleName || '-'}</td>
+                  <td className="dim truncate" style={{ maxWidth: 140 }} title={p.location}>{p.location || '-'}</td>
+                  <td className="dim truncate" style={{ maxWidth: 140 }} title={p.inboundLocation}>{p.inboundLocation || '-'}</td>
                   <td>{p.customerName || <span className="text-weak">-</span>}</td>
                   <td className="mono dim">{p.customerPhone || '-'}</td>
                   <td className="num">{p.cycle ? `${p.cycle}회` : '-'}</td>

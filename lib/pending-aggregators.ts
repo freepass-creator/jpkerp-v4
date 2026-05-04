@@ -50,14 +50,28 @@ export const PENDING_TONES: Record<PendingKind, 'red' | 'orange'> = {
 export type PendingStatus = '미완료' | '미납';
 export type PendingSource = '계약' | '자산';
 
+/** 차량 운영 상태 — asset.status + 활성 계약 결합. */
+export type VehicleStatus = '계약중' | '휴차중' | '정비중' | '등록예정' | '매각';
+
+/** 작업 상태 — event.status 의 미결 부분만 (예정 / 지연). */
+export type WorkStatus = '예정' | '지연';
+
 export type PendingItem = {
   id: string;
   /** 업무구분 — 검사/수납/출고/정비/보험/반납/기타 */
   kind: PendingKind;
   /** 상태 — 수납은 '미납', 그 외는 '미완료' */
   status: PendingStatus;
+  /** 작업상태 — 예정 / 지연 (event.status) */
+  workStatus: WorkStatus;
   /** 출처 — 계약 events 또는 자산 자체 */
   source: PendingSource;
+  /** 차량 운영 상태 (자산+계약 결합 도출) */
+  vehicleStatus: VehicleStatus;
+  /** 현재 위치 — 자산 사용본거지 */
+  location: string;
+  /** 입고지 — 검사·정비 시행 장소. 없으면 빈 값. */
+  inboundLocation: string;
   companyCode: string;
   plate: string;
   /** 차명/차종 (자산 매칭 시 채움) */
@@ -76,6 +90,16 @@ export type PendingItem = {
   note?: string;
 };
 
+/** asset.status + 활성 계약 → VehicleStatus. */
+function toVehicleStatus(asset: Asset | undefined, hasActiveContract: boolean): VehicleStatus {
+  if (!asset) return '등록예정';
+  if (asset.status === '매각') return '매각';
+  if (asset.status === '정비') return '정비중';
+  if (asset.status === '등록예정') return '등록예정';
+  // 대기 / 운행중 — 활성 계약 있으면 계약중, 없으면 휴차중
+  return hasActiveContract ? '계약중' : '휴차중';
+}
+
 const PENDING_HORIZON_DAYS = 30;
 
 export function collectPending(
@@ -89,18 +113,28 @@ export function collectPending(
   // plate → asset 빠른 lookup
   const assetByPlate = new Map<string, Asset>();
   for (const a of assets) assetByPlate.set(a.plate, a);
+  // plate → 활성 계약 lookup
+  const activeContractByPlate = new Map<string, typeof contracts[number]>();
+  for (const c of contracts) {
+    if (c.status === '운행중') activeContractByPlate.set(c.plate, c);
+  }
 
   // 1) 자산 검사 만기 임박 (자산 자체 inspectionTo)
+  //    수납은 미납현황 / asset.status='정비' 는 휴차현황 → 둘 다 미결업무에서 제외.
   for (const a of assets) {
     if (!a.inspectionTo || a.status === '매각') continue;
     const t = Date.parse(a.inspectionTo);
     if (!Number.isFinite(t) || t > horizon) continue;
-    const contract = contracts.find((c) => c.plate === a.plate && c.status === '운행중');
+    const contract = activeContractByPlate.get(a.plate);
     items.push({
       id: `insp-${a.id}`,
       kind: '검사',
       status: '미완료',
+      workStatus: '예정',
       source: '자산',
+      vehicleStatus: toVehicleStatus(a, !!contract),
+      location: a.ownerLocation ?? '',
+      inboundLocation: a.inspectionPlace ?? '',
       companyCode: a.companyCode,
       plate: a.plate,
       vehicleName: a.vehicleName || a.vehicleClass || '',
@@ -111,52 +145,29 @@ export function collectPending(
     });
   }
 
-  // 2) 자산 정비 진행중 (asset.status='정비')
-  for (const a of assets) {
-    if (a.status !== '정비') continue;
-    const contract = contracts.find((c) => c.plate === a.plate && c.status === '운행중');
-    items.push({
-      id: `repair-${a.id}`,
-      kind: '정비',
-      status: '미완료',
-      source: '자산',
-      companyCode: a.companyCode,
-      plate: a.plate,
-      vehicleName: a.vehicleName || a.vehicleClass || '',
-      customerName: contract?.customerName ?? '',
-      customerPhone: contract?.customerPhone ?? '',
-      dueDate: '',
-      daysLeft: 0,
-      note: '자산 상태 정비중',
-    });
-  }
-
-  // 3) 계약 events 전체 7타입 — 출고/수납/검사/정비/보험/반납/기타
+  // 2) 계약 events 미결 — 수납 제외한 6타입 (출고/검사/정비/보험/반납/기타)
+  //    status 가 '예정' 또는 '지연' 인 것만.
   for (const c of contracts) {
     if (c.status === '만기' || c.status === '해지') continue;
     const asset = assetByPlate.get(c.plate);
     const vehicleName = asset?.vehicleName || asset?.vehicleClass || '';
+    const vehicleStatus = toVehicleStatus(asset, c.status === '운행중');
+    const location = asset?.ownerLocation ?? '';
     for (const e of c.events) {
-      if (e.status !== '예정') continue;
+      if (e.type === '수납') continue;                                  // 별도 미납현황 페이지
+      if (e.status !== '예정' && e.status !== '지연') continue;
       const t = Date.parse(e.dueDate);
-      if (!Number.isFinite(t)) continue;
+      if (!Number.isFinite(t) || t > horizon) continue;
 
-      // 수납: 만기 도래 (과거)만 미납 / 그 외: D-30 이내 미완료
-      const isReceipt = e.type === '수납';
-      if (isReceipt) {
-        if (t > today) continue;
-      } else {
-        if (t > horizon) continue;
-      }
-
-      // contract.event type 그대로 PendingKind (모두 동일 vocab)
-      const kind: PendingKind = e.type;
-      const status: PendingStatus = isReceipt ? '미납' : '미완료';
       items.push({
         id: `evt-${c.id}-${e.id}`,
-        kind,
-        status,
+        kind: e.type,
+        status: '미완료',
+        workStatus: e.status as WorkStatus,
         source: '계약',
+        vehicleStatus,
+        location,
+        inboundLocation: e.type === '검사' ? (asset?.inspectionPlace ?? '') : '',
         companyCode: c.companyCode,
         plate: c.plate,
         vehicleName,
@@ -164,7 +175,7 @@ export function collectPending(
         customerPhone: c.customerPhone,
         cycle: e.cycle,
         dueDate: e.dueDate,
-        amount: e.amount ?? (kind === '출고' ? c.monthlyAmount : undefined),
+        amount: e.amount ?? (e.type === '출고' ? c.monthlyAmount : undefined),
         daysLeft: daysBetween(e.dueDate, today),
         note: e.note,
       });
