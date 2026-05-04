@@ -174,7 +174,8 @@ function hitId(hit: SearchHit): string {
 function defaultNavigate(hit: SearchHit) {
   if (typeof window === 'undefined') return;
   if (hit.kind === 'contract') {
-    window.location.href = `/contract/schedule/${hit.contract.id}`;
+    // schedule 마스터·상세는 contractNo 기준 라우팅
+    window.location.href = `/contract/schedule/${hit.contract.contractNo}`;
   } else {
     window.location.href = `/asset?selected=${hit.asset.id}`;
   }
