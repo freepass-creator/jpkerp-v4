@@ -51,3 +51,19 @@ export async function fileToImageDataUrl(file: File): Promise<string> {
     r.readAsDataURL(file);
   });
 }
+
+/**
+ * PDF 첫 페이지를 JPEG File 로 변환. OCR 보내기 전 전처리에 사용.
+ * Gemini Vision 이 multi-page PDF 에서 page 1 을 안 보거나 페이지 간 혼선을 일으키는
+ * non-deterministic 실패를 회피. PDF 가 아니면 원본 그대로 반환.
+ */
+export async function pdfFirstPageToJpegFile(file: File, scale = 2.5): Promise<File> {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (!isPdf) return file;
+  const dataUrl = await pdfFirstPageToImageDataUrl(file, scale);
+  // dataURL → Blob → File
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const baseName = file.name.replace(/\.pdf$/i, '');
+  return new File([blob], `${baseName}_p1.jpg`, { type: 'image/jpeg' });
+}

@@ -14,7 +14,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
 import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
 import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
-import { fileToImageDataUrl } from '@/lib/pdf-to-image';
+import { fileToImageDataUrl, pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
 
 type DuplicateReason = 'plate' | 'vin' | null;
 type AssetWorkItem = OcrBatchItem & {
@@ -89,6 +89,10 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
 
   const ocr = useOcrBatch<AssetWorkItem>({
     docType: 'vehicle_reg',
+    // PDF 는 client-side 에서 첫 페이지 JPEG (2.5x 스케일) 로 변환 후 전송.
+    // Gemini Vision 이 multi-page PDF 에서 page 1 을 놓치는 non-deterministic
+    // 실패 (Tesla Model 3 등록증 등) 를 회피.
+    preconvertPdfToImage: pdfFirstPageToJpegFile,
     createPlaceholder: async (file, id) => {
       // 등록증 원본을 이미지 dataUrl 로 변환해서 자산에 보관 (PDF 첫 페이지 또는 그대로)
       const documentImageUrl = await fileToImageDataUrl(file).catch(() => '');

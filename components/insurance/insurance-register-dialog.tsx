@@ -7,6 +7,7 @@ import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
+import { pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
 import { runWithConcurrency } from '@/lib/parallel';
 
 // Gemini Tier 1 (1,000 RPM, 약 16.7 RPS). 호출당 ~3초 → 동시 30 = ~10 RPS = 600 RPM, 안전 마진.
@@ -91,8 +92,11 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
       await runWithConcurrency(expanded, OCR_CONCURRENCY, async (f, i) => {
         const id = placeholders[i].id;
         try {
+          // PDF 는 첫 페이지 JPEG 로 변환 후 전송 (Gemini multi-page non-determinism 회피)
+          let toSend = f;
+          try { toSend = await pdfFirstPageToJpegFile(f); } catch { /* 원본 fallback */ }
           const fd = new FormData();
-          fd.append('file', f);
+          fd.append('file', toSend);
           fd.append('type', 'insurance_policy');
           const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
           const json = await res.json();

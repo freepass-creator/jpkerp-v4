@@ -39,6 +39,9 @@ type Options<W extends OcrBatchItem> = {
   concurrency?: number;
   /** 파일 expand (예: PDF 페이지별 분할). 없으면 file 그대로 1:1. */
   expandFile?: (file: File) => Promise<File[]>;
+  /** OCR 보내기 직전 PDF를 이미지로 변환 (선택). Gemini Vision 이 PDF 의 특정 페이지를
+   *  놓치는 케이스 대응. 단일 페이지 문서 (자동차등록증·보험증권 1쪽) 에 권장. */
+  preconvertPdfToImage?: (file: File) => Promise<File>;
 };
 
 export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
@@ -82,8 +85,13 @@ export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
       await runWithConcurrency(expanded, O.concurrency ?? 30, async (file, i) => {
         const id = placeholders[i].id;
         try {
+          let toSend = file;
+          if (O.preconvertPdfToImage && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+            try { toSend = await O.preconvertPdfToImage(file); }
+            catch { /* 변환 실패 시 원본 PDF 그대로 fallback */ }
+          }
           const fd = new FormData();
-          fd.append('file', file);
+          fd.append('file', toSend);
           fd.append('type', O.docType);
           const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
           const json = await res.json();
