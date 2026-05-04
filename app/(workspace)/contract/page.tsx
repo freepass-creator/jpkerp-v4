@@ -6,7 +6,6 @@ import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
-import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -39,21 +38,7 @@ const CONTRACT_DUPLICATE_FIELDS: FieldDef[] = CONTRACT_EDIT_FIELDS.map((f) =>
 export default function ContractListPage() {
   const [contracts, setContracts] = useContractStore();
   const [assets, setAssets] = useAssetStore();
-  const [policies] = useInsuranceStore();
   const { search } = useTopbarSearch();
-
-  /** 차량 plate 로 자산 + 활성 보험 만기일 lookup. 스케줄 자동 생성에 사용. */
-  function lookupScheduleHints(plate: string): { inspectionTo?: string; insuranceEnd?: string } {
-    const asset = assets.find((a) => a.plate === plate);
-    // 같은 plate 보험 중 만기 가장 늦은 것
-    let insuranceEnd: string | undefined;
-    for (const p of policies) {
-      if (p.carNumber !== plate) continue;
-      if (!p.endDate) continue;
-      if (!insuranceEnd || p.endDate > insuranceEnd) insuranceEnd = p.endDate;
-    }
-    return { inspectionTo: asset?.inspectionTo, insuranceEnd };
-  }
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -78,10 +63,7 @@ export default function ContractListPage() {
       contractNo: nextSequenceCode('C', contracts.map((c) => c.contractNo)),
       ...draft,
       status: '운행중',
-      events: generateContractSchedule(
-        draft.startDate, draft.endDate, draft.monthlyAmount,
-        lookupScheduleHints(draft.plate),
-      ),
+      events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount),
     };
   }
 
@@ -105,10 +87,7 @@ export default function ContractListPage() {
       monthlyAmount,
       deposit: Number(d.deposit) || 0,
       status: '운행중',
-      events: generateContractSchedule(
-        startDate, endDate, monthlyAmount,
-        lookupScheduleHints(d.plate || ''),
-      ),
+      events: generateContractSchedule(startDate, endDate, monthlyAmount),
     };
   }
 
