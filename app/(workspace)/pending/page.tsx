@@ -87,7 +87,11 @@ export default function PendingPage() {
                     </span>
                   </td>
                   <td>
-                    <span className={cn('badge', p.workStatus === '지연' ? 'badge-red' : '')}>
+                    <span className={cn('badge',
+                      p.workStatus === '지연' ? 'badge-red'
+                      : p.workStatus === '작업중' ? 'badge-blue'
+                      : '',
+                    )}>
                       {p.workStatus}
                     </span>
                   </td>

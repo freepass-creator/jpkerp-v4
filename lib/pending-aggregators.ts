@@ -53,8 +53,11 @@ export type PendingSource = '계약' | '자산';
 /** 차량 운영 상태 — asset.status + 활성 계약 결합. */
 export type VehicleStatus = '계약중' | '휴차중' | '정비중' | '등록예정' | '매각';
 
-/** 작업 상태 — event.status 의 미결 부분만 (예정 / 지연). */
-export type WorkStatus = '예정' | '지연';
+/** 작업 상태 — 진행 단계.
+ *   예정: 만기 전/만기 도래 (event.status='예정')
+ *   지연: 만기 경과 + 미처리 (event.status='지연')
+ *   작업중: 현재 진행 중 (asset.status='정비' 등) */
+export type WorkStatus = '예정' | '지연' | '작업중';
 
 export type PendingItem = {
   id: string;
@@ -119,8 +122,8 @@ export function collectPending(
     if (c.status === '운행중') activeContractByPlate.set(c.plate, c);
   }
 
-  // 1) 자산 검사 만기 임박 (자산 자체 inspectionTo)
-  //    수납은 미납현황 / asset.status='정비' 는 휴차현황 → 둘 다 미결업무에서 제외.
+  // 1) 자산 검사 만기 임박 (자산 자체 inspectionTo).
+  //    수납 = 미납현황. asset.status='정비' 는 휴차가 아닌 '작업중' 으로 미결에 포함.
   for (const a of assets) {
     if (!a.inspectionTo || a.status === '매각') continue;
     const t = Date.parse(a.inspectionTo);
@@ -142,6 +145,30 @@ export function collectPending(
       customerPhone: contract?.customerPhone ?? '',
       dueDate: a.inspectionTo,
       daysLeft: daysBetween(a.inspectionTo, today),
+    });
+  }
+
+  // 2) 자산 정비 작업중 (asset.status='정비') — 휴차 아닌 작업으로 분류
+  for (const a of assets) {
+    if (a.status !== '정비') continue;
+    const contract = activeContractByPlate.get(a.plate);
+    items.push({
+      id: `repair-${a.id}`,
+      kind: '정비',
+      status: '미완료',
+      workStatus: '작업중',
+      source: '자산',
+      vehicleStatus: '정비중',
+      location: a.ownerLocation ?? '',
+      inboundLocation: '',
+      companyCode: a.companyCode,
+      plate: a.plate,
+      vehicleName: a.vehicleName || a.vehicleClass || '',
+      customerName: contract?.customerName ?? '',
+      customerPhone: contract?.customerPhone ?? '',
+      dueDate: '',
+      daysLeft: 0,
+      note: '자산 정비중',
     });
   }
 
@@ -250,7 +277,7 @@ export function collectOverdue(contracts: readonly Contract[]): OverdueRow[] {
 
 /* ─────────────── 휴차현황 ─────────────── */
 
-export type IdleReason = '등록예정' | '대기' | '정비' | '계약종료' | '운행중미매칭';
+export type IdleReason = '등록예정' | '대기' | '계약종료' | '운행중미매칭';
 
 export type IdleRow = {
   assetId: string;
@@ -264,11 +291,12 @@ export type IdleRow = {
 };
 
 /**
- * 휴차 정의:
+ * 휴차 정의 (운행 중지):
  *  · asset.status === '대기' — 출고 대기 중
- *  · asset.status === '정비'
  *  · asset.status === '등록예정'
  *  · asset.status === '운행중' 인데 매칭 운행중 계약 없음 (불일치 케이스 — 데이터 정합성 경보)
+ *
+ * 정비중(asset.status='정비')은 운행 중지가 아닌 '작업중' → 미결업무 페이지가 전담.
  */
 export function collectIdle(
   assets: readonly Asset[],
@@ -282,12 +310,11 @@ export function collectIdle(
   const rows: IdleRow[] = [];
   for (const a of assets) {
     if (a.status === '매각') continue;
+    if (a.status === '정비') continue;  // 정비는 미결업무 작업중으로 분류
     let reason: IdleReason | null = null;
     if (a.status === '등록예정') reason = '등록예정';
     else if (a.status === '대기') reason = '대기';
-    else if (a.status === '정비') reason = '정비';
     else if (a.status === '운행중' && !platesWithActiveContract.has(a.plate)) reason = '운행중미매칭';
-    // 그 외(운행중 + 계약 매칭) 은 휴차 아님
 
     if (!reason) continue;
 
