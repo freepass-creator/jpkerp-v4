@@ -33,10 +33,10 @@ export default function PendingJournalPage() {
           <table className="table">
             <thead>
               <tr>
-                <th className="date">일시</th>
                 <th>회사</th>
-                <th>분류</th>
                 <th>차량</th>
+                <th>분류</th>
+                <th className="date">일시</th>
                 <th>담당</th>
                 <th>요약</th>
               </tr>
@@ -44,10 +44,10 @@ export default function PendingJournalPage() {
             <tbody>
               {sorted.map((e) => (
                 <tr key={e.id}>
-                  <td className="date mono">{e.at}</td>
                   <td className="plate">{e.companyCode || '-'}</td>
-                  <td className="dim">{KIND_LABEL[e.kind] ?? e.kind}</td>
                   <td className="plate">{e.data?.plate || '-'}</td>
+                  <td className="dim">{KIND_LABEL[e.kind] ?? e.kind}</td>
+                  <td className="date mono">{e.at}</td>
                   <td>{e.staff || '-'}</td>
                   <td className="dim truncate" style={{ maxWidth: 380 }} title={summarize(e.data)}>{summarize(e.data)}</td>
                 </tr>

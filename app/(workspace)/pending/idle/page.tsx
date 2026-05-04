@@ -47,9 +47,9 @@ export default function IdlePage() {
           <table className="table">
             <thead>
               <tr>
-                <th>상태</th>
                 <th>회사</th>
                 <th>차량번호</th>
+                <th>상태</th>
                 <th>차명</th>
                 <th>비고</th>
               </tr>
@@ -57,13 +57,13 @@ export default function IdlePage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.assetId}>
+                  <td className="plate">{r.companyCode}</td>
+                  <td className="plate">{r.plate}</td>
                   <td>
                     <span className={cn('badge', r.reason === '운행중미매칭' ? 'badge-red' : 'badge-orange')}>
                       {r.reason === '운행중미매칭' ? '⚠ 정합성' : '미완료'}
                     </span>
                   </td>
-                  <td className="plate">{r.companyCode}</td>
-                  <td className="plate">{r.plate}</td>
                   <td>{r.vehicleName || '-'}</td>
                   <td className="dim">{r.reason}</td>
                 </tr>

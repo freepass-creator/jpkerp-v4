@@ -38,10 +38,10 @@ export default function OverduePage() {
           <table className="table">
             <thead>
               <tr>
-                <th>상태</th>
                 <th>회사</th>
+                <th>차량번호</th>
+                <th>상태</th>
                 <th>계약번호</th>
-                <th>차량</th>
                 <th>임차인</th>
                 <th>연락처</th>
                 <th className="num">미납 회차</th>
@@ -53,10 +53,10 @@ export default function OverduePage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.contractId}>
-                  <td><span className="badge badge-red">미납</span></td>
                   <td className="plate">{r.companyCode}</td>
-                  <td className="mono text-medium">{r.contractNo}</td>
                   <td className="plate">{r.plate}</td>
+                  <td><span className="badge badge-red">미납</span></td>
+                  <td className="mono text-medium">{r.contractNo}</td>
                   <td>{r.customerName}</td>
                   <td className="mono dim">{r.customerPhone || '-'}</td>
                   <td className="num text-red"><strong>{r.unpaidCycles}</strong></td>

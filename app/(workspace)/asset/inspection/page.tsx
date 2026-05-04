@@ -23,12 +23,12 @@ export default function AssetInspectionPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>상태</th>
-              <th>회사코드</th>
+              <th>회사</th>
               <th>차량번호</th>
+              <th>상태</th>
               <th>차명</th>
-              <th className="date">연월일부터</th>
-              <th className="date">연월일까지</th>
+              <th className="date">시작일</th>
+              <th className="date">만기일</th>
               <th className="center">D-day</th>
               <th>검사 시행장소</th>
               <th className="num">주행거리</th>
@@ -42,9 +42,9 @@ export default function AssetInspectionPage() {
               const ddayClass = ddayCellClass(dday);
               return (
                 <tr key={a.id}>
-                  <td><InspectionStatus dday={dday} /></td>
                   <td className="plate">{a.companyCode}</td>
                   <td className="plate">{a.plate || <span className="text-muted">-</span>}</td>
+                  <td><InspectionStatus dday={dday} /></td>
                   <td>{a.vehicleName}</td>
                   <td className="date">{a.inspectionFrom ?? ''}</td>
                   <td className="date">{a.inspectionTo ?? ''}</td>
