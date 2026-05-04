@@ -18,9 +18,19 @@ let subscribed = false;
 
 function asArray(val: unknown): InsurancePolicy[] {
   if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is InsurancePolicy => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, InsurancePolicy>);
-  return [];
+  const list = Array.isArray(val)
+    ? val.filter((x): x is InsurancePolicy => x != null && typeof x === 'object')
+    : typeof val === 'object'
+      ? Object.values(val as Record<string, InsurancePolicy>)
+      : [];
+  // RTDB는 sparse / 인덱스 누락 배열을 object로 저장 → 중첩 installments도 정규화 필요
+  return list.map((p) => {
+    const inst = (p as InsurancePolicy & { installments?: unknown }).installments;
+    if (inst && !Array.isArray(inst) && typeof inst === 'object') {
+      return { ...p, installments: Object.values(inst) as InsurancePolicy['installments'] };
+    }
+    return p;
+  });
 }
 
 function stripUndef<T>(v: T): T {

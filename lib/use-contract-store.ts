@@ -18,9 +18,19 @@ let subscribed = false;
 
 function asArray(val: unknown): Contract[] {
   if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is Contract => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, Contract>);
-  return [];
+  const list = Array.isArray(val)
+    ? val.filter((x): x is Contract => x != null && typeof x === 'object')
+    : typeof val === 'object'
+      ? Object.values(val as Record<string, Contract>)
+      : [];
+  // RTDB는 sparse / 인덱스 누락 배열을 object로 저장 → 중첩 events도 정규화
+  return list.map((c) => {
+    const ev = (c as Contract & { events?: unknown }).events;
+    if (ev && !Array.isArray(ev) && typeof ev === 'object') {
+      return { ...c, events: Object.values(ev) as Contract['events'] };
+    }
+    return c;
+  });
 }
 
 function stripUndef<T>(v: T): T {
