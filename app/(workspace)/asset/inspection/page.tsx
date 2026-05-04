@@ -23,6 +23,7 @@ export default function AssetInspectionPage() {
         <table className="table">
           <thead>
             <tr>
+              <th>상태</th>
               <th>회사코드</th>
               <th>차량번호</th>
               <th>차명</th>
@@ -41,6 +42,7 @@ export default function AssetInspectionPage() {
               const ddayClass = ddayCellClass(dday);
               return (
                 <tr key={a.id}>
+                  <td><InspectionStatus dday={dday} /></td>
                   <td className="plate">{a.companyCode}</td>
                   <td className="plate">{a.plate || <span className="text-muted">-</span>}</td>
                   <td>{a.vehicleName}</td>
@@ -85,4 +87,11 @@ function ddayCellClass(d: number | null): string {
   if (d < 30) return 'overdue';
   if (d < 90) return 'due-soon';
   return '';
+}
+
+/** 검사 상태 — 정상 / 미완료 / 정보없음 */
+function InspectionStatus({ dday }: { dday: number | null }) {
+  if (dday === null) return <span className="badge">정보없음</span>;
+  if (dday < 30) return <span className="badge badge-red">미완료</span>;
+  return <span className="badge badge-green">정상</span>;
 }

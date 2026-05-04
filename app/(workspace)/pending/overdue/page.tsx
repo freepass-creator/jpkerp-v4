@@ -38,6 +38,7 @@ export default function OverduePage() {
           <table className="table">
             <thead>
               <tr>
+                <th>상태</th>
                 <th>회사</th>
                 <th>계약번호</th>
                 <th>차량</th>
@@ -52,6 +53,7 @@ export default function OverduePage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.contractId}>
+                  <td><span className="badge badge-red">미납</span></td>
                   <td className="plate">{r.companyCode}</td>
                   <td className="mono text-medium">{r.contractNo}</td>
                   <td className="plate">{r.plate}</td>

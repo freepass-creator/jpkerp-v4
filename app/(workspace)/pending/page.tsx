@@ -86,11 +86,14 @@ export default function PendingPage() {
   );
 }
 
+/** 통일 vocab — 정상 / 미완료 / 미납. 라벨은 사유까지 같이 표기. */
 function KindBadge({ kind }: { kind: PendingItem['kind'] }) {
-  const tone =
-    kind === '미수납' ? 'badge-red' :
-    kind === '출고미완' ? 'badge-orange' :
-    kind === '검사만기' ? 'badge-orange' :
-    kind === '보험만기' ? 'badge-orange' : '';
-  return <span className={`badge ${tone}`}>{kind}</span>;
+  const map: Record<PendingItem['kind'], { tone: string; label: string }> = {
+    미수납:   { tone: 'badge-red',    label: '수납 미납' },
+    출고미완: { tone: 'badge-orange', label: '출고 미완료' },
+    검사만기: { tone: 'badge-orange', label: '검사 미완료' },
+    보험만기: { tone: 'badge-orange', label: '보험 미완료' },
+  };
+  const { tone, label } = map[kind];
+  return <span className={`badge ${tone}`}>{label}</span>;
 }

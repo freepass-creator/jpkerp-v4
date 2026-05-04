@@ -59,13 +59,13 @@ export default function IdlePage() {
                 <tr key={r.assetId}>
                   <td>
                     <span className={cn('badge', r.reason === '운행중미매칭' ? 'badge-red' : 'badge-orange')}>
-                      {r.reason === '운행중미매칭' ? '⚠ 정합성' : r.reason}
+                      {r.reason === '운행중미매칭' ? '⚠ 정합성' : '미완료'}
                     </span>
                   </td>
                   <td className="plate">{r.companyCode}</td>
                   <td className="plate">{r.plate}</td>
                   <td>{r.vehicleName || '-'}</td>
-                  <td className="dim">{r.status}</td>
+                  <td className="dim">{r.reason}</td>
                 </tr>
               ))}
             </tbody>
