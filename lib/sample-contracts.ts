@@ -33,18 +33,23 @@ export type Contract = {
 };
 
 /**
- * 계약 등록 시 자동 생성되는 수납 스케줄.
+ * 계약 등록 시 자동 생성되는 운영 스케줄 — 계약 전 라이프사이클 events.
  *
- *   startDate~endDate 사이 매월 시작일과 같은 일자에 청구 1건씩.
- *   모든 회차 status='예정' (수납 처리는 별도 워크플로우에서).
- *   2025-01-15 시작 / 2026-01-14 만기 / 50만 → 12회차 (1/15, 2/15, ..., 12/15).
+ * 자동 생성:
+ *  · 출고      — startDate (차량 인도)
+ *  · 수납      — startDate ~ endDate 매월 시작일 같은 일자
+ *  · 반납      — endDate (차량 회수·검수)
+ *  · 검사      — opts.inspectionTo 가 계약 기간 안이면 그 날짜 (자산 등록증 ㉛)
+ *  · 보험만기  — opts.insuranceEnd 가 계약 기간 안이면 그 날짜 (보험증권)
+ *  · 자동차세  — 6/30, 12/31 (계약 기간 안인 것만, 한국 자동차세 정기납부 일정)
  *
- *   잘못된 날짜·만기 < 시작 → 빈 배열.
+ *  잘못된 날짜·만기 < 시작 → 빈 배열.
  */
 export function generateContractSchedule(
   startDate: string,
   endDate: string,
   monthlyAmount: number,
+  opts?: { inspectionTo?: string; insuranceEnd?: string },
 ): ScheduleEvent[] {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -52,8 +57,9 @@ export function generateContractSchedule(
   if (end < start) return [];
 
   const events: ScheduleEvent[] = [];
+  const inRange = (d: string) => d >= startDate && d <= endDate;
 
-  // 0번: 출고 — 계약 시작일에 차량 인도. 정상 출고 확인 시 완료 처리.
+  // 0번: 출고 — 계약 시작일에 차량 인도.
   events.push({
     id: `d-${startDate}`,
     type: '출고',
@@ -62,6 +68,7 @@ export function generateContractSchedule(
     note: '차량 인도 — 외관/주행거리/연료 점검 + 키 전달 후 완료 처리',
   });
 
+  // 수납 — 매월 startDate 일자
   const dayOfMonth = start.getDate();
   let cycle = 1;
   let cursor = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);
@@ -79,6 +86,56 @@ export function generateContractSchedule(
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, dayOfMonth);
     cycle++;
   }
+
+  // 반납 — 만기일에 차량 회수·검수
+  events.push({
+    id: `rt-${endDate}`,
+    type: '반납',
+    dueDate: endDate,
+    status: '예정',
+    note: '차량 반납 — 외관/주행거리/연료/손상 점검 후 보증금 정산',
+  });
+
+  // 검사 — 자산 inspectionTo 가 계약 기간 안이면 알림
+  if (opts?.inspectionTo && inRange(opts.inspectionTo)) {
+    events.push({
+      id: `i-${opts.inspectionTo}`,
+      type: '검사',
+      dueDate: opts.inspectionTo,
+      status: '예정',
+      note: '자동차 정기검사 만기 — 검사소 입고 필요',
+    });
+  }
+
+  // 보험 만기 — 매칭 보험의 endDate 가 계약 기간 안이면 알림
+  if (opts?.insuranceEnd && inRange(opts.insuranceEnd)) {
+    events.push({
+      id: `ins-${opts.insuranceEnd}`,
+      type: '보험',
+      dueDate: opts.insuranceEnd,
+      status: '예정',
+      note: '보험 만기 — 갱신 견적 + 새 증권 등록',
+    });
+  }
+
+  // 자동차세 — 매년 6월 30일·12월 31일 정기 납부일이 계약 기간 안인 것
+  for (let year = start.getFullYear(); year <= end.getFullYear(); year++) {
+    for (const [month, day, half] of [[6, 30, '1기'], [12, 31, '2기']] as const) {
+      const tax = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (inRange(tax)) {
+        events.push({
+          id: `tax-${tax}`,
+          type: '기타',
+          dueDate: tax,
+          status: '예정',
+          note: `자동차세 ${half} (${year}년)`,
+        });
+      }
+    }
+  }
+
+  // 시간순 정렬
+  events.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   return events;
 }
 
