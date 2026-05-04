@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, Pencil, FileXls, Plus, X, CircleNotch, Warning, CheckCircle } from '@phosphor-icons/react';
+import { Upload, Pencil, FileXls, Plus, X, CircleNotch, Warning, CheckCircle, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { fileToImageDataUrl } from '@/lib/pdf-to-image';
@@ -228,6 +228,16 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         {error && <div className="alert alert-warn" style={{ marginTop: 8 }}><Warning size={14} /> <span>{error}</span></div>}
 
         <DialogFooter>
+          {!isEdit && (
+            <button
+              className="btn"
+              style={{ marginRight: 'auto' }}
+              disabled={busy}
+              onClick={reset}
+            >
+              <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+            </button>
+          )}
           <DialogClose asChild><button className="btn">취소</button></DialogClose>
           <button className="btn btn-primary" disabled={busy} onClick={submit}>
             {isEdit ? '수정' : '등록'}

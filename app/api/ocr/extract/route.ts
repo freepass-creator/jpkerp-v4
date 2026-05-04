@@ -565,8 +565,10 @@ export async function POST(req: NextRequest) {
               }],
               config: {
                 temperature: 0,
-                ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-                maxOutputTokens: 64,
+                // 3차 fallback 은 thinking 활성화 — 메인 schema-mode 가 못 잡은 어려운 케이스라
+                // Gemini 가 직접 추론하게 두는 게 신뢰성↑. 출력은 plate 만이라 비용 영향 작음.
+                ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 1024 } } : {}),
+                maxOutputTokens: 2048,
               },
             });
             const raw = normalize(r.text ?? '');

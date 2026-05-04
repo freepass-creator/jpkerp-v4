@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning } from '@phosphor-icons/react';
+import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
@@ -317,6 +317,14 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
             </div>
 
             <DialogFooter>
+              <button
+                className="btn"
+                style={{ marginRight: 'auto' }}
+                disabled={ocr.items.length === 0 || ocr.busy}
+                onClick={ocr.reset}
+              >
+                <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+              </button>
               <DialogClose asChild><button className="btn">취소</button></DialogClose>
               <button className="btn btn-primary" disabled={ocrOk.length === 0 || ocr.busy} onClick={commitOcr}>
                 {ocrOk.length > 0 ? `${ocrOk.length}건 등록` : '등록'}

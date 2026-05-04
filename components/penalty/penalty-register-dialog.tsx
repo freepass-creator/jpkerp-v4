@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, CircleNotch, CheckCircle, Warning, Plus } from '@phosphor-icons/react';
+import { X, CircleNotch, CheckCircle, Warning, Plus, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -170,6 +170,14 @@ export function PenaltyRegisterDialog({ onCreate, open: openProp, onOpenChange, 
         </div>
 
         <DialogFooter>
+          <button
+            className="btn"
+            style={{ marginRight: 'auto' }}
+            disabled={ocr.items.length === 0 || ocr.busy}
+            onClick={ocr.reset}
+          >
+            <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+          </button>
           <DialogClose asChild>
             <button className="btn">취소</button>
           </DialogClose>

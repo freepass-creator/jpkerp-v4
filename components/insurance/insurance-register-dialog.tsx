@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, X, CircleNotch, CheckCircle, Warning, Plus } from '@phosphor-icons/react';
+import { Upload, X, CircleNotch, CheckCircle, Warning, Plus, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
@@ -349,6 +349,14 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
         </div>
 
         <DialogFooter>
+          <button
+            className="btn"
+            style={{ marginRight: 'auto' }}
+            disabled={items.length === 0 || busy}
+            onClick={reset}
+          >
+            <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+          </button>
           <DialogClose asChild>
             <button className="btn">취소</button>
           </DialogClose>
