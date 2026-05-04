@@ -47,11 +47,11 @@ export default function IdlePage() {
           <table className="table">
             <thead>
               <tr>
-                <th>구분</th>
+                <th>상태</th>
                 <th>회사</th>
                 <th>차량번호</th>
                 <th>차명</th>
-                <th>현재 상태</th>
+                <th>비고</th>
               </tr>
             </thead>
             <tbody>

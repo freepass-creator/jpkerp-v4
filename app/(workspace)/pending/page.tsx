@@ -49,10 +49,13 @@ export default function PendingPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>구분</th>
+                <th>상태</th>
                 <th>회사</th>
-                <th>차량</th>
-                <th>대상</th>
+                <th>차량번호</th>
+                <th>차명/차종</th>
+                <th>임차인</th>
+                <th>연락처</th>
+                <th className="num">회차</th>
                 <th className="date">기한</th>
                 <th className="num">D-day</th>
                 <th className="num">금액</th>
@@ -63,8 +66,11 @@ export default function PendingPage() {
                 <tr key={p.id}>
                   <td><KindBadge kind={p.kind} /></td>
                   <td className="plate">{p.companyCode}</td>
-                  <td className="plate">{p.plate}</td>
-                  <td className="dim truncate" style={{ maxWidth: 280 }} title={p.target}>{p.target}</td>
+                  <td className="plate text-medium">{p.plate}</td>
+                  <td className="dim truncate" style={{ maxWidth: 220 }} title={p.vehicleName}>{p.vehicleName || '-'}</td>
+                  <td>{p.customerName || <span className="text-weak">-</span>}</td>
+                  <td className="mono dim">{p.customerPhone || '-'}</td>
+                  <td className="num">{p.cycle ? `${p.cycle}회` : '-'}</td>
                   <td className="date">{p.dueDate}</td>
                   <td className={cn('num', p.daysLeft < 0 && 'text-red', p.daysLeft >= 0 && p.daysLeft <= 7 && 'text-amber')}>
                     {p.daysLeft < 0 ? `${-p.daysLeft}일 경과` : p.daysLeft === 0 ? '오늘' : `D-${p.daysLeft}`}

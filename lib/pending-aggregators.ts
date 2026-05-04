@@ -27,7 +27,14 @@ export type PendingItem = {
   kind: PendingKind;
   companyCode: string;
   plate: string;
-  target: string;             // 임차인명 또는 차량명 등 식별
+  /** 차명/차종 (자산 매칭 시 채움) */
+  vehicleName: string;
+  /** 임차인명 (계약 매칭 시 채움) */
+  customerName: string;
+  /** 임차인 연락처 (계약 매칭 시 채움) */
+  customerPhone: string;
+  /** 회차 (수납 회차 등) — 있으면 표시 */
+  cycle?: number;
   dueDate: string;
   amount?: number;
   /** 0 미만 = 경과(빨강), 0~30 = 임박(주황), 그 외 표시 안 함 */
@@ -44,17 +51,25 @@ export function collectPending(
   const horizon = today + PENDING_HORIZON_DAYS * DAY_MS;
   const items: PendingItem[] = [];
 
+  // plate → asset 빠른 lookup
+  const assetByPlate = new Map<string, Asset>();
+  for (const a of assets) assetByPlate.set(a.plate, a);
+
   // 1) 자산 검사 만기 임박
   for (const a of assets) {
     if (!a.inspectionTo || a.status === '매각') continue;
     const t = Date.parse(a.inspectionTo);
     if (!Number.isFinite(t) || t > horizon) continue;
+    // 해당 차량의 운행중 계약 (있으면 임차인 정보 같이 표시)
+    const contract = contracts.find((c) => c.plate === a.plate && c.status === '운행중');
     items.push({
       id: `insp-${a.id}`,
       kind: '검사만기',
       companyCode: a.companyCode,
       plate: a.plate,
-      target: a.vehicleName || a.vehicleClass || '',
+      vehicleName: a.vehicleName || a.vehicleClass || '',
+      customerName: contract?.customerName ?? '',
+      customerPhone: contract?.customerPhone ?? '',
       dueDate: a.inspectionTo,
       daysLeft: daysBetween(a.inspectionTo, today),
     });
@@ -63,6 +78,8 @@ export function collectPending(
   // 2) 계약 출고 미완 + 미수납 (만기 도래)
   for (const c of contracts) {
     if (c.status === '만기' || c.status === '해지') continue;
+    const asset = assetByPlate.get(c.plate);
+    const vehicleName = asset?.vehicleName || asset?.vehicleClass || '';
     for (const e of c.events) {
       if (e.status !== '예정') continue;
       const t = Date.parse(e.dueDate);
@@ -74,8 +91,11 @@ export function collectPending(
           kind: '출고미완',
           companyCode: c.companyCode,
           plate: c.plate,
-          target: c.customerName,
+          vehicleName,
+          customerName: c.customerName,
+          customerPhone: c.customerPhone,
           dueDate: e.dueDate,
+          amount: c.monthlyAmount,
           daysLeft: daysBetween(e.dueDate, today),
         });
       }
@@ -85,7 +105,10 @@ export function collectPending(
           kind: '미수납',
           companyCode: c.companyCode,
           plate: c.plate,
-          target: `${c.customerName}${e.cycle ? ` ${e.cycle}회차` : ''}`,
+          vehicleName,
+          customerName: c.customerName,
+          customerPhone: c.customerPhone,
+          cycle: e.cycle,
           dueDate: e.dueDate,
           amount: e.amount,
           daysLeft: daysBetween(e.dueDate, today),
