@@ -13,6 +13,8 @@ import { useAuth } from './use-auth';
  */
 
 export type UserProfile = {
+  /* 회사 — 명함 상단 */
+  companyName: string;     // 소속 회사명 (사이드바·명함에 표시)
   /* 기본 정보 */
   displayName: string;     // 이름
   role: string;            // 직급/역할
@@ -28,6 +30,7 @@ export type UserProfile = {
 };
 
 const EMPTY: UserProfile = {
+  companyName: '',
   displayName: '', role: '', department: '',
   email: '', phone: '', officePhone: '', fax: '',
   workplace: '', workplaceAddress: '',
@@ -38,6 +41,7 @@ function asProfile(val: unknown, fallbackEmail: string): UserProfile {
   if (val && typeof val === 'object') {
     const v = val as Partial<UserProfile>;
     return {
+      companyName:      s(v.companyName),
       displayName:      s(v.displayName),
       role:             s(v.role),
       department:       s(v.department),

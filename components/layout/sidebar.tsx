@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Fragment } from 'react';
 import { Gear, Code } from '@phosphor-icons/react';
 import { MENU, type MenuItem } from '@/lib/menu';
+import { useUserProfile } from '@/lib/use-user-profile';
 import { cn } from '@/lib/cn';
 
 function isActive(pathname: string, href: string): boolean {
@@ -14,12 +15,15 @@ function isActive(pathname: string, href: string): boolean {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { profile } = useUserProfile();
 
   return (
     <aside className="sidebar">
       <div className="sb-brand">
-        {/* 로그인한 사용자의 회사명 — 추후 auth context에서 주입 */}
-        <div className="sb-company-name">스위치플랜(주)</div>
+        {/* 사용자 프로필의 companyName — 미설정 시 비어있음 (설정 → 계정 → 회사명 입력) */}
+        <div className="sb-company-name" title={profile.companyName || '설정 → 계정 설정에서 회사명 입력'}>
+          {profile.companyName || <span className="text-weak">회사명 미설정</span>}
+        </div>
       </div>
 
       <nav className="sb-nav">
