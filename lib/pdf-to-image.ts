@@ -55,15 +55,36 @@ export async function fileToImageDataUrl(file: File): Promise<string> {
 /**
  * PDF 첫 페이지를 JPEG File 로 변환. OCR 보내기 전 전처리에 사용.
  * Gemini Vision 이 multi-page PDF 에서 page 1 을 안 보거나 페이지 간 혼선을 일으키는
- * non-deterministic 실패를 회피. PDF 가 아니면 원본 그대로 반환.
+ * non-deterministic 실패를 회피.
+ *
+ * 최적화:
+ *  - PDF 가 아니면 원본 그대로
+ *  - 1-page PDF 면 변환 스킵 (multi-page 가 아니면 page ambiguity 없음)
+ *  - 2-page+ 만 JPEG 렌더링 (~1-2초 비용)
  */
 export async function pdfFirstPageToJpegFile(file: File, scale = 2.5): Promise<File> {
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   if (!isPdf) return file;
-  const dataUrl = await pdfFirstPageToImageDataUrl(file, scale);
-  // dataURL → Blob → File
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const baseName = file.name.replace(/\.pdf$/i, '');
-  return new File([blob], `${baseName}_p1.jpg`, { type: 'image/jpeg' });
+  // 페이지 수 먼저 체크 — 1장이면 변환 불필요 (Gemini 가 안정적으로 잡음)
+  const pdfjs = await ensurePdfjs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+  try {
+    if (pdf.numPages <= 1) return file;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2d context 획득 실패');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const baseName = file.name.replace(/\.pdf$/i, '');
+    return new File([blob], `${baseName}_p1.jpg`, { type: 'image/jpeg' });
+  } finally {
+    pdf.destroy?.();
+  }
 }
