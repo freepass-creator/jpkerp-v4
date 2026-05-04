@@ -109,9 +109,21 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
   const okItems = ocr.items.filter((i) => i._status === 'done' && !i._duplicate);
   const matchedCount = okItems.filter((i) => i.data.companyCode).length;
   const duplicateCount = ocr.items.filter((i) => i._duplicate).length;
+  const noPlateCount = okItems.filter((i) => !i.data.plate).length;
+  const noCompanyCount = okItems.filter((i) => !i.data.companyCode).length;
 
   function commitAll() {
     if (okItems.length === 0) return;
+    // 차량번호 / 회사 누락 경고 — OCR 실패한 항목들 등록 전에 한번 더 확인
+    const warnings: string[] = [];
+    if (noPlateCount > 0) warnings.push(`차량번호 누락: ${noPlateCount}건`);
+    if (noCompanyCount > 0) warnings.push(`회사 미매칭: ${noCompanyCount}건`);
+    if (warnings.length > 0) {
+      const ok = confirm(
+        `⚠ OCR 누락 항목이 있습니다:\n  · ${warnings.join('\n  · ')}\n\n그래도 등록할까요?\n(등록 후 [수정] 또는 정합성 페이지에서 정정 가능)`,
+      );
+      if (!ok) return;
+    }
     okItems.forEach((i) => onCreate(i.data));
     setOpen(false);
     setTimeout(ocr.reset, 100);
@@ -209,6 +221,8 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                 <div className="text-weak text-xs">
                   총 {ocr.items.length}건 · 등록 가능 <strong>{okItems.length}</strong> · 회사 매칭 <strong>{matchedCount}</strong>
                   {duplicateCount > 0 && <> · <span className="text-red">중복 {duplicateCount}건 제외</span></>}
+                  {noPlateCount > 0 && <> · <span className="text-red">차량번호 누락 {noPlateCount}건</span></>}
+                  {noCompanyCount > 0 && noPlateCount === 0 && <> · <span className="text-amber">회사 미매칭 {noCompanyCount}건</span></>}
                 </div>
               )}
             </div>
@@ -238,7 +252,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
   );
 }
 
-/** 자산 OCR 행 상태 — 분석중 / 오류 / 중복 / 미매칭 / 신규. */
+/** 자산 OCR 행 상태 — 분석중 / 오류 / 중복 / 차량번호없음 / 미매칭 / 신규. */
 function AssetItemStatus({ item }: { item: AssetWorkItem }) {
   if (item._status === 'pending') {
     return <StatusBadge tone="neutral" icon={<CircleNotch size={11} className="spin" />}>분석중</StatusBadge>;
@@ -253,6 +267,9 @@ function AssetItemStatus({ item }: { item: AssetWorkItem }) {
         중복
       </StatusBadge>
     );
+  }
+  if (!item.data.plate) {
+    return <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />} title="OCR이 차량번호를 못 읽음 — 등록 후 [수정]에서 직접 입력">차량번호 없음</StatusBadge>;
   }
   if (!item.data.companyCode) {
     return <StatusBadge tone="orange" icon={<Warning size={11} weight="fill" />} title="등록된 회사와 매칭 실패">미매칭</StatusBadge>;

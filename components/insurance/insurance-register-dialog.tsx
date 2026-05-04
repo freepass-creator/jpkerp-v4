@@ -169,6 +169,18 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
   function commitAll() {
     const ok = items.filter((i) => i._status === 'done');
     if (ok.length === 0) return;
+    // OCR 누락 경고 — 차량번호 / 회사 매칭 안 된 행 사전 확인
+    const noPlate = ok.filter((i) => !i.carNumber).length;
+    const noCompany = ok.filter((i) => !i.companyCode).length;
+    const warnings: string[] = [];
+    if (noPlate > 0) warnings.push(`차량번호 누락: ${noPlate}건`);
+    if (noCompany > 0) warnings.push(`회사 미매칭: ${noCompany}건`);
+    if (warnings.length > 0) {
+      const proceed = confirm(
+        `⚠ OCR 누락 항목이 있습니다:\n  · ${warnings.join('\n  · ')}\n\n그래도 등록할까요?\n(등록 후 [수정] 또는 정합성 페이지에서 정정 가능)`,
+      );
+      if (!proceed) return;
+    }
     onCreate(ok.map(({ _status: _s, _error: _e, _matched: _m, ...rest }) => rest));
     setOpen(false);
     setTimeout(reset, 100);
