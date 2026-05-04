@@ -522,18 +522,25 @@ export async function POST(req: NextRequest) {
     const normalize = (s: unknown): string => String(s ?? '')
       .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
 
+    const plateDebug: {
+      stage: 0 | 1 | 2 | 3;
+      original: unknown;
+      stage3_raw?: string;
+      stage3_error?: string;
+    } = { stage: 0, original: parsed.car_number };
+
     if (docType === 'vehicle_reg' || docType === 'penalty' || docType === 'insurance_policy' || docType === 'rental_contract') {
       // 1차: car_number 필드 매칭
       let extracted: string | null = null;
       if (parsed.car_number) {
         const m = normalize(parsed.car_number).match(PLATE_RE);
-        if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
+        if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 1; }
       }
       // 2차 fallback: 전체 응답에서 plate 패턴 찾기 (Gemini 누락 대비)
       if (!extracted) {
         const blob = normalize(JSON.stringify(parsed));
         const m = blob.match(PLATE_RE);
-        if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
+        if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 2; }
       }
       // 3차 fallback (vehicle_reg 한정): 별도 plate-only Gemini 호출
       // Tesla 등 일부 외산차 등록증에서 schema-mode 추출이 실패하는 사례 대응.
@@ -552,14 +559,15 @@ export async function POST(req: NextRequest) {
             config: {
               temperature: 0,
               ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-              maxOutputTokens: 32,
+              maxOutputTokens: 64,
             },
           });
           const raw = normalize(platesOnly.text ?? '');
+          plateDebug.stage3_raw = raw;
           const m = raw.match(PLATE_RE);
-          if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
-        } catch {
-          // 3차 실패는 silently 무시 — 1·2차 결과(null)로 진행
+          if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 3; }
+        } catch (err) {
+          plateDebug.stage3_error = (err as Error).message;
         }
       }
       parsed.car_number = extracted;
@@ -576,6 +584,7 @@ export async function POST(req: NextRequest) {
       doc_label: spec.label,
       extracted: parsed,
       model: MODEL,
+      _debug: { plate: plateDebug },
       usage: {
         input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
         output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
