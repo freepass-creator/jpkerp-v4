@@ -164,7 +164,8 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
       });
     } finally {
       setBusy(false);
-      setProgress(null);
+      // useOcrBatch 와 동일 — "N/N 완료" 표시 1.5초 유지 (진행감 확보)
+      setTimeout(() => setProgress(null), 1500);
     }
   }
 

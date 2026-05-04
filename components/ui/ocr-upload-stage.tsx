@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, CircleNotch } from '@phosphor-icons/react';
+import { Upload, CircleNotch, CheckCircle } from '@phosphor-icons/react';
 
 /**
  * 도메인 무관 OCR 업로드 드롭존 — 클릭 또는 드래그&드롭, 진행 카운터 표시.
@@ -72,11 +72,19 @@ export function OcrUploadStage({
         }}
       />
       {progress ? (
-        <>
-          <CircleNotch size={26} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
-          <div className="mt-2 text-medium">OCR 진행 중... <strong>{progress.done}</strong> / {progress.total}</div>
-          <div className="mt-1 text-weak">{progressSubtitle}</div>
-        </>
+        progress.done >= progress.total && progress.total > 0 ? (
+          <>
+            <CheckCircle size={26} className="mx-auto" style={{ color: 'var(--alert-green-text)' }} />
+            <div className="mt-2 text-medium">완료 <strong>{progress.done}</strong> / {progress.total}</div>
+            <div className="mt-1 text-weak">분석 결과 확인 후 등록하세요</div>
+          </>
+        ) : (
+          <>
+            <CircleNotch size={26} className="mx-auto spin" style={{ color: 'var(--brand)' }} />
+            <div className="mt-2 text-medium">OCR 진행 중... <strong>{progress.done}</strong> / {progress.total}</div>
+            <div className="mt-1 text-weak">{progressSubtitle}</div>
+          </>
+        )
       ) : dragging ? (
         <>
           <Upload size={26} className="mx-auto" style={{ color: 'var(--brand)' }} />

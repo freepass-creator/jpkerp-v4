@@ -112,7 +112,11 @@ export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
       });
     } finally {
       setBusy(false);
-      setProgress(null);
+      // batch 끝난 후 "N/N 완료" 표시를 잠깐 유지 — 진행감 확보 (1.5s).
+      // 단일 파일이거나 이미 변환된 케이스는 OCR 이 빨라서 progress 가 깜빡 사라지면
+      // 사용자가 "작업이 됐는지" 인지하기 어려움. 다음 업로드 시작 시 즉시 갱신되니
+      // 이 타이머는 '여운' 용도.
+      setTimeout(() => setProgress(null), 1500);
     }
   }
 
