@@ -31,6 +31,8 @@ type Props = {
   pickMode?: boolean;
   /** pickMode 일 때 hit → 입력칸에 보일 텍스트 */
   hitToText?: (hit: SearchHit) => string;
+  /** 마운트 시 자동 focus (모달 등 호출 즉시 입력 가능하게) */
+  autoFocus?: boolean;
 };
 
 export function UnifiedSearch({
@@ -42,6 +44,7 @@ export function UnifiedSearch({
   className,
   pickMode = false,
   hitToText,
+  autoFocus = false,
 }: Props) {
   const [internal, setInternal] = useState('');
   const value = controlled ?? internal;
@@ -68,6 +71,11 @@ export function UnifiedSearch({
 
   // value 바뀌면 active 리셋
   useEffect(() => { setActive(0); }, [value]);
+
+  // autoFocus — 마운트 시 input 에 커서. 모달 호출 직후 즉시 입력 가능하게.
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   const handleSelect = useCallback((hit: SearchHit) => {
     if (pickMode && hitToText) {
@@ -229,6 +237,7 @@ export function UnifiedSearchModal() {
         <UnifiedSearch
           width="100%"
           placeholder="차량번호 / 고객명 / 계약번호 (초성 ㅎㄱㄷ 가능)"
+          autoFocus
           onSelect={(hit) => { setOpen(false); defaultNavigate(hit); }}
         />
         <div className="text-weak text-xs" style={{ marginTop: 6 }}>
