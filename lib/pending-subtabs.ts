@@ -5,7 +5,10 @@ import type { SubTab } from '@/components/layout/page-shell';
 import { useAssetStore } from './use-asset-store';
 import { useContractStore } from './use-contract-store';
 import { useJournalStore } from './use-journal-store';
+import { useCompanyStore } from './use-company-store';
+import { useLedgerStore } from './use-ledger-store';
 import { collectOverdue, collectIdle } from './pending-aggregators';
+import { collectIntegrity } from './integrity-checks';
 
 export const PENDING_SUBTABS: SubTab[] = [
   { href: '/pending',             label: '미결업무' },
@@ -16,6 +19,7 @@ export const PENDING_SUBTABS: SubTab[] = [
   { href: '/pending/loan',        label: '할부' },
   { href: '/pending/tax',         label: '세금' },
   { href: '/pending/return',      label: '반납' },
+  { href: '/pending/integrity',   label: '정합성' },
   { href: '/pending/journal',     label: '업무일지' },
 ];
 
@@ -29,6 +33,8 @@ export function usePendingSubtabPending(): Record<string, number> {
   const [assets] = useAssetStore();
   const [contracts] = useContractStore();
   const [entries] = useJournalStore();
+  const [companies] = useCompanyStore();
+  const [ledger] = useLedgerStore();
   return useMemo(() => {
     const today = Date.now();
     const horizon = today + 30 * 24 * 60 * 60 * 1000;
@@ -56,7 +62,8 @@ export function usePendingSubtabPending(): Record<string, number> {
       '/pending/idle':       collectIdle(assets, contracts).length,
       '/pending/inspection': inspection,
       '/pending/return':     returnSoon,
+      '/pending/integrity':  collectIntegrity(assets, contracts, companies, ledger).length,
       // 보험/할부/세금 — 별도 store 추가 시 카운트 (현재 0)
     };
-  }, [assets, contracts, entries]);
+  }, [assets, contracts, entries, companies, ledger]);
 }
