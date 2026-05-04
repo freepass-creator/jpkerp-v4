@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pause } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { ListFilterbar, applyListFilter } from '@/components/ui/list-filterbar';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -14,7 +15,16 @@ export default function IdlePage() {
   const [assets] = useAssetStore();
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
-  const rows = useMemo(() => collectIdle(assets, contracts), [assets, contracts]);
+  const allRows = useMemo(() => collectIdle(assets, contracts), [assets, contracts]);
+  const [company, setCompany] = useState('');
+  const [search, setSearch] = useState('');
+  const rows = useMemo(
+    () => applyListFilter(allRows, { company, search },
+      (r) => r.companyCode,
+      (r) => `${r.plate} ${r.vehicleName} ${r.reason}`,
+    ),
+    [allRows, company, search],
+  );
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -26,6 +36,13 @@ export default function IdlePage() {
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
+      filterbar={
+        <ListFilterbar
+          company={company} onCompanyChange={setCompany}
+          search={search}   onSearchChange={setSearch}
+          searchPlaceholder="차량번호 / 차명 / 사유 검색"
+        />
+      }
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{rows.length}</strong></span>

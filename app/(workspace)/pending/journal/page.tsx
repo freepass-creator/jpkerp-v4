@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Notebook } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { ListFilterbar, applyListFilter } from '@/components/ui/list-filterbar';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL } from '@/lib/sample-journal';
@@ -11,16 +12,30 @@ import { KIND_LABEL } from '@/lib/sample-journal';
 export default function PendingJournalPage() {
   const [entries] = useJournalStore();
   const subTabPending = usePendingSubtabPending();
-  const sorted = useMemo(
-    () => [...entries].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
-    [entries],
-  );
+  const [company, setCompany] = useState('');
+  const [search, setSearch] = useState('');
+  const sorted = useMemo(() => {
+    const filtered = applyListFilter(
+      entries,
+      { company, search },
+      (r) => r.companyCode,
+      (r) => `${r.data?.plate ?? ''} ${r.staff ?? ''} ${KIND_LABEL[r.kind] ?? ''} ${Object.values(r.data ?? {}).join(' ')}`,
+    );
+    return [...filtered].sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  }, [entries, company, search]);
 
   return (
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
-      footerLeft={<span className="stat-item">기록 <strong>{entries.length}</strong></span>}
+      filterbar={
+        <ListFilterbar
+          company={company} onCompanyChange={setCompany}
+          search={search}   onSearchChange={setSearch}
+          searchPlaceholder="차량 / 담당 / 분류 / 메모 검색"
+        />
+      }
+      footerLeft={<span className="stat-item">기록 <strong>{sorted.length}</strong>{sorted.length !== entries.length && <span className="text-weak"> / {entries.length}</span>}</span>}
     >
       {sorted.length === 0 ? (
         <div className="page-section-center">

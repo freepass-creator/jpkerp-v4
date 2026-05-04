@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Hourglass } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { ListFilterbar, applyListFilter } from '@/components/ui/list-filterbar';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -22,19 +23,50 @@ export default function PendingPage() {
   const [assets] = useAssetStore();
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
-  const items = useMemo(() => collectPending(assets, contracts), [assets, contracts]);
+  const allItems = useMemo(() => collectPending(assets, contracts), [assets, contracts]);
+  const [company, setCompany] = useState('');
+  const [search, setSearch] = useState('');
+  const [kind, setKind] = useState('');
 
-  // 종류별 카운트
+  const items = useMemo(() => {
+    const base = applyListFilter(
+      allItems,
+      { company, search },
+      (r) => r.companyCode,
+      (r) => `${r.plate} ${r.customerName} ${r.vehicleName} ${r.location}`,
+    );
+    return kind ? base.filter((r) => r.kind === kind) : base;
+  }, [allItems, company, search, kind]);
+
+  // 종류별 카운트 (필터 전 — 칩 카운트 일관성)
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const i of items) c[i.kind] = (c[i.kind] ?? 0) + 1;
+    for (const i of allItems) c[i.kind] = (c[i.kind] ?? 0) + 1;
     return c;
-  }, [items]);
+  }, [allItems]);
 
   return (
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
+      filterbar={
+        <ListFilterbar
+          company={company} onCompanyChange={setCompany}
+          search={search}   onSearchChange={setSearch}
+          searchPlaceholder="차량번호 / 차명 / 임차인 / 위치 검색"
+          extra={
+            <select className="input" value={kind} onChange={(e) => setKind(e.target.value)} style={{ width: 110 }}>
+              <option value="">전체 업무</option>
+              <option value="검사">검사</option>
+              <option value="출고">출고</option>
+              <option value="정비">정비</option>
+              <option value="보험">보험</option>
+              <option value="반납">반납</option>
+              <option value="기타">기타</option>
+            </select>
+          }
+        />
+      }
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{items.length}</strong></span>

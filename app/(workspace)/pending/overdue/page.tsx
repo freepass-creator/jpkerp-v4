@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CurrencyKrw } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { ListFilterbar, applyListFilter } from '@/components/ui/list-filterbar';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
 import { collectOverdue } from '@/lib/pending-aggregators';
@@ -11,7 +12,16 @@ import { collectOverdue } from '@/lib/pending-aggregators';
 export default function OverduePage() {
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
-  const rows = useMemo(() => collectOverdue(contracts), [contracts]);
+  const allRows = useMemo(() => collectOverdue(contracts), [contracts]);
+  const [company, setCompany] = useState('');
+  const [search, setSearch] = useState('');
+  const rows = useMemo(
+    () => applyListFilter(allRows, { company, search },
+      (r) => r.companyCode,
+      (r) => `${r.plate} ${r.customerName} ${r.contractNo} ${r.customerPhone}`,
+    ),
+    [allRows, company, search],
+  );
   const totalAmount = useMemo(() => rows.reduce((s, r) => s + r.totalAmount, 0), [rows]);
   const totalCycles = useMemo(() => rows.reduce((s, r) => s + r.unpaidCycles, 0), [rows]);
 
@@ -19,6 +29,13 @@ export default function OverduePage() {
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
+      filterbar={
+        <ListFilterbar
+          company={company} onCompanyChange={setCompany}
+          search={search}   onSearchChange={setSearch}
+          searchPlaceholder="차량번호 / 임차인 / 계약번호 / 연락처 검색"
+        />
+      }
       footerLeft={
         <>
           <span className="stat-item">미납 계약 <strong>{rows.length}</strong></span>
