@@ -19,7 +19,9 @@ const PLATE_COL_WIDTH = 96;
 const MAX_CYCLES = 6;  // 표준 자동차보험 6회 분납
 
 export default function AssetInsurancePage() {
-  const [policies, setPolicies] = useInsuranceStore();
+  const [allPolicies, setPolicies] = useInsuranceStore();
+  // active 만 — 소프트 삭제는 목록·집계에서 제외 (증권번호 등 영구 보존)
+  const policies = useMemo(() => allPolicies.filter((p) => !p.deletedAt), [allPolicies]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const subTabPending = useAssetSubtabPending();
 
@@ -28,13 +30,15 @@ export default function AssetInsurancePage() {
   }
 
   function removeOne(id: string) {
-    setPolicies((p) => p.filter((i) => i.id !== id));
+    const now = new Date().toISOString();
+    setPolicies((p) => p.map((i) => i.id === id ? { ...i, deletedAt: now } : i));
     if (selectedId === id) setSelectedId(null);
   }
 
   function clearAll() {
-    if (!confirm(`전체 ${policies.length}건 보험증권을 비울까요?`)) return;
-    setPolicies([]);
+    if (!confirm(`전체 ${policies.length}건 보험증권을 삭제할까요? (증권번호 영구 보존 — 재발급 안 됨)`)) return;
+    const now = new Date().toISOString();
+    setPolicies((p) => p.map((i) => i.deletedAt ? i : { ...i, deletedAt: now }));
     setSelectedId(null);
   }
 

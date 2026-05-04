@@ -55,6 +55,8 @@ export type JournalEntry = {
   at: string;          // YYYY-MM-DD HH:mm
   staff: string;
   data: Record<string, string>;
+  /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
+  deletedAt?: string;  // ISO 시각. 미설정이면 active.
 };
 
 export const SAMPLE_JOURNAL: JournalEntry[] = [];

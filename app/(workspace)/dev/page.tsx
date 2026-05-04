@@ -351,8 +351,11 @@ function CompaniesTable({ companies, setCompanies }: {
   setCompanies: ReturnType<typeof useCompanyStore>[1];
 }) {
   const removeOne = (code: string, name: string) => {
-    if (!confirm(`회사 "${name}" (${code}) 삭제할까요?`)) return;
-    setCompanies((p) => p.filter((c) => c.code !== code));
+    if (!confirm(`회사 "${name}" (${code}) 삭제할까요? (코드는 영구 보존 — 재발급 안 됨)`)) return;
+    setCompanies((p) => p.map((c) => c.code === code ? { ...c, deletedAt: new Date().toISOString() } : c));
+  };
+  const restoreOne = (code: string) => {
+    setCompanies((p) => p.map((c) => c.code === code ? { ...c, deletedAt: undefined } : c));
   };
   return (
     <table className="table">
@@ -371,17 +374,23 @@ function CompaniesTable({ companies, setCompanies }: {
         {companies.length === 0 ? (
           <tr><td colSpan={7} className="empty-row">등록된 회사 없음</td></tr>
         ) : companies.map((c, i) => (
-          <tr key={c.code || `__${i}__`}>
-            <td className="plate text-medium">{c.code}</td>
+          <tr key={c.code || `__${i}__`} style={c.deletedAt ? { opacity: 0.5 } : undefined}>
+            <td className="plate text-medium">{c.code}{c.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
             <td>{c.name}</td>
             <td>{c.ceo || '-'}</td>
             <td className="mono">{c.bizNo}</td>
             <td className="num">{c.accounts?.length ?? 0}</td>
             <td className="num">{c.cards?.length ?? 0}</td>
             <td className="center">
-              <button className="btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
-                <Trash size={12} weight="bold" /> 삭제
-              </button>
+              {c.deletedAt ? (
+                <button className="btn btn-sm" onClick={() => restoreOne(c.code)} title="복원">
+                  복원
+                </button>
+              ) : (
+                <button className="btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
+                  <Trash size={12} weight="bold" /> 삭제
+                </button>
+              )}
             </td>
           </tr>
         ))}
@@ -396,8 +405,11 @@ function AssetsTable({ assets, setAssets }: {
   setAssets: ReturnType<typeof useAssetStore>[1];
 }) {
   const removeOne = (id: string, plate: string) => {
-    if (!confirm(`자산 "${plate || id}" 삭제할까요?`)) return;
-    setAssets((p) => p.filter((a) => a.id !== id));
+    if (!confirm(`자산 "${plate || id}" 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
+    setAssets((p) => p.map((a) => a.id === id ? { ...a, deletedAt: new Date().toISOString() } : a));
+  };
+  const restoreOne = (id: string) => {
+    setAssets((p) => p.map((a) => a.id === id ? { ...a, deletedAt: undefined } : a));
   };
   return (
     <table className="table">
@@ -418,9 +430,9 @@ function AssetsTable({ assets, setAssets }: {
         {assets.length === 0 ? (
           <tr><td colSpan={9} className="empty-row">등록된 자산 없음</td></tr>
         ) : assets.map((a) => (
-          <tr key={a.id}>
+          <tr key={a.id} style={a.deletedAt ? { opacity: 0.5 } : undefined}>
             <td className="plate">{a.companyCode}</td>
-            <td className="plate text-medium">{a.plate || '-'}</td>
+            <td className="plate text-medium">{a.plate || '-'}{a.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
             <td>{a.vehicleName || '-'}</td>
             <td className="mono dim">{a.vin || '-'}</td>
             <td className="dim">{a.modelType || '-'}</td>
@@ -428,9 +440,15 @@ function AssetsTable({ assets, setAssets }: {
             <td>{a.status}</td>
             <td className="mono dim">{a.id}</td>
             <td className="center">
-              <button className="btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
-                <Trash size={12} weight="bold" /> 삭제
-              </button>
+              {a.deletedAt ? (
+                <button className="btn btn-sm" onClick={() => restoreOne(a.id)} title="복원">
+                  복원
+                </button>
+              ) : (
+                <button className="btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
+                  <Trash size={12} weight="bold" /> 삭제
+                </button>
+              )}
             </td>
           </tr>
         ))}
@@ -445,8 +463,11 @@ function ContractsTable({ contracts, setContracts }: {
   setContracts: ReturnType<typeof useContractStore>[1];
 }) {
   const removeOne = (id: string, contractNo: string) => {
-    if (!confirm(`계약 "${contractNo || id}" 삭제할까요?`)) return;
-    setContracts((p) => p.filter((c) => c.id !== id));
+    if (!confirm(`계약 "${contractNo || id}" 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
+    setContracts((p) => p.map((c) => c.id === id ? { ...c, deletedAt: new Date().toISOString() } : c));
+  };
+  const restoreOne = (id: string) => {
+    setContracts((p) => p.map((c) => c.id === id ? { ...c, deletedAt: undefined } : c));
   };
   return (
     <table className="table">
@@ -467,9 +488,9 @@ function ContractsTable({ contracts, setContracts }: {
         {contracts.length === 0 ? (
           <tr><td colSpan={9} className="empty-row">등록된 계약 없음</td></tr>
         ) : contracts.map((c) => (
-          <tr key={c.id}>
+          <tr key={c.id} style={c.deletedAt ? { opacity: 0.5 } : undefined}>
             <td className="plate">{c.companyCode}</td>
-            <td className="mono text-medium">{c.contractNo}</td>
+            <td className="mono text-medium">{c.contractNo}{c.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
             <td className="plate">{c.plate}</td>
             <td>{c.customerName}</td>
             <td className="date">{c.startDate}</td>
@@ -477,9 +498,15 @@ function ContractsTable({ contracts, setContracts }: {
             <td>{c.status}</td>
             <td className="mono dim">{c.id}</td>
             <td className="center">
-              <button className="btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
-                <Trash size={12} weight="bold" /> 삭제
-              </button>
+              {c.deletedAt ? (
+                <button className="btn btn-sm" onClick={() => restoreOne(c.id)} title="복원">
+                  복원
+                </button>
+              ) : (
+                <button className="btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
+                  <Trash size={12} weight="bold" /> 삭제
+                </button>
+              )}
             </td>
           </tr>
         ))}

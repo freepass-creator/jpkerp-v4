@@ -84,6 +84,9 @@ export type Asset = {
   /* ─── 등록증 원본 (OCR 한 첫 페이지를 이미지 dataUrl 로 보관) ─── */
   documentImageUrl?: string;
   documentFileName?: string;
+
+  /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
+  deletedAt?: string;  // ISO 시각. 미설정이면 active.
 };
 
 /** 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. 샘플 없음. */

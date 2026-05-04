@@ -5,6 +5,7 @@ import { Upload, X, CircleNotch, CheckCircle, Warning, Plus, ArrowCounterClockwi
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { activeCompanies } from '@/lib/sample-companies';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
@@ -306,7 +307,7 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
                               onChange={(e) => updateRowField(p.id, { companyCode: e.target.value })}
                             >
                               <option value="">회사 선택</option>
-                              {companies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                              {activeCompanies(companies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                             </select>
                           )}
                       </td>

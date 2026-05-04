@@ -12,6 +12,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import type { Asset } from '@/lib/sample-assets';
 import type { Contract, CustomerKind } from '@/lib/sample-contracts';
+import { activeCompanies } from '@/lib/sample-companies';
 
 /**
  * 계약 등록 통합 다이얼로그 — 3 모드:
@@ -284,7 +285,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
                                           it.id === p.id ? { ...it, data: { ...it.data, companyCode: e.target.value } } : it,
                                         ))}>
                                   <option value="">선택</option>
-                                  {companies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                  {activeCompanies(companies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                                 </select>
                               ) : <span className="text-weak">…</span>}
                             </td>
@@ -518,7 +519,7 @@ function ManualForm({
         <span className="label label-required">회사코드</span>
         <select className="input w-full" value={draft.companyCode ?? ''} onChange={(e) => set('companyCode', e.target.value)}>
           <option value="">- 선택 -</option>
-          {companies.map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
+          {activeCompanies(companies).map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
         </select>
       </label>
       <label className="block col-span-1">

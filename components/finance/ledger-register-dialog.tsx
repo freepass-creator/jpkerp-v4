@@ -6,7 +6,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseBankExcel, parseBankSheet, type BankImportResult } from '@/lib/bank-import';
 import type { LedgerEntry, LedgerMethod } from '@/lib/sample-finance';
-import type { Company, CompanyAccount } from '@/lib/sample-companies';
+import { activeCompanies, type Company, type CompanyAccount } from '@/lib/sample-companies';
 
 /**
  * 계좌내역 등록 — 자산등록 다이얼로그와 동일 패턴 (Tabs):
@@ -51,9 +51,12 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
     setAccount('');
   }, [companyCode]);
 
+  // 등록 다이얼로그는 active 회사만 노출 (소프트 삭제 회사는 신규 거래 입력 대상 아님)
+  const activeList = useMemo(() => activeCompanies(companies), [companies]);
+
   const selectedCompany = useMemo(
-    () => companies.find((c) => c.code === companyCode) ?? null,
-    [companies, companyCode],
+    () => activeList.find((c) => c.code === companyCode) ?? null,
+    [activeList, companyCode],
   );
 
   const [result, setResult] = useState<BankImportResult | null>(null);
@@ -119,7 +122,7 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
     setResult((prev) => prev ? { ...prev, entries: prev.entries.filter((e) => e.id !== id) } : prev);
   }
 
-  const noCompanies = companies.length === 0;
+  const noCompanies = activeList.length === 0;
   const ctxLocked = !companyCode || !account;
 
   return (
@@ -157,7 +160,7 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
               <ResultPreview result={result} onRemove={removeFromResult} onConfirm={() => commit(result.entries)} onReset={reset} />
             ) : (
               <ExcelStage
-                companies={companies} selectedCompany={selectedCompany}
+                companies={activeList} selectedCompany={selectedCompany}
                 companyCode={companyCode} setCompanyCode={setCompanyCode}
                 account={account} setAccount={setAccount}
                 busy={busy} error={error} onPick={loadFile}
@@ -168,7 +171,7 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
 
           <TabsContent value="manual">
             <ManualForm
-              companies={companies} selectedCompany={selectedCompany}
+              companies={activeList} selectedCompany={selectedCompany}
               companyCode={companyCode} setCompanyCode={setCompanyCode}
               account={account} setAccount={setAccount}
               ctxLocked={ctxLocked}
@@ -181,7 +184,7 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
               <ResultPreview result={result} onRemove={removeFromResult} onConfirm={() => commit(result.entries)} onReset={reset} />
             ) : (
               <SheetStage
-                companies={companies} selectedCompany={selectedCompany}
+                companies={activeList} selectedCompany={selectedCompany}
                 companyCode={companyCode} setCompanyCode={setCompanyCode}
                 account={account} setAccount={setAccount}
                 text={sheetText} setText={setSheetText}

@@ -38,8 +38,11 @@ const CONTRACT_DUPLICATE_FIELDS: FieldDef[] = CONTRACT_EDIT_FIELDS.map((f) =>
 );
 
 export default function ContractListPage() {
-  const [contracts, setContracts] = useContractStore();
-  const [assets, setAssets] = useAssetStore();
+  const [allContracts, setContracts] = useContractStore();
+  const [allAssets, setAssets] = useAssetStore();
+  // active 만 — 소프트 삭제는 목록·집계에서 제외 (코드는 영구 보존)
+  const contracts = useMemo(() => allContracts.filter((c) => !c.deletedAt), [allContracts]);
+  const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
   const { search } = useTopbarSearch();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -119,8 +122,9 @@ export default function ContractListPage() {
 
   function handleDelete() {
     if (!selected) return;
-    if (!confirm(`${selected.contractNo} 계약을 삭제할까요?`)) return;
-    setContracts((prev) => prev.filter((c) => c.id !== selected.id));
+    if (!confirm(`${selected.contractNo} 계약을 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
+    const now = new Date().toISOString();
+    setContracts((prev) => prev.map((c) => c.id === selected.id ? { ...c, deletedAt: now } : c));
     setSelected(null);
   }
 

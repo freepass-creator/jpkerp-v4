@@ -35,7 +35,9 @@ type Lessee = {
 const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10, 법인: 10 };
 
 export default function ContractCustomerPage() {
-  const [contracts] = useContractStore();
+  const [allContracts] = useContractStore();
+  // 소프트 삭제 계약 제외 — 임차인 마스터는 active 계약 기반.
+  const contracts = useMemo(() => allContracts.filter((c) => !c.deletedAt), [allContracts]);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

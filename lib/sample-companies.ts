@@ -33,6 +33,8 @@ export type Company = {
   entityType?: 'corporate' | 'individual';         // 법인/개인
   accounts?: CompanyAccount[];
   cards?: CompanyCard[];
+  /** 소프트 삭제 — 코드 영구 보존 (회사코드 재발급 금지, 자산·계약 역참조 무결성 유지). */
+  deletedAt?: string;                              // 삭제 시각 ISO. 미설정이면 active.
 };
 
 /** 회사 데이터는 사용자가 사업자등록증 OCR 또는 개별 입력으로 채움. 샘플 없음. */
@@ -44,7 +46,7 @@ export function findCompany(code?: string): Company | undefined {
 }
 
 /**
- * 자동차등록증 ⑨성명·⑩법인등록번호로 회사 찾기.
+ * 자동차등록증 ⑨성명·⑩법인등록번호로 회사 찾기. 새 자산 매칭이라 active 만 대상.
  *   매칭 우선순위: 법인등록번호(corpNo) > 사업자등록번호(bizNo) > 회사명(name).
  *   하이픈/공백 정규화 후 비교.
  */
@@ -55,16 +57,22 @@ export function findCompanyByOwner(
 ): Company | undefined {
   const norm = (s?: string) => s?.replace(/[-\s]/g, '') ?? '';
   const reg = norm(ownerRegNo);
+  const active = companies.filter((c) => !c.deletedAt);
   if (reg) {
-    const byCorp = companies.find((c) => norm(c.corpNo) === reg);
+    const byCorp = active.find((c) => norm(c.corpNo) === reg);
     if (byCorp) return byCorp;
-    const byBiz = companies.find((c) => norm(c.bizNo) === reg);
+    const byBiz = active.find((c) => norm(c.bizNo) === reg);
     if (byBiz) return byBiz;
   }
   const name = ownerName?.trim();
   if (name) {
-    const byName = companies.find((c) => c.name === name);
+    const byName = active.find((c) => c.name === name);
     if (byName) return byName;
   }
   return undefined;
+}
+
+/** active 회사만 (UI 드롭다운·신규 매칭용). */
+export function activeCompanies(companies: readonly Company[]): Company[] {
+  return companies.filter((c) => !c.deletedAt);
 }

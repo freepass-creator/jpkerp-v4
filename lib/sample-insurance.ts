@@ -65,6 +65,9 @@ export type InsurancePolicy = {
   autoDebitAccount?: string;
   autoDebitHolder?: string;
   installments?: Installment[];
+
+  /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
+  deletedAt?: string;  // ISO 시각. 미설정이면 active.
 };
 
 /** end_date까지 남은 일수 */

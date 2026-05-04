@@ -24,7 +24,9 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { downloadContractTemplate } from '@/lib/contract-template';
 
 export default function AssetListPage() {
-  const [assets, setAssets] = useAssetStore();
+  const [allAssets, setAssets] = useAssetStore();
+  // active 자산만 — 소프트 삭제된 자산은 목록·집계에서 제외 (자산코드는 영구 보존)
+  const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
   const [selected, setSelected] = useState<Asset | null>(null);
   const { search } = useTopbarSearch();
 
@@ -89,8 +91,9 @@ export default function AssetListPage() {
 
   function handleDelete() {
     if (!selected) return;
-    if (!confirm(`${selected.companyCode} ${selected.plate || selected.vehicleName} 자산을 삭제할까요?`)) return;
-    setAssets((prev) => prev.filter((a) => a.id !== selected.id));
+    if (!confirm(`${selected.companyCode} ${selected.plate || selected.vehicleName} 자산을 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
+    const now = new Date().toISOString();
+    setAssets((prev) => prev.map((a) => a.id === selected.id ? { ...a, deletedAt: now } : a));
     setSelected(null);
   }
 

@@ -8,7 +8,7 @@ import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { RegistrationForm } from './registration-form';
 import type { Asset } from '@/lib/sample-assets';
-import { findCompanyByOwner, type Company } from '@/lib/sample-companies';
+import { findCompanyByOwner, activeCompanies, type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
@@ -222,7 +222,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
                                     onChange={(e) => updateRowField(p.id, { companyCode: e.target.value })}
                                   >
                                     <option value="">회사 선택</option>
-                                    {companies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                    {activeCompanies(companies).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                                   </select>
                                 )}
                             </td>

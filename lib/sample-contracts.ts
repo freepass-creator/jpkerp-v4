@@ -30,6 +30,8 @@ export type Contract = {
   deposit: number;               // 보증금 (없으면 0)
   status: ContractStatus;
   events: ScheduleEvent[];
+  /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
+  deletedAt?: string;  // ISO 시각. 미설정이면 active.
 };
 
 /**
