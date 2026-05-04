@@ -7,11 +7,13 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL, type JournalEntry } from '@/lib/sample-journal';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 
 /** 업무일지 — 업무작성 entries 누적 (최신순). 컬럼 헤더 필터. */
 export default function PendingJournalPage() {
   const [entries] = useJournalStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const [filtered, setFiltered] = useState<readonly JournalEntry[]>([]);
   const tableRef = useRef<JpkTableApi<JournalEntry> | null>(null);
 
@@ -62,6 +64,7 @@ export default function PendingJournalPage() {
           getRowId={getRowId}
           storageKey="pending.journal-all"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

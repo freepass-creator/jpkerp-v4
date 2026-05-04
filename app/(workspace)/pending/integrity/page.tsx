@@ -12,6 +12,7 @@ import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { collectIntegrity, type IntegrityRow, type IntegrityKind } from '@/lib/integrity-checks';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
 
 /** 정합성 — 자산/계약/계좌내역 간 모순·누락 점검. */
@@ -22,6 +23,7 @@ export default function IntegrityPage() {
   const [entries] = useLedgerStore();
   const [policies] = useInsuranceStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const [filtered, setFiltered] = useState<readonly IntegrityRow[]>([]);
   const tableRef = useRef<JpkTableApi<IntegrityRow> | null>(null);
 
@@ -106,6 +108,7 @@ export default function IntegrityPage() {
           getRowId={getRowId}
           storageKey="pending.integrity"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

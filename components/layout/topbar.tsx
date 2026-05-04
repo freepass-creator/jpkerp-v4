@@ -1,14 +1,14 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { CaretRight, User, Bell, SignOut } from '@phosphor-icons/react';
+import { CaretRight, MagnifyingGlass, User, Bell, SignOut } from '@phosphor-icons/react';
 import { useAuth, logout } from '@/lib/use-auth';
 import { MENU } from '@/lib/menu';
 import { ASSET_SUBTABS } from '@/lib/asset-subtabs';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
-import { UnifiedSearch } from '@/components/ui/unified-search';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 
 const ALL_SUBTABS = [...ASSET_SUBTABS, ...ADMIN_SUBTABS, ...CONTRACT_SUBTABS, ...FINANCE_SUBTABS];
 
@@ -36,17 +36,49 @@ function findBreadcrumb(pathname: string): string[] {
   return [];
 }
 
+/** 페이지별 검색 placeholder — topbar 의 현재 페이지 목록 필터용. */
+function pageSearchPlaceholder(pathname: string): string {
+  if (pathname.startsWith('/asset'))    return '차량번호 / 차명 / 차대번호 / 임차인';
+  if (pathname.startsWith('/contract')) return '계약번호 / 차량 / 고객';
+  if (pathname.startsWith('/finance'))  return '계좌 / 적요 / 상대계좌';
+  if (pathname.startsWith('/journal'))  return '메모 / 차량 / 담당';
+  if (pathname.startsWith('/pending'))  return '미결 항목';
+  if (pathname.startsWith('/admin'))    return '회사 / 직원';
+  return '이 페이지 검색';
+}
+
 export function Topbar() {
   const pathname = usePathname();
   const crumbs = findBreadcrumb(pathname);
+  const { search, setSearch } = useTopbarSearch();
 
   return (
     <header className="topbar">
-      {/* 좌측 — 통합 검색 (차량/계약/임차인 한 곳에서, 초성 매칭 가능) */}
-      <UnifiedSearch
-        placeholder="차량번호 / 고객명 / 계약번호 (초성 ㅎㄱㄷ 가능)"
-        width={320}
-      />
+      {/* 좌측 — 페이지 검색 (현재 페이지 목록 필터). 전역 통합검색은 Ctrl+K. */}
+      <div className="relative" style={{ width: 320 }}>
+        <MagnifyingGlass
+          size={13}
+          className="text-weak"
+          style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+        />
+        <input
+          className="input w-full"
+          style={{ paddingLeft: 28, paddingRight: 60 }}
+          placeholder={pageSearchPlaceholder(pathname)}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <span
+          title="전역 통합 검색"
+          style={{
+            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 10, color: 'var(--text-weak)', border: '1px solid var(--border)', borderRadius: 3,
+            padding: '0 4px', pointerEvents: 'none',
+          }}
+        >
+          ⌘K
+        </span>
+      </div>
 
       {/* 가운데 — Breadcrumb (절대 가운데) */}
       <div className="topbar-breadcrumb">

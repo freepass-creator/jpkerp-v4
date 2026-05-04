@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MagnifyingGlass, Car, FileText } from '@phosphor-icons/react';
+import { MagnifyingGlass, Car, FileText, X } from '@phosphor-icons/react';
 import { useUnifiedSearch, type SearchHit } from '@/lib/unified-search';
 import { cn } from '@/lib/cn';
 
@@ -21,8 +21,8 @@ type Props = {
   placeholder?: string;
   /** 결과 클릭 시 호출. 미지정 시 contract → /contract 로 navigate. */
   onSelect?: (hit: SearchHit) => void;
-  /** 입력 폭. 기본 320px. */
-  width?: number;
+  /** 입력 폭. number(px) 또는 CSS 값 ('100%' 등). 기본 320px. */
+  width?: number | string;
   /** 외부에서 input 값 제어 (선택) */
   value?: string;
   onChange?: (v: string) => void;
@@ -178,4 +178,62 @@ function defaultNavigate(hit: SearchHit) {
   } else {
     window.location.href = `/asset?selected=${hit.asset.id}`;
   }
+}
+
+/**
+ * 전역 통합 검색 모달 — Ctrl+K (또는 Cmd+K) 로 호출.
+ * 화면 가운데 띄우고 자동 focus. 결과 클릭 / Enter → navigate.
+ */
+export function UnifiedSearchModal() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      if ((isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1100,
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        paddingTop: '12vh',
+      }}
+      onClick={() => setOpen(false)}
+    >
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          width: 600, maxWidth: '90vw',
+          padding: 12,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span className="text-medium">전역 통합 검색</span>
+          <button className="btn-ghost btn btn-sm" onClick={() => setOpen(false)}><X size={12} /></button>
+        </div>
+        <UnifiedSearch
+          width="100%"
+          placeholder="차량번호 / 고객명 / 계약번호 (초성 ㅎㄱㄷ 가능)"
+          onSelect={(hit) => { setOpen(false); defaultNavigate(hit); }}
+        />
+        <div className="text-weak text-xs" style={{ marginTop: 6 }}>
+          Ctrl+K (Mac: Cmd+K) — 어디서든 호출 · ↑↓ 이동 · Enter 선택 · Esc 닫기
+        </div>
+      </div>
+    </div>
+  );
 }

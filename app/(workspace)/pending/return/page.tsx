@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useJournalStore } from '@/lib/use-journal-store';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { buildLocationMap } from '@/lib/vehicle-location';
 import { cn } from '@/lib/cn';
 
@@ -32,6 +33,7 @@ export default function PendingReturnPage() {
   const [contracts] = useContractStore();
   const [entries] = useJournalStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const [filtered, setFiltered] = useState<readonly ReturnRow[]>([]);
   const tableRef = useRef<JpkTableApi<ReturnRow> | null>(null);
 
@@ -116,6 +118,7 @@ export default function PendingReturnPage() {
           getRowId={getRowId}
           storageKey="pending.return"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

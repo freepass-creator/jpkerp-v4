@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { collectIdle, type IdleRow } from '@/lib/pending-aggregators';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
 
 /** 휴차현황 — 활성 계약 없는 자산. 컬럼 헤더 필터. */
@@ -15,6 +16,7 @@ export default function IdlePage() {
   const [assets] = useAssetStore();
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const rows = useMemo(() => collectIdle(assets, contracts), [assets, contracts]);
   const [filtered, setFiltered] = useState<readonly IdleRow[]>([]);
   const tableRef = useRef<JpkTableApi<IdleRow> | null>(null);
@@ -70,6 +72,7 @@ export default function IdlePage() {
           getRowId={getRowId}
           storageKey="pending.idle"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

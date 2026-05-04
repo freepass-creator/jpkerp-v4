@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Download, FileXls, Trash, PencilSimple, Copy, Plus } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { AssetGrid } from '@/components/asset/asset-grid';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import dynamic from 'next/dynamic';
 import type { EditMode } from '@/components/asset/asset-edit-dialog';
 const AssetRegisterDialog = dynamic(
@@ -23,6 +24,7 @@ import { downloadContractTemplate } from '@/lib/contract-template';
 export default function AssetListPage() {
   const [assets, setAssets] = useAssetStore();
   const [selected, setSelected] = useState<Asset | null>(null);
+  const { search } = useTopbarSearch();
 
   // 수정/복사 다이얼로그 상태
   const [editOpen, setEditOpen] = useState(false);
@@ -155,6 +157,7 @@ export default function AssetListPage() {
             selectedId={selected?.id}
             onRowClick={setSelected}
             onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
+            globalSearch={search}
           />
         </div>
       </PageShell>

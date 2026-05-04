@@ -13,6 +13,8 @@ type Props = {
   onFilteredChange?: (rows: readonly Asset[]) => void;
   /** localStorage 영속 키 (페이지마다 다른 컬럼 폭/필터 유지) */
   storageKey?: string;
+  /** 전역 검색 키워드 (topbar 검색에서 받음) */
+  globalSearch?: string;
 };
 
 const numFmt = (v: unknown) =>
@@ -24,7 +26,7 @@ const numFmt = (v: unknown) =>
  * 컬럼 순서: 회사 → 차량번호 → 등록증 ① ~ ㉟ (검사 ㉚~㉟ 제외) → 메타 → 부가.
  */
 export function AssetGrid({
-  assets, selectedId, onRowClick, onRowContextMenu, onFilteredChange, storageKey = 'asset.grid',
+  assets, selectedId, onRowClick, onRowContextMenu, onFilteredChange, storageKey = 'asset.grid', globalSearch,
 }: Props) {
   const tableRef = useRef<JpkTableApi<Asset> | null>(null);
 
@@ -120,6 +122,7 @@ export function AssetGrid({
       onRowClick={handleRowClick}
       onRowContextMenu={handleRowContextMenu}
       onFilteredChange={onFilteredChange}
+      globalSearch={globalSearch}
     />
   );
 }

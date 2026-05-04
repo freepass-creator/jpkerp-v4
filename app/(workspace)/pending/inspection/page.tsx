@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { getCurrentLocation } from '@/lib/vehicle-location';
 import { useJournalStore } from '@/lib/use-journal-store';
 import type { Asset } from '@/lib/sample-assets';
@@ -34,6 +35,7 @@ export default function InspectionPendingPage() {
   const [contracts] = useContractStore();
   const [entries] = useJournalStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const [filtered, setFiltered] = useState<readonly InspectionRow[]>([]);
   const tableRef = useRef<JpkTableApi<InspectionRow> | null>(null);
 
@@ -119,6 +121,7 @@ export default function InspectionPendingPage() {
           getRowId={getRowId}
           storageKey="pending.inspection"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

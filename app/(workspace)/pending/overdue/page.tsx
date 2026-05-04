@@ -7,11 +7,13 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useContractStore } from '@/lib/use-contract-store';
 import { collectOverdue, type OverdueRow } from '@/lib/pending-aggregators';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 
 /** 미납현황 — 계약 단위 미납 회차 집계. 컬럼 헤더 필터. */
 export default function OverduePage() {
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const rows = useMemo(() => collectOverdue(contracts), [contracts]);
   const [filtered, setFiltered] = useState<readonly OverdueRow[]>([]);
   const tableRef = useRef<JpkTableApi<OverdueRow> | null>(null);
@@ -71,6 +73,7 @@ export default function OverduePage() {
           getRowId={getRowId}
           storageKey="pending.overdue"
           onFilteredChange={setFiltered}
+          globalSearch={search}
         />
       )}
     </PageShell>

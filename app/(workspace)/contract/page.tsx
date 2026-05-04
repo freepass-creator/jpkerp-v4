@@ -10,6 +10,7 @@ import { type Contract, type CustomerKind, generateContractSchedule } from '@/li
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextSequenceCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { cn } from '@/lib/cn';
@@ -37,6 +38,7 @@ const CONTRACT_DUPLICATE_FIELDS: FieldDef[] = CONTRACT_EDIT_FIELDS.map((f) =>
 export default function ContractListPage() {
   const [contracts, setContracts] = useContractStore();
   const [assets, setAssets] = useAssetStore();
+  const { search } = useTopbarSearch();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -193,6 +195,7 @@ export default function ContractListPage() {
           selectedId={selected?.id}
           onRowClick={setSelected}
           onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
+          globalSearch={search}
         />
       </PageShell>
 
@@ -212,12 +215,13 @@ export default function ContractListPage() {
 
 /** 계약현황 그리드 — JpkTable 기반. 컬럼 헤더 set/range/date 필터. */
 function ContractGrid({
-  contracts, selectedId, onRowClick, onRowContextMenu,
+  contracts, selectedId, onRowClick, onRowContextMenu, globalSearch,
 }: {
   contracts: Contract[];
   selectedId?: string;
   onRowClick: (c: Contract) => void;
   onRowContextMenu: (c: Contract, x: number, y: number) => void;
+  globalSearch?: string;
 }) {
   const tableRef = useRef<JpkTableApi<Contract> | null>(null);
 
@@ -265,6 +269,7 @@ function ContractGrid({
       storageKey="contract.list"
       onRowClick={onRowClick}
       onRowContextMenu={handleRowContextMenu}
+      globalSearch={globalSearch}
     />
   );
 }

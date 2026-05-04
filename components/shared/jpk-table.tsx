@@ -64,6 +64,8 @@ interface JpkTableProps<T> {
   storageKey?: string;
   hideHeader?: boolean;
   selectedKey?: string | null;
+  /** 전역 텍스트 검색 — topbar 검색에서 받음. 컬럼 헤더 필터와 별개로 모든 셀 값 텍스트 매칭. */
+  globalSearch?: string;
 }
 
 type SortState = { field: string; dir: 'asc' | 'desc' } | null;
@@ -91,6 +93,7 @@ function JpkTableInner<T>(
   {
     columns, rows, getRowId, onRowClick, onRowContextMenu, onCountChange, onFilteredChange,
     className, storageKey, hideHeader, selectedKey: selectedKeyProp,
+    globalSearch,
   }: JpkTableProps<T>,
   ref: React.Ref<JpkTableApi<T>>,
 ) {
@@ -191,8 +194,19 @@ function JpkTableInner<T>(
     const activeFilters = Object.entries(filters).filter(([, v]) => v && v.length > 0) as [string, string[]][];
     const activeRanges = Object.entries(ranges).filter(([, v]) => v !== undefined) as [string, [number, number]][];
     const activeDates = Object.entries(dateFilters).filter(([, v]) => v && v.values.length > 0) as [string, DateFilter][];
-    if (activeFilters.length === 0 && activeRanges.length === 0 && activeDates.length === 0) return rows;
+    const gs = (globalSearch ?? '').trim().toLowerCase();
+    if (activeFilters.length === 0 && activeRanges.length === 0 && activeDates.length === 0 && !gs) return rows;
     return rows.filter((row, i) => {
+      // 전역 텍스트 검색 — 컬럼 모든 셀 값 합쳐서 substring 매칭 (초성 매칭은 컬럼별 set filter 에 위임)
+      if (gs) {
+        let blob = '';
+        for (const c of columns) {
+          const v = readValue(c, row, i);
+          if (v == null) continue;
+          blob += String(v).toLowerCase() + ' ';
+        }
+        if (!blob.includes(gs)) return false;
+      }
       for (const [field, allowed] of activeFilters) {
         const col = columns.find((c) => c.field === field);
         if (!col) continue;
@@ -216,7 +230,7 @@ function JpkTableInner<T>(
       }
       return true;
     });
-  }, [rows, filters, ranges, dateFilters, columns]);
+  }, [rows, filters, ranges, dateFilters, columns, globalSearch]);
 
   const sortedRows = useMemo(() => {
     if (!sort) return filteredRows;

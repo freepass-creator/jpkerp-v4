@@ -8,6 +8,7 @@ import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL, type JournalEntry } from '@/lib/sample-journal';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { buildLocationMap } from '@/lib/vehicle-location';
+import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { cn } from '@/lib/cn';
 
 /**
@@ -20,6 +21,7 @@ import { cn } from '@/lib/cn';
 export default function PendingPage() {
   const [entries] = useJournalStore();
   const subTabPending = usePendingSubtabPending();
+  const { search } = useTopbarSearch();
   const [filteredRows, setFilteredRows] = useState<readonly JournalEntry[]>([]);
   const tableRef = useRef<JpkTableApi<JournalEntry> | null>(null);
 
@@ -105,6 +107,7 @@ export default function PendingPage() {
           getRowId={getRowId}
           storageKey="pending.journal"
           onFilteredChange={setFilteredRows}
+          globalSearch={search}
         />
       )}
     </PageShell>
