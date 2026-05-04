@@ -525,8 +525,7 @@ export async function POST(req: NextRequest) {
     const plateDebug: {
       stage: 0 | 1 | 2 | 3;
       original: unknown;
-      stage3_raw?: string;
-      stage3_error?: string;
+      stage3_attempts?: Array<{ prompt_idx: number; raw: string; error?: string }>;
     } = { stage: 0, original: parsed.car_number };
 
     if (docType === 'vehicle_reg' || docType === 'penalty' || docType === 'insurance_policy' || docType === 'rental_contract') {
@@ -542,32 +541,44 @@ export async function POST(req: NextRequest) {
         const m = blob.match(PLATE_RE);
         if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 2; }
       }
-      // 3차 fallback (vehicle_reg 한정): 별도 plate-only Gemini 호출
-      // Tesla 등 일부 외산차 등록증에서 schema-mode 추출이 실패하는 사례 대응.
-      // 스키마 없이 raw text 응답을 받아 정규식으로 추출.
+      // 3차 fallback (vehicle_reg 한정): 병렬 plate-only Gemini 호출 (multi-prompt).
+      // Gemini Vision 은 temperature:0 이어도 동일 입력에 대해 non-deterministic 한
+      // 케이스가 있어 (특히 Tesla 같은 외산차 등록증) — 다른 prompt 3개 동시 호출 후
+      // 첫 매칭을 채택. 1개라도 hit 하면 OK 라 신뢰성↑.
       if (!extracted && docType === 'vehicle_reg') {
-        try {
-          const platesOnly = await ai.models.generateContent({
-            model: MODEL,
-            contents: [{
-              role: 'user',
-              parts: [
-                { inlineData: { mimeType: mediaType, data: base64 } },
-                { text: '이 한국 자동차등록증의 ① 자동차등록번호 칸에 적힌 차량번호판만 답하세요. 포맷: \\d{2,3}[가-힣]\\d{4} (예: 15가4481, 01도9893). 다른 설명 없이 번호판 문자열만.' },
-              ],
-            }],
-            config: {
-              temperature: 0,
-              ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-              maxOutputTokens: 64,
-            },
-          });
-          const raw = normalize(platesOnly.text ?? '');
-          plateDebug.stage3_raw = raw;
-          const m = raw.match(PLATE_RE);
-          if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 3; }
-        } catch (err) {
-          plateDebug.stage3_error = (err as Error).message;
+        const PLATE_PROMPTS = [
+          '이 한국 자동차등록증의 ① 자동차등록번호 칸에 적힌 차량번호판만 답하세요. 포맷: \\d{2,3}[가-힣]\\d{4} (예: 15가4481, 01도9893). 다른 설명 없이 번호판 문자열만.',
+          '이 자동차등록증 첫 페이지의 가장 위쪽 표 ① 칸 (차종 / 용도 같은 행) 에 있는 한국 번호판을 그대로 옮겨 적으세요. 예: 15가4481. 다른 텍스트 금지.',
+          'Read the Korean license plate from the ① 자동차등록번호 cell of this 자동차등록증 (top-left of the main table on page 1). Format: digits + 한글 + digits like 15가4481. Output ONLY the plate string.',
+        ];
+        plateDebug.stage3_attempts = [];
+        const attempts = await Promise.all(PLATE_PROMPTS.map(async (prompt, idx) => {
+          try {
+            const r = await ai.models.generateContent({
+              model: MODEL,
+              contents: [{
+                role: 'user',
+                parts: [
+                  { inlineData: { mimeType: mediaType, data: base64 } },
+                  { text: prompt },
+                ],
+              }],
+              config: {
+                temperature: 0,
+                ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+                maxOutputTokens: 64,
+              },
+            });
+            const raw = normalize(r.text ?? '');
+            return { prompt_idx: idx, raw };
+          } catch (err) {
+            return { prompt_idx: idx, raw: '', error: (err as Error).message };
+          }
+        }));
+        plateDebug.stage3_attempts = attempts;
+        for (const a of attempts) {
+          const m = a.raw.match(PLATE_RE);
+          if (m) { extracted = `${m[1]}${m[2]}${m[3]}`; plateDebug.stage = 3; break; }
         }
       }
       parsed.car_number = extracted;
