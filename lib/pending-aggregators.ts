@@ -20,25 +20,60 @@ function daysBetween(date: string, ref: number): number {
 
 /* ─────────────── 미결업무 ─────────────── */
 
-export type PendingKind = '검사만기' | '미수납' | '출고미완' | '보험만기';
+/**
+ * 통일 vocab — 작업 종류 7가지 + 자산 정비 상태.
+ *  · 수납 = 만기 도래(과거)인데 아직 미납 → '미납'
+ *  · 그 외 = 만기 임박(D-30 이내)인데 아직 미완료 → '미완료'
+ */
+export type PendingKind = '검사' | '수납' | '출고' | '정비' | '보험' | '반납' | '기타';
+
+export const PENDING_LABELS: Record<PendingKind, string> = {
+  검사: '검사 미완료',
+  수납: '수납 미납',
+  출고: '출고 미완료',
+  정비: '정비 미완료',
+  보험: '보험 미완료',
+  반납: '반납 예정',
+  기타: '기타 미완료',
+};
+
+export const PENDING_TONES: Record<PendingKind, 'red' | 'orange'> = {
+  수납: 'red',
+  검사: 'orange',
+  출고: 'orange',
+  정비: 'orange',
+  보험: 'orange',
+  반납: 'orange',
+  기타: 'orange',
+};
+
+export type PendingStatus = '미완료' | '미납';
+export type PendingSource = '계약' | '자산';
 
 export type PendingItem = {
   id: string;
+  /** 업무구분 — 검사/수납/출고/정비/보험/반납/기타 */
   kind: PendingKind;
+  /** 상태 — 수납은 '미납', 그 외는 '미완료' */
+  status: PendingStatus;
+  /** 출처 — 계약 events 또는 자산 자체 */
+  source: PendingSource;
   companyCode: string;
   plate: string;
   /** 차명/차종 (자산 매칭 시 채움) */
   vehicleName: string;
   /** 임차인명 (계약 매칭 시 채움) */
   customerName: string;
-  /** 임차인 연락처 (계약 매칭 시 채움) */
+  /** 임차인 연락처 */
   customerPhone: string;
   /** 회차 (수납 회차 등) — 있으면 표시 */
   cycle?: number;
   dueDate: string;
   amount?: number;
-  /** 0 미만 = 경과(빨강), 0~30 = 임박(주황), 그 외 표시 안 함 */
+  /** 0 미만 = 경과(빨강), 0~30 = 임박(주황) */
   daysLeft: number;
+  /** 메모 (자산 정비 등 부가 설명) */
+  note?: string;
 };
 
 const PENDING_HORIZON_DAYS = 30;
@@ -55,16 +90,17 @@ export function collectPending(
   const assetByPlate = new Map<string, Asset>();
   for (const a of assets) assetByPlate.set(a.plate, a);
 
-  // 1) 자산 검사 만기 임박
+  // 1) 자산 검사 만기 임박 (자산 자체 inspectionTo)
   for (const a of assets) {
     if (!a.inspectionTo || a.status === '매각') continue;
     const t = Date.parse(a.inspectionTo);
     if (!Number.isFinite(t) || t > horizon) continue;
-    // 해당 차량의 운행중 계약 (있으면 임차인 정보 같이 표시)
     const contract = contracts.find((c) => c.plate === a.plate && c.status === '운행중');
     items.push({
       id: `insp-${a.id}`,
-      kind: '검사만기',
+      kind: '검사',
+      status: '미완료',
+      source: '자산',
       companyCode: a.companyCode,
       plate: a.plate,
       vehicleName: a.vehicleName || a.vehicleClass || '',
@@ -75,7 +111,27 @@ export function collectPending(
     });
   }
 
-  // 2) 계약 출고 미완 + 미수납 (만기 도래)
+  // 2) 자산 정비 진행중 (asset.status='정비')
+  for (const a of assets) {
+    if (a.status !== '정비') continue;
+    const contract = contracts.find((c) => c.plate === a.plate && c.status === '운행중');
+    items.push({
+      id: `repair-${a.id}`,
+      kind: '정비',
+      status: '미완료',
+      source: '자산',
+      companyCode: a.companyCode,
+      plate: a.plate,
+      vehicleName: a.vehicleName || a.vehicleClass || '',
+      customerName: contract?.customerName ?? '',
+      customerPhone: contract?.customerPhone ?? '',
+      dueDate: '',
+      daysLeft: 0,
+      note: '자산 상태 정비중',
+    });
+  }
+
+  // 3) 계약 events 전체 7타입 — 출고/수납/검사/정비/보험/반납/기타
   for (const c of contracts) {
     if (c.status === '만기' || c.status === '해지') continue;
     const asset = assetByPlate.get(c.plate);
@@ -85,35 +141,33 @@ export function collectPending(
       const t = Date.parse(e.dueDate);
       if (!Number.isFinite(t)) continue;
 
-      if (e.type === '출고' && t <= horizon) {
-        items.push({
-          id: `del-${c.id}-${e.id}`,
-          kind: '출고미완',
-          companyCode: c.companyCode,
-          plate: c.plate,
-          vehicleName,
-          customerName: c.customerName,
-          customerPhone: c.customerPhone,
-          dueDate: e.dueDate,
-          amount: c.monthlyAmount,
-          daysLeft: daysBetween(e.dueDate, today),
-        });
+      // 수납: 만기 도래 (과거)만 미납 / 그 외: D-30 이내 미완료
+      const isReceipt = e.type === '수납';
+      if (isReceipt) {
+        if (t > today) continue;
+      } else {
+        if (t > horizon) continue;
       }
-      if (e.type === '수납' && t <= today) {
-        items.push({
-          id: `rcv-${c.id}-${e.id}`,
-          kind: '미수납',
-          companyCode: c.companyCode,
-          plate: c.plate,
-          vehicleName,
-          customerName: c.customerName,
-          customerPhone: c.customerPhone,
-          cycle: e.cycle,
-          dueDate: e.dueDate,
-          amount: e.amount,
-          daysLeft: daysBetween(e.dueDate, today),
-        });
-      }
+
+      // contract.event type 그대로 PendingKind (모두 동일 vocab)
+      const kind: PendingKind = e.type;
+      const status: PendingStatus = isReceipt ? '미납' : '미완료';
+      items.push({
+        id: `evt-${c.id}-${e.id}`,
+        kind,
+        status,
+        source: '계약',
+        companyCode: c.companyCode,
+        plate: c.plate,
+        vehicleName,
+        customerName: c.customerName,
+        customerPhone: c.customerPhone,
+        cycle: e.cycle,
+        dueDate: e.dueDate,
+        amount: e.amount ?? (kind === '출고' ? c.monthlyAmount : undefined),
+        daysLeft: daysBetween(e.dueDate, today),
+        note: e.note,
+      });
     }
   }
 

@@ -6,11 +6,17 @@ import { PageShell } from '@/components/layout/page-shell';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
-import { collectPending, type PendingItem } from '@/lib/pending-aggregators';
+import { collectPending } from '@/lib/pending-aggregators';
 import { cn } from '@/lib/cn';
 
 /**
- * 미결업무 — 검사만기 · 미수납 · 출고미완 (자산 + 계약 events 집계).
+ * 미결업무 — 모든 미결 작업 통합 목록.
+ *
+ * 출처:
+ *  · 자산: 검사 만기 (asset.inspectionTo D-30), 정비 진행중 (asset.status='정비')
+ *  · 계약 events: 출고/수납/검사/정비/보험/반납/기타 7타입 모두 status='예정'
+ *
+ * 컬럼 순서: 회사 → 차량번호 → 업무구분 → 상태 → 차명 → 임차인 → 연락처 → 회차 → 기한 → D-day → 금액
  */
 export default function PendingPage() {
   const [assets] = useAssetStore();
@@ -32,9 +38,13 @@ export default function PendingPage() {
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{items.length}</strong></span>
-          {counts['검사만기']  ? <span className="stat-item">검사만기 <strong>{counts['검사만기']}</strong></span>  : null}
-          {counts['미수납']    ? <span className="stat-item alert">미수납 <strong>{counts['미수납']}</strong></span>  : null}
-          {counts['출고미완']  ? <span className="stat-item alert">출고미완 <strong>{counts['출고미완']}</strong></span>: null}
+          {counts['검사'] ? <span className="stat-item">검사 <strong>{counts['검사']}</strong></span> : null}
+          {counts['수납'] ? <span className="stat-item alert">수납 <strong>{counts['수납']}</strong></span> : null}
+          {counts['출고'] ? <span className="stat-item">출고 <strong>{counts['출고']}</strong></span> : null}
+          {counts['정비'] ? <span className="stat-item">정비 <strong>{counts['정비']}</strong></span> : null}
+          {counts['보험'] ? <span className="stat-item">보험 <strong>{counts['보험']}</strong></span> : null}
+          {counts['반납'] ? <span className="stat-item">반납 <strong>{counts['반납']}</strong></span> : null}
+          {counts['기타'] ? <span className="stat-item">기타 <strong>{counts['기타']}</strong></span> : null}
         </>
       }
     >
@@ -49,9 +59,10 @@ export default function PendingPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>상태</th>
                 <th>회사</th>
                 <th>차량번호</th>
+                <th>업무구분</th>
+                <th>상태</th>
                 <th>차명/차종</th>
                 <th>임차인</th>
                 <th>연락처</th>
@@ -64,16 +75,23 @@ export default function PendingPage() {
             <tbody>
               {items.map((p) => (
                 <tr key={p.id}>
-                  <td><KindBadge kind={p.kind} /></td>
                   <td className="plate">{p.companyCode}</td>
                   <td className="plate text-medium">{p.plate}</td>
+                  <td><span className="badge">{p.kind}</span></td>
+                  <td>
+                    <span className={cn('badge', p.status === '미납' ? 'badge-red' : 'badge-orange')}>
+                      {p.status}
+                    </span>
+                  </td>
                   <td className="dim truncate" style={{ maxWidth: 220 }} title={p.vehicleName}>{p.vehicleName || '-'}</td>
                   <td>{p.customerName || <span className="text-weak">-</span>}</td>
                   <td className="mono dim">{p.customerPhone || '-'}</td>
                   <td className="num">{p.cycle ? `${p.cycle}회` : '-'}</td>
-                  <td className="date">{p.dueDate}</td>
+                  <td className="date">{p.dueDate || '-'}</td>
                   <td className={cn('num', p.daysLeft < 0 && 'text-red', p.daysLeft >= 0 && p.daysLeft <= 7 && 'text-amber')}>
-                    {p.daysLeft < 0 ? `${-p.daysLeft}일 경과` : p.daysLeft === 0 ? '오늘' : `D-${p.daysLeft}`}
+                    {p.dueDate
+                      ? (p.daysLeft < 0 ? `${-p.daysLeft}일 경과` : p.daysLeft === 0 ? '오늘' : `D-${p.daysLeft}`)
+                      : '-'}
                   </td>
                   <td className="num">{p.amount ? p.amount.toLocaleString('ko-KR') : '-'}</td>
                 </tr>
@@ -86,14 +104,3 @@ export default function PendingPage() {
   );
 }
 
-/** 통일 vocab — 정상 / 미완료 / 미납. 라벨은 사유까지 같이 표기. */
-function KindBadge({ kind }: { kind: PendingItem['kind'] }) {
-  const map: Record<PendingItem['kind'], { tone: string; label: string }> = {
-    미수납:   { tone: 'badge-red',    label: '수납 미납' },
-    출고미완: { tone: 'badge-orange', label: '출고 미완료' },
-    검사만기: { tone: 'badge-orange', label: '검사 미완료' },
-    보험만기: { tone: 'badge-orange', label: '보험 미완료' },
-  };
-  const { tone, label } = map[kind];
-  return <span className={`badge ${tone}`}>{label}</span>;
-}
