@@ -1,44 +1,57 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import { CurrencyKrw } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
-import { ListFilterbar, applyListFilter } from '@/components/ui/list-filterbar';
 import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
-import { collectOverdue } from '@/lib/pending-aggregators';
+import { collectOverdue, type OverdueRow } from '@/lib/pending-aggregators';
+import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 
-/** 미납현황 — 계약 단위 미납 회차 집계. */
+/** 미납현황 — 계약 단위 미납 회차 집계. 컬럼 헤더 필터. */
 export default function OverduePage() {
   const [contracts] = useContractStore();
   const subTabPending = usePendingSubtabPending();
-  const allRows = useMemo(() => collectOverdue(contracts), [contracts]);
-  const [company, setCompany] = useState('');
-  const [search, setSearch] = useState('');
-  const rows = useMemo(
-    () => applyListFilter(allRows, { company, search },
-      (r) => r.companyCode,
-      (r) => `${r.plate} ${r.customerName} ${r.contractNo} ${r.customerPhone}`,
-    ),
-    [allRows, company, search],
-  );
-  const totalAmount = useMemo(() => rows.reduce((s, r) => s + r.totalAmount, 0), [rows]);
-  const totalCycles = useMemo(() => rows.reduce((s, r) => s + r.unpaidCycles, 0), [rows]);
+  const rows = useMemo(() => collectOverdue(contracts), [contracts]);
+  const [filtered, setFiltered] = useState<readonly OverdueRow[]>([]);
+  const tableRef = useRef<JpkTableApi<OverdueRow> | null>(null);
+
+  const totalAmount = useMemo(() => filtered.reduce((s, r) => s + r.totalAmount, 0), [filtered]);
+  const totalCycles = useMemo(() => filtered.reduce((s, r) => s + r.unpaidCycles, 0), [filtered]);
+
+  const columns = useMemo<JpkColumn<OverdueRow>[]>(() => [
+    { headerName: '회사', field: 'companyCode', width: 80, filterable: true },
+    { headerName: '차량번호', field: 'plate', width: 110, filterable: true,
+      cellRenderer: ({ value }) => <span className="plate text-medium">{value as string}</span> },
+    { headerName: '상태', width: 80, filterable: true,
+      valueGetter: () => '미납',
+      cellRenderer: () => <span className="badge badge-red">미납</span> },
+    { headerName: '계약번호', field: 'contractNo', width: 130, filterable: true,
+      cellRenderer: ({ value }) => <span className="mono text-medium">{value as string}</span> },
+    { headerName: '임차인', field: 'customerName', width: 120, filterable: true },
+    { headerName: '연락처', field: 'customerPhone', width: 130,
+      cellRenderer: ({ value }) => <span className="mono dim">{(value as string) || '-'}</span> },
+    { headerName: '미납 회차', field: 'unpaidCycles', width: 90, align: 'right', filterType: 'range', sort: 'desc',
+      cellRenderer: ({ value }) => <span className="text-red"><strong>{value as number}</strong></span> },
+    { headerName: '미납 금액', field: 'totalAmount', width: 130, align: 'right', filterType: 'range',
+      filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
+      valueFormatter: ({ value }) => (value as number).toLocaleString('ko-KR'),
+      cellRenderer: ({ value }) => <span className="text-red">{(value as number).toLocaleString('ko-KR')}</span> },
+    { headerName: '최장 연체', field: 'longestOverdueDays', width: 90, align: 'right', filterType: 'range',
+      cellRenderer: ({ value }) => <span className="text-red">{value as number}일</span> },
+    { headerName: '최오래된 만기', field: 'oldestDueDate', width: 120, filterType: 'date',
+      cellRenderer: ({ value }) => <span className="date dim">{value as string}</span> },
+  ], []);
+
+  const getRowId = useCallback((r: OverdueRow) => r.contractId, []);
 
   return (
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
-      filterbar={
-        <ListFilterbar
-          company={company} onCompanyChange={setCompany}
-          search={search}   onSearchChange={setSearch}
-          searchPlaceholder="차량번호 / 임차인 / 계약번호 / 연락처 검색"
-        />
-      }
       footerLeft={
         <>
-          <span className="stat-item">미납 계약 <strong>{rows.length}</strong></span>
+          <span className="stat-item">미납 계약 <strong>{filtered.length}</strong>{filtered.length !== rows.length && <span className="text-weak"> / {rows.length}</span>}</span>
           {totalCycles > 0 && <span className="stat-item">미납 회차 <strong>{totalCycles}</strong></span>}
           {totalAmount > 0 && <span className="stat-item alert">미납 합계 <strong>{totalAmount.toLocaleString('ko-KR')}원</strong></span>}
         </>
@@ -51,40 +64,14 @@ export default function OverduePage() {
           <div className="mt-1 text-weak">모든 계약의 만기 도래 회차가 납부 완료 상태입니다.</div>
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>회사</th>
-                <th>차량번호</th>
-                <th>상태</th>
-                <th>계약번호</th>
-                <th>임차인</th>
-                <th>연락처</th>
-                <th className="num">미납 회차</th>
-                <th className="num">미납 금액</th>
-                <th className="num">최장 연체</th>
-                <th className="date">최오래된 만기일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.contractId}>
-                  <td className="plate">{r.companyCode}</td>
-                  <td className="plate">{r.plate}</td>
-                  <td><span className="badge badge-red">미납</span></td>
-                  <td className="mono text-medium">{r.contractNo}</td>
-                  <td>{r.customerName}</td>
-                  <td className="mono dim">{r.customerPhone || '-'}</td>
-                  <td className="num text-red"><strong>{r.unpaidCycles}</strong></td>
-                  <td className="num text-red">{r.totalAmount.toLocaleString('ko-KR')}</td>
-                  <td className="num text-red">{r.longestOverdueDays}일</td>
-                  <td className="date dim">{r.oldestDueDate}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <JpkTable<OverdueRow>
+          ref={tableRef}
+          columns={columns}
+          rows={rows}
+          getRowId={getRowId}
+          storageKey="pending.overdue"
+          onFilteredChange={setFiltered}
+        />
       )}
     </PageShell>
   );
