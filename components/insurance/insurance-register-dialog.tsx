@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Upload, X, CircleNotch, CheckCircle, Warning, Plus } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
+import { useCompanyStore } from '@/lib/use-company-store';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { runWithConcurrency } from '@/lib/parallel';
@@ -38,6 +39,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
   const [assets] = useAssetStore();
+  const [companies] = useCompanyStore();
   const matchAsset = (carNumber?: string) => findAssetByPlate(assets, carNumber ?? '');
 
   const [openInner, setOpenInner] = useState(false);
@@ -166,24 +168,28 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
     setItems((p) => p.filter((i) => i.id !== id));
   }
 
+  // 등록 가능 = 정상 차량번호 + 회사코드 둘 다 있어야 함 (보험증권은 차량 단위)
+  const PLATE_RE = /^\d{2,3}[가-힣]\d{4}$/;
+  const doneItems = items.filter((i) => i._status === 'done');
+  const registerableItems = doneItems.filter((i) =>
+    i.carNumber && PLATE_RE.test(i.carNumber) && i.companyCode,
+  );
+  const noPlateCount = doneItems.filter((i) => !i.carNumber || !PLATE_RE.test(i.carNumber)).length;
+  const noCompanyCount = doneItems.filter((i) => i.carNumber && !i.companyCode).length;
+
   function commitAll() {
-    const ok = items.filter((i) => i._status === 'done');
-    if (ok.length === 0) return;
-    // OCR 누락 경고 — 차량번호 / 회사 매칭 안 된 행 사전 확인
-    const noPlate = ok.filter((i) => !i.carNumber).length;
-    const noCompany = ok.filter((i) => !i.companyCode).length;
-    const warnings: string[] = [];
-    if (noPlate > 0) warnings.push(`차량번호 누락: ${noPlate}건`);
-    if (noCompany > 0) warnings.push(`회사 미매칭: ${noCompany}건`);
-    if (warnings.length > 0) {
-      const proceed = confirm(
-        `⚠ OCR 누락 항목이 있습니다:\n  · ${warnings.join('\n  · ')}\n\n그래도 등록할까요?\n(등록 후 [수정] 또는 정합성 페이지에서 정정 가능)`,
-      );
-      if (!proceed) return;
+    if (registerableItems.length === 0) {
+      alert('등록 가능한 항목이 없습니다. 차량번호·회사 누락 항목은 행에서 직접 입력 후 등록하세요.');
+      return;
     }
-    onCreate(ok.map(({ _status: _s, _error: _e, _matched: _m, ...rest }) => rest));
+    onCreate(registerableItems.map(({ _status: _s, _error: _e, _matched: _m, ...rest }) => rest));
     setOpen(false);
     setTimeout(reset, 100);
+  }
+
+  /** 행별 plate / companyCode 인라인 수정 */
+  function updateRowField(id: string, patch: Partial<WorkItem>) {
+    setItems((prev) => prev.map((it) => it.id === id ? { ...it, ...patch } : it));
   }
 
   function handleClose(o: boolean) {
@@ -283,8 +289,37 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
                           <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
                         )}
                       </td>
-                      <td className="plate">{p.companyCode || <span className="text-muted">-</span>}</td>
-                      <td className="plate">{p.carNumber || <span className="text-muted">-</span>}</td>
+                      {/* 회사 — OCR 매칭 실패 시 인라인 select */}
+                      <td className="plate">
+                        {p._status === 'pending' ? <span className="text-weak">…</span>
+                          : p.companyCode ? p.companyCode
+                          : (
+                            <select
+                              className="input"
+                              style={{ width: 90, padding: '0 4px', height: 22, fontSize: 11 }}
+                              value=""
+                              onChange={(e) => updateRowField(p.id, { companyCode: e.target.value })}
+                            >
+                              <option value="">회사 선택</option>
+                              {companies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                            </select>
+                          )}
+                      </td>
+                      {/* 차량번호 — OCR 추출 실패하거나 형식 안 맞으면 인라인 input */}
+                      <td className="plate">
+                        {p._status === 'pending' ? <span className="text-weak">…</span>
+                          : p.carNumber && PLATE_RE.test(p.carNumber) ? p.carNumber
+                          : (
+                            <input
+                              type="text"
+                              className="input"
+                              style={{ width: 100, padding: '0 4px', height: 22, fontSize: 11 }}
+                              placeholder="01도1234"
+                              value={p.carNumber ?? ''}
+                              onChange={(e) => updateRowField(p.id, { carNumber: e.target.value.trim() })}
+                            />
+                          )}
+                      </td>
                       <td className="dim truncate" style={{ maxWidth: 140 }}>{p.carName || '-'}</td>
                       <td className="truncate" style={{ maxWidth: 110 }}>{p.insurer || '-'}</td>
                       <td className="mono dim truncate" style={{ maxWidth: 140 }}>{p.policyNo || '-'}</td>
@@ -306,7 +341,9 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
 
           {items.length > 0 && (
             <div className="text-weak text-xs">
-              총 {items.length}건 · 분석완료 <strong>{okCount}</strong> · 자산 매칭 <strong>{matchedCount}</strong>
+              총 {items.length}건 · 등록 가능 <strong>{registerableItems.length}</strong> · 자산 매칭 <strong>{matchedCount}</strong>
+              {noPlateCount > 0 && <> · <span className="text-red">차량번호 누락 {noPlateCount}건 (행에서 직접 입력)</span></>}
+              {noCompanyCount > 0 && <> · <span className="text-amber">회사 미매칭 {noCompanyCount}건 (행에서 선택)</span></>}
             </div>
           )}
         </div>
@@ -315,8 +352,8 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
           <DialogClose asChild>
             <button className="btn">취소</button>
           </DialogClose>
-          <button className="btn btn-primary" disabled={okCount === 0 || busy} onClick={commitAll}>
-            {okCount > 0 ? `${okCount}건 등록` : '등록'}
+          <button className="btn btn-primary" disabled={registerableItems.length === 0 || busy} onClick={commitAll}>
+            {registerableItems.length > 0 ? `${registerableItems.length}건 등록` : '등록 (차량번호·회사 입력 필요)'}
           </button>
         </DialogFooter>
       </DialogContent>
