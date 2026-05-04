@@ -535,6 +535,33 @@ export async function POST(req: NextRequest) {
         const m = blob.match(PLATE_RE);
         if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
       }
+      // 3차 fallback (vehicle_reg 한정): 별도 plate-only Gemini 호출
+      // Tesla 등 일부 외산차 등록증에서 schema-mode 추출이 실패하는 사례 대응.
+      // 스키마 없이 raw text 응답을 받아 정규식으로 추출.
+      if (!extracted && docType === 'vehicle_reg') {
+        try {
+          const platesOnly = await ai.models.generateContent({
+            model: MODEL,
+            contents: [{
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType: mediaType, data: base64 } },
+                { text: '이 한국 자동차등록증의 ① 자동차등록번호 칸에 적힌 차량번호판만 답하세요. 포맷: \\d{2,3}[가-힣]\\d{4} (예: 15가4481, 01도9893). 다른 설명 없이 번호판 문자열만.' },
+              ],
+            }],
+            config: {
+              temperature: 0,
+              ...(MODEL.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+              maxOutputTokens: 32,
+            },
+          });
+          const raw = normalize(platesOnly.text ?? '');
+          const m = raw.match(PLATE_RE);
+          if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
+        } catch {
+          // 3차 실패는 silently 무시 — 1·2차 결과(null)로 진행
+        }
+      }
       parsed.car_number = extracted;
     }
 
