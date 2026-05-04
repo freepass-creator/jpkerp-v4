@@ -32,7 +32,7 @@ export default function IdlePage() {
     { headerName: '상태', field: 'reason', width: 110, filterable: true,
       cellRenderer: ({ data }) => (
         <span className={cn('badge', data.reason === '운행중미매칭' ? 'badge-red' : 'badge-orange')}>
-          {data.reason === '운행중미매칭' ? '⚠ 정합성' : '미완료'}
+          {data.reason === '운행중미매칭' ? '⚠ 정합성' : '대기중'}
         </span>
       ) },
     { headerName: '차명', field: 'vehicleName', minWidth: 160, flex: 1, filterable: true,

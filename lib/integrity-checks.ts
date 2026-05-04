@@ -21,7 +21,12 @@ export type IntegrityKind =
   | '계좌내역누락'
   | '자산필드누락'
   | '계약필드누락'
-  | '회사필드누락';
+  | '회사필드누락'
+  | '매각자산계약중'   // asset 매각인데 운행중 계약 존재
+  | '회사불일치'      // 같은 plate 자산회사 ≠ 계약회사
+  | '날짜역전계약'    // 계약 시작일 > 만기일
+  | '날짜역전검사'    // 검사 시작 > 만기
+  | '보증금분납불일치'; // 보증금 분납 합 ≠ 보증금
 
 export type IntegrityRow = {
   id: string;
@@ -202,6 +207,85 @@ export function checkCompanyRequiredFields(companies: readonly Company[]): Integ
   return out;
 }
 
+/** 매각된 자산인데 운행중 계약이 있음 — 말이 안 됨. */
+export function checkSoldButActive(
+  assets: readonly Asset[],
+  contracts: readonly Contract[],
+): IntegrityRow[] {
+  const soldPlates = new Set(assets.filter((a) => a.status === '매각').map((a) => a.plate));
+  return contracts
+    .filter((c) => c.status === '운행중' && soldPlates.has(c.plate))
+    .map((c) => ({
+      id: `sba-${c.id}`,
+      kind: '매각자산계약중' as const,
+      companyCode: c.companyCode,
+      plate: c.plate,
+      target: c.customerName,
+      description: '자산 상태 매각인데 계약은 운행중 — 자산/계약 중 하나 정정 필요',
+      href: `/contract?selected=${c.id}`,
+      extra: c.contractNo,
+    }));
+}
+
+/** 같은 plate 인데 자산회사 ≠ 계약회사. */
+export function checkCompanyMismatch(
+  assets: readonly Asset[],
+  contracts: readonly Contract[],
+): IntegrityRow[] {
+  const assetByPlate = new Map<string, Asset>();
+  for (const a of assets) assetByPlate.set(a.plate, a);
+  const out: IntegrityRow[] = [];
+  for (const c of contracts) {
+    if (c.status === '만기' || c.status === '해지') continue;
+    if (!c.plate || !c.companyCode) continue;
+    const a = assetByPlate.get(c.plate);
+    if (!a || !a.companyCode) continue;
+    if (a.companyCode === c.companyCode) continue;
+    out.push({
+      id: `cmm-${c.id}`,
+      kind: '회사불일치' as const,
+      companyCode: c.companyCode,
+      plate: c.plate,
+      target: c.customerName,
+      description: `자산 회사(${a.companyCode}) ≠ 계약 회사(${c.companyCode}) — 회계 분리 위험`,
+      href: `/contract?selected=${c.id}`,
+      extra: c.contractNo,
+    });
+  }
+  return out;
+}
+
+/** 계약 시작일 > 만기일 — 날짜 거꾸로. */
+export function checkContractDateReversal(contracts: readonly Contract[]): IntegrityRow[] {
+  return contracts
+    .filter((c) => c.startDate && c.endDate && c.startDate > c.endDate)
+    .map((c) => ({
+      id: `cdr-${c.id}`,
+      kind: '날짜역전계약' as const,
+      companyCode: c.companyCode,
+      plate: c.plate,
+      target: c.customerName,
+      description: `시작 ${c.startDate} > 만기 ${c.endDate} — 날짜 입력 오류`,
+      href: `/contract?selected=${c.id}`,
+      extra: c.contractNo,
+    }));
+}
+
+/** 검사 시작 > 만기 — 자산 등록증 입력 오류. */
+export function checkInspectionDateReversal(assets: readonly Asset[]): IntegrityRow[] {
+  return assets
+    .filter((a) => a.inspectionFrom && a.inspectionTo && a.inspectionFrom > a.inspectionTo)
+    .map((a) => ({
+      id: `idr-${a.id}`,
+      kind: '날짜역전검사' as const,
+      companyCode: a.companyCode,
+      plate: a.plate,
+      target: a.vehicleName || a.vehicleClass || '',
+      description: `검사 시작 ${a.inspectionFrom} > 만기 ${a.inspectionTo}`,
+      href: `/asset?selected=${a.id}`,
+    }));
+}
+
 /** 모두 합쳐서 한 배열. 정렬: 종류 → 회사 → plate */
 export function collectIntegrity(
   assets: readonly Asset[],
@@ -217,6 +301,10 @@ export function collectIntegrity(
     ...checkAssetRequiredFields(assets),
     ...checkContractRequiredFields(contracts),
     ...checkCompanyRequiredFields(companies),
+    ...checkSoldButActive(assets, contracts),
+    ...checkCompanyMismatch(assets, contracts),
+    ...checkContractDateReversal(contracts),
+    ...checkInspectionDateReversal(assets),
   ];
   all.sort((a, b) => a.kind.localeCompare(b.kind) || a.companyCode.localeCompare(b.companyCode) || a.plate.localeCompare(b.plate));
   return all;
