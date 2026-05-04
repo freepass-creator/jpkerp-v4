@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { Trash, FileArrowDown, X } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
@@ -154,10 +154,10 @@ export default function AssetInsurancePage() {
               <th>자동이체 계좌</th>
               <th>예금주</th>
               {Array.from({ length: MAX_CYCLES }, (_, i) => i + 1).map((c) => (
-                <>
-                  <th key={`d${c}`} className="date">{c}회차일</th>
-                  <th key={`a${c}`} className="num">{c}회차금액</th>
-                </>
+                <Fragment key={c}>
+                  <th className="date">{c}회차일</th>
+                  <th className="num">{c}회차금액</th>
+                </Fragment>
               ))}
               <th>파일</th>
               <th className="center" style={{ width: 50, position: 'sticky', right: 0, background: 'var(--bg-header)' }}></th>
@@ -220,10 +220,10 @@ export default function AssetInsurancePage() {
                     {Array.from({ length: MAX_CYCLES }, (_, i) => i + 1).map((c) => {
                       const ins = p.installments?.find((it) => it.cycle === c);
                       return (
-                        <>
-                          <td key={`d${c}-${p.id}`} className="date mono dim">{ins?.dueDate || ''}</td>
-                          <td key={`a${c}-${p.id}`} className="num">{ins?.amount ? ins.amount.toLocaleString('ko-KR') : ''}</td>
-                        </>
+                        <Fragment key={c}>
+                          <td className="date mono dim">{ins?.dueDate || ''}</td>
+                          <td className="num">{ins?.amount ? ins.amount.toLocaleString('ko-KR') : ''}</td>
+                        </Fragment>
                       );
                     })}
                     <td className="mono dim truncate" style={{ maxWidth: 160 }} title={p.fileName}>{val(p.fileName)}</td>
