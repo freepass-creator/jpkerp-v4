@@ -60,6 +60,9 @@ export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
     if (arr.length === 0) return;
     const O = optsRef.current;
     setBusy(true);
+    // 즉시 진행 카운터 표시 — createPlaceholder 가 PDF 렌더링 등으로 ~1-2초 걸려도
+    // 드롭존이 "먹통" 처럼 보이지 않도록 추정 total 로 progress 먼저 셋팅.
+    setProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + arr.length }));
 
     // 1) PDF 분할 등 파일 확장 (선택)
     const expanded: File[] = [];
@@ -72,13 +75,17 @@ export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
       expanded.push(...arr);
     }
 
+    // expandFile 후 실제 개수가 다르면 progress.total 보정
+    if (expanded.length !== arr.length) {
+      setProgress((p) => p ? { done: p.done, total: p.total - arr.length + expanded.length } : { done: 0, total: expanded.length });
+    }
+
     // 2) placeholder 행을 한꺼번에 추가 (createPlaceholder 가 async 인 경우도 지원)
     const stamp = Date.now();
     const placeholders: W[] = await Promise.all(
       expanded.map((f, i) => Promise.resolve(O.createPlaceholder(f, `p-${stamp}-${i}-${Math.random().toString(36).slice(2, 5)}`))),
     );
     setItems((prev) => [...prev, ...placeholders]);
-    setProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + expanded.length }));
 
     // 3) 동시성 제한 병렬 OCR
     try {
