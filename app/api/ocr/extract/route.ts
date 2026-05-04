@@ -272,13 +272,14 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
     label: '자동차등록증',
     prompt: `이 문서는 한국 자동차등록증입니다.
 
-**car_number (① 자동차등록번호)** 추출 규칙:
-- 등록증 최상단 ① 항목에 "자동차등록번호" 라벨로 명시됨
-- 포맷 \`\\d{2,3}[가-힣]\\d{4}\` (예: "01도9893", "123가4567")
-- **수입차도 한국 plate 동일 — BMW/Tesla/MINI 등 외산도 한국 등록증엔 한국번호판 표기**
-- 중간에 공백·점·하이픈 있어도 raw 그대로 반환 (서버에서 정규화)
-- 17자 영문/숫자 = 차대번호(VIN) → 절대 car_number 아님
-- 차량번호판 칸이 비어있거나 미발급 상태면 null`,
+**car_number (① 자동차등록번호)** — 가장 중요. 반드시 추출:
+- 등록증 최상단 표 첫 행 ① 자동차등록번호 칸에 적혀 있음 (차종 / 용도 같은 행)
+- 한국 번호판 포맷 \`\\d{2,3}[가-힣]\\d{4}\` (예: "01도9893", "15가4481", "123가4567")
+- **외산차도 동일** — Tesla / BMW / Mercedes / MINI / Audi 등 한국 등록증엔 한국번호판 표기 (예: "15가4481" Model 3 Long Range)
+- 중간에 공백·점·하이픈·전각 숫자 있어도 raw 그대로 반환 (서버에서 정규화)
+- 17자 영문+숫자 = 차대번호(VIN) → 절대 car_number 아님
+- 한글 한 글자가 반드시 들어감 (가/나/다/도/마/바/사/아/저/허 등) — 영문이면 plate 아님
+- 차량번호판 칸이 비어있거나 신차 미발급 상태일 때만 null`,
     schema: VEHICLE_REG_SCHEMA,
   },
   business_reg: {
@@ -511,12 +512,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 차량번호 후처리 — 한국 plate 패턴이 wrapping text 안에 있어도 추출.
-    // 예: "차량번호: 01도9893" / "[01도9893]" / "01-도-9893" → "01도9893"
-    // VIN(영문+숫자 17자)은 한글이 없으니 자동 배제.
-    if ((docType === 'vehicle_reg' || docType === 'penalty' || docType === 'insurance_policy' || docType === 'rental_contract') && parsed.car_number && typeof parsed.car_number === 'string') {
-      const m = String(parsed.car_number).match(/(\d{2,3})\s*[\-.·]?\s*([가-힣])\s*[\-.·]?\s*(\d{4})/);
-      parsed.car_number = m ? `${m[1]}${m[2]}${m[3]}` : null;
+    // 차량번호 후처리 — 한국 plate 패턴 다단계 추출:
+    //   1) 전각 숫자(０-９) → 반각 정규화
+    //   2) wrapping text 안 plate 부분 매칭 ("차량번호: 15가4481" / "[15가4481]" 등)
+    //   3) 그래도 없으면 전체 응답 JSON 에서 plate 패턴 fallback 찾기 (Gemini 가
+    //      car_number 필드에 못 넣고 다른 곳에 흘려보낸 케이스 — 예: 외산차)
+    //   VIN(영문+숫자 17자) 은 한글이 없으니 자동 배제.
+    const PLATE_RE = /(\d{2,3})\s*[\-.·]?\s*([가-힣])\s*[\-.·]?\s*(\d{4})/;
+    const normalize = (s: unknown): string => String(s ?? '')
+      .replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+
+    if (docType === 'vehicle_reg' || docType === 'penalty' || docType === 'insurance_policy' || docType === 'rental_contract') {
+      // 1차: car_number 필드 매칭
+      let extracted: string | null = null;
+      if (parsed.car_number) {
+        const m = normalize(parsed.car_number).match(PLATE_RE);
+        if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
+      }
+      // 2차 fallback: 전체 응답에서 plate 패턴 찾기 (Gemini 누락 대비)
+      if (!extracted) {
+        const blob = normalize(JSON.stringify(parsed));
+        const m = blob.match(PLATE_RE);
+        if (m) extracted = `${m[1]}${m[2]}${m[3]}`;
+      }
+      parsed.car_number = extracted;
     }
 
     if (docType === 'vehicle_reg' && !parsed.detail_model && parsed.car_name) {
