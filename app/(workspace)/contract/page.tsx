@@ -15,6 +15,7 @@ import { FileText } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextSequenceCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
+import { useAuditStamp } from '@/lib/audit-fields';
 import { cn } from '@/lib/cn';
 
 /** 수정·복사용 폼 필드 (등록은 ContractRegisterDialog 사용). */
@@ -48,6 +49,7 @@ export default function ContractListPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
+  const audit = useAuditStamp();
 
   const totals = useMemo(() => {
     const totalAssets = assets.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
@@ -97,34 +99,33 @@ export default function ContractListPage() {
   }
 
   function handleCreate(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>) {
-    const contract = fromDraft(draft);
+    const contract: Contract = { ...fromDraft(draft), ...audit.create() };
     setContracts((prev) => [contract, ...prev]);
     // cascade: 자산 상태 전환 — '등록예정' → '대기' (출고 대기). 이미 운행중/정비/매각이면 손대지 않음.
     setAssets((prev) => prev.map((a) =>
       a.plate === contract.plate && a.companyCode === contract.companyCode && a.status === '등록예정'
-        ? { ...a, status: '대기' as const }
+        ? { ...a, status: '대기' as const, ...audit.update() }
         : a,
     ));
   }
 
   function handleUpdate(d: Record<string, string>) {
     if (!selected) return;
-    const updated: Contract = { ...selected, ...fromFormRecord(d), id: selected.id, contractNo: selected.contractNo, events: selected.events };
+    const updated: Contract = { ...selected, ...fromFormRecord(d), id: selected.id, contractNo: selected.contractNo, events: selected.events, ...audit.update() };
     setContracts((prev) => prev.map((c) => (c.id === selected.id ? updated : c)));
     setSelected(updated);
     setEditOpen(false);
   }
 
   function handleDuplicate(d: Record<string, string>) {
-    setContracts((prev) => [fromFormRecord(d), ...prev]);
+    setContracts((prev) => [{ ...fromFormRecord(d), ...audit.create() }, ...prev]);
     setDuplicateOpen(false);
   }
 
   function handleDelete() {
     if (!selected) return;
     if (!confirm(`${selected.contractNo} 계약을 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
-    const now = new Date().toISOString();
-    setContracts((prev) => prev.map((c) => c.id === selected.id ? { ...c, deletedAt: now } : c));
+    setContracts((prev) => prev.map((c) => c.id === selected.id ? { ...c, ...audit.delete() } : c));
     setSelected(null);
   }
 

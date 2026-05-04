@@ -3,6 +3,8 @@
  * OCR 결과를 그대로 담을 수 있게 모든 필드 optional. 회차 분납은 installments 배열.
  */
 
+import type { AuditFields } from './audit-fields';
+
 export type Installment = {
   cycle: number;
   dueDate: string;       // YYYY-MM-DD
@@ -68,7 +70,7 @@ export type InsurancePolicy = {
 
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
-};
+} & AuditFields;
 
 /** end_date까지 남은 일수 */
 export function daysToExpiry(p: InsurancePolicy, today = new Date()): number | null {

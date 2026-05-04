@@ -3,6 +3,8 @@
  * 9종 운영 + 기타. 모두 입력 작업장(목록이 아님). 카테고리별 입력 폼이 다름.
  */
 
+import type { AuditFields } from './audit-fields';
+
 export type JournalKind =
   | 'ioc'              // 입출고센터 — 출고·반납·회수·이동
   | 'pc'               // 차량케어센터 — 정비·사고수리·세차·상품화
@@ -57,6 +59,6 @@ export type JournalEntry = {
   data: Record<string, string>;
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
-};
+} & AuditFields;
 
 export const SAMPLE_JOURNAL: JournalEntry[] = [];

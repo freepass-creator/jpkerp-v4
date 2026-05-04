@@ -1,3 +1,5 @@
+import type { AuditFields } from './audit-fields';
+
 export type ContractStatus = '운행중' | '대기' | '만기' | '해지';
 export type ScheduleType = '출고' | '수납' | '검사' | '정비' | '보험' | '반납' | '기타';
 export type ScheduleStatus = '예정' | '완료' | '지연' | '취소';
@@ -32,7 +34,7 @@ export type Contract = {
   events: ScheduleEvent[];
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
-};
+} & AuditFields;
 
 /**
  * 계약 등록 시 자동 생성되는 계약 단위 events — 출고·수납·반납만.

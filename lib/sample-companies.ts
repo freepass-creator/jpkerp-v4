@@ -3,6 +3,8 @@
  * 사업자등록증 OCR 결과 + 계좌/카드 정보까지 한 회사에 묶음.
  */
 
+import type { AuditFields } from './audit-fields';
+
 export type CompanyAccount = {
   bank: string;          // 은행명 (예: 신한, 국민)
   accountNo: string;     // 계좌번호
@@ -35,7 +37,7 @@ export type Company = {
   cards?: CompanyCard[];
   /** 소프트 삭제 — 코드 영구 보존 (회사코드 재발급 금지, 자산·계약 역참조 무결성 유지). */
   deletedAt?: string;                              // 삭제 시각 ISO. 미설정이면 active.
-};
+} & AuditFields;
 
 /** 회사 데이터는 사용자가 사업자등록증 OCR 또는 개별 입력으로 채움. 샘플 없음. */
 export const SAMPLE_COMPANIES: Company[] = [];

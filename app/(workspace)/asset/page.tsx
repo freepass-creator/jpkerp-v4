@@ -21,6 +21,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import { type Asset, type AssetStatus } from '@/lib/sample-assets';
 import { useAssetStore } from '@/lib/use-asset-store';
+import { useAuditStamp } from '@/lib/audit-fields';
 import { downloadContractTemplate } from '@/lib/contract-template';
 
 export default function AssetListPage() {
@@ -29,6 +30,7 @@ export default function AssetListPage() {
   const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
   const [selected, setSelected] = useState<Asset | null>(null);
   const { search } = useTopbarSearch();
+  const audit = useAuditStamp();
 
   // 수정/복사 다이얼로그 상태
   const [editOpen, setEditOpen] = useState(false);
@@ -71,6 +73,7 @@ export default function AssetListPage() {
       ownerName: partial.ownerName ?? '',
       ...partial,
       status: partial.status ?? '등록예정',
+      ...audit.create(),
     } as Asset;
     setAssets((prev) => [next, ...prev]);
     setSelected(next);
@@ -78,7 +81,7 @@ export default function AssetListPage() {
 
   function handleUpdate(partial: Partial<Asset>) {
     if (!selected) return;
-    const updated: Asset = { ...selected, ...partial } as Asset;
+    const updated: Asset = { ...selected, ...partial, ...audit.update() } as Asset;
     setAssets((prev) => prev.map((a) => (a.id === selected.id ? updated : a)));
     setSelected(updated);
   }
@@ -92,8 +95,7 @@ export default function AssetListPage() {
   function handleDelete() {
     if (!selected) return;
     if (!confirm(`${selected.companyCode} ${selected.plate || selected.vehicleName} 자산을 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
-    const now = new Date().toISOString();
-    setAssets((prev) => prev.map((a) => a.id === selected.id ? { ...a, deletedAt: now } : a));
+    setAssets((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...audit.delete() } : a));
     setSelected(null);
   }
 

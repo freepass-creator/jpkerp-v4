@@ -12,6 +12,7 @@ const InsuranceRegisterDialog = dynamic(
 );
 import { type InsurancePolicy, daysToExpiry } from '@/lib/sample-insurance';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
+import { useAuditStamp } from '@/lib/audit-fields';
 import { exportToExcel } from '@/lib/excel-export';
 
 const COMPANY_COL_WIDTH = 56;
@@ -24,21 +25,21 @@ export default function AssetInsurancePage() {
   const policies = useMemo(() => allPolicies.filter((p) => !p.deletedAt), [allPolicies]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const subTabPending = useAssetSubtabPending();
+  const audit = useAuditStamp();
 
   function handleCreate(items: InsurancePolicy[]) {
-    setPolicies((prev) => [...items, ...prev]);
+    const stamped = items.map((i) => ({ ...i, ...audit.create() }));
+    setPolicies((prev) => [...stamped, ...prev]);
   }
 
   function removeOne(id: string) {
-    const now = new Date().toISOString();
-    setPolicies((p) => p.map((i) => i.id === id ? { ...i, deletedAt: now } : i));
+    setPolicies((p) => p.map((i) => i.id === id ? { ...i, ...audit.delete() } : i));
     if (selectedId === id) setSelectedId(null);
   }
 
   function clearAll() {
     if (!confirm(`전체 ${policies.length}건 보험증권을 삭제할까요? (증권번호 영구 보존 — 재발급 안 됨)`)) return;
-    const now = new Date().toISOString();
-    setPolicies((p) => p.map((i) => i.deletedAt ? i : { ...i, deletedAt: now }));
+    setPolicies((p) => p.map((i) => i.deletedAt ? i : { ...i, ...audit.delete() }));
     setSelectedId(null);
   }
 

@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useAuditStamp } from '@/lib/audit-fields';
 import dynamic from 'next/dynamic';
 const CompanyRegisterDialog = dynamic(
   () => import('@/components/admin/company-register-dialog').then((m) => m.CompanyRegisterDialog),
@@ -21,19 +22,22 @@ export default function AdminCompanyPage() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
+  const audit = useAuditStamp();
 
   const handleCreate = (c: Company) => {
     if (companies.some((x) => x.code === c.code)) {
       alert(`회사코드 ${c.code} 이미 존재합니다.`);
       return;
     }
-    setCompanies((prev) => [...prev, c]);
+    const stamped: Company = { ...c, ...audit.create() };
+    setCompanies((prev) => [...prev, stamped]);
   };
 
   const handleUpdate = (c: Company) => {
     if (!selected) return;
-    setCompanies((prev) => prev.map((x) => x.code === selected.code ? c : x));
-    setSelected(c);
+    const stamped: Company = { ...c, ...audit.update() };
+    setCompanies((prev) => prev.map((x) => x.code === selected.code ? stamped : x));
+    setSelected(stamped);
   };
 
   // 삭제는 개발도구(/dev) 에서 최고관리자만.

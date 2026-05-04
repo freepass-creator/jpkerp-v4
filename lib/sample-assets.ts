@@ -1,3 +1,5 @@
+import type { AuditFields } from './audit-fields';
+
 export type AssetStatus = '등록예정' | '대기' | '운행중' | '정비' | '매각';
 
 /**
@@ -87,7 +89,7 @@ export type Asset = {
 
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
-};
+} & AuditFields;
 
 /** 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. 샘플 없음. */
 export const SAMPLE_ASSETS: Asset[] = [];

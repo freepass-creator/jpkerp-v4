@@ -10,6 +10,7 @@ import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useAuditStamp } from '@/lib/audit-fields';
 import { cn } from '@/lib/cn';
 
 /**
@@ -350,12 +351,13 @@ function CompaniesTable({ companies, setCompanies }: {
   companies: ReturnType<typeof useCompanyStore>[0];
   setCompanies: ReturnType<typeof useCompanyStore>[1];
 }) {
+  const audit = useAuditStamp();
   const removeOne = (code: string, name: string) => {
     if (!confirm(`회사 "${name}" (${code}) 삭제할까요? (코드는 영구 보존 — 재발급 안 됨)`)) return;
-    setCompanies((p) => p.map((c) => c.code === code ? { ...c, deletedAt: new Date().toISOString() } : c));
+    setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.delete() } : c));
   };
   const restoreOne = (code: string) => {
-    setCompanies((p) => p.map((c) => c.code === code ? { ...c, deletedAt: undefined } : c));
+    setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.restore() } : c));
   };
   return (
     <table className="table">
@@ -404,12 +406,13 @@ function AssetsTable({ assets, setAssets }: {
   assets: ReturnType<typeof useAssetStore>[0];
   setAssets: ReturnType<typeof useAssetStore>[1];
 }) {
+  const audit = useAuditStamp();
   const removeOne = (id: string, plate: string) => {
     if (!confirm(`자산 "${plate || id}" 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
-    setAssets((p) => p.map((a) => a.id === id ? { ...a, deletedAt: new Date().toISOString() } : a));
+    setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.delete() } : a));
   };
   const restoreOne = (id: string) => {
-    setAssets((p) => p.map((a) => a.id === id ? { ...a, deletedAt: undefined } : a));
+    setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.restore() } : a));
   };
   return (
     <table className="table">
@@ -462,12 +465,13 @@ function ContractsTable({ contracts, setContracts }: {
   contracts: ReturnType<typeof useContractStore>[0];
   setContracts: ReturnType<typeof useContractStore>[1];
 }) {
+  const audit = useAuditStamp();
   const removeOne = (id: string, contractNo: string) => {
     if (!confirm(`계약 "${contractNo || id}" 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
-    setContracts((p) => p.map((c) => c.id === id ? { ...c, deletedAt: new Date().toISOString() } : c));
+    setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.delete() } : c));
   };
   const restoreOne = (id: string) => {
-    setContracts((p) => p.map((c) => c.id === id ? { ...c, deletedAt: undefined } : c));
+    setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.restore() } : c));
   };
   return (
     <table className="table">
