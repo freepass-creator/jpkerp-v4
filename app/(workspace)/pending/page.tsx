@@ -7,6 +7,7 @@ import { PENDING_SUBTABS, usePendingSubtabPending } from '@/lib/pending-subtabs'
 import { useJournalStore } from '@/lib/use-journal-store';
 import { KIND_LABEL, type JournalEntry } from '@/lib/sample-journal';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
+import { buildLocationMap } from '@/lib/vehicle-location';
 import { cn } from '@/lib/cn';
 
 /**
@@ -27,6 +28,8 @@ export default function PendingPage() {
     [entries],
   );
 
+  const locMap = useMemo(() => buildLocationMap(entries), [entries]);
+
   const columns = useMemo<JpkColumn<JournalEntry>[]>(() => [
     { headerName: '회사', field: 'companyCode', width: 80, filterable: true },
     {
@@ -45,6 +48,11 @@ export default function PendingPage() {
       cellRenderer: ({ value }) => <StatusBadge status={value as string} />,
     },
     {
+      headerName: '현재 위치', width: 150, filterable: true,
+      valueGetter: ({ data }) => locMap.get(data.data?.plate ?? '') ?? '',
+      cellRenderer: ({ value }) => <span className="dim">{(value as string) || '-'}</span>,
+    },
+    {
       headerName: '일시', field: 'at', width: 130, filterType: 'date', sort: 'desc',
     },
     { headerName: '담당', field: 'staff', width: 90, filterable: true },
@@ -53,7 +61,7 @@ export default function PendingPage() {
       valueGetter: ({ data }) => summarize(data.data),
       cellRenderer: ({ value }) => <span className="dim">{(value as string) || '-'}</span>,
     },
-  ], []);
+  ], [locMap]);
 
   const getRowId = useCallback((r: JournalEntry) => r.id, []);
 

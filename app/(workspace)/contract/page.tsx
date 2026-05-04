@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { PencilSimple, Copy, Trash } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
@@ -9,6 +9,7 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
+import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { nextSequenceCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { cn } from '@/lib/cn';
@@ -187,55 +188,12 @@ export default function ContractListPage() {
           </>
         }
       >
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>회사코드</th>
-                <th>차량번호</th>
-                <th>계약번호</th>
-                <th>고객명</th>
-                <th>고객 신분</th>
-                <th>고객 연락처</th>
-                <th className="date">시작일</th>
-                <th className="date">만기일</th>
-                <th className="num">월 청구액</th>
-                <th className="num">보증금</th>
-                <th className="center">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleContracts.map((c) => (
-                <tr
-                  key={c.id}
-                  className={cn(selected?.id === c.id && 'selected')}
-                  onClick={() => setSelected(c)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setSelected(c);
-                    setCtxMenu({ open: true, x: e.clientX, y: e.clientY });
-                  }}
-                >
-                  <td className="plate">{c.companyCode}</td>
-                  <td className="plate">{c.plate}</td>
-                  <td className="mono text-medium">{c.contractNo}</td>
-                  <td>{c.customerName}</td>
-                  <td className="dim">{c.customerKind ?? '-'}</td>
-                  <td className="mono dim">{c.customerPhone ?? '-'}</td>
-                  <td className="date">{c.startDate}</td>
-                  <td className="date">{c.endDate}</td>
-                  <td className="num">{(c.monthlyAmount ?? 0).toLocaleString('ko-KR')}</td>
-                  <td className="num">{c.deposit ? c.deposit.toLocaleString('ko-KR') : '-'}</td>
-                  <td className="center">
-                    <span className={cn('badge', c.status === '운행중' ? 'badge-green' : c.status === '만기' ? 'badge-orange' : 'badge')}>
-                      {c.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ContractGrid
+          contracts={visibleContracts}
+          selectedId={selected?.id}
+          onRowClick={setSelected}
+          onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
+        />
       </PageShell>
 
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}
@@ -249,5 +207,64 @@ export default function ContractListPage() {
         title="계약 복사 (스펙 복제)" fields={CONTRACT_DUPLICATE_FIELDS} initial={dupInitial}
         onSubmit={handleDuplicate} />
     </>
+  );
+}
+
+/** 계약현황 그리드 — JpkTable 기반. 컬럼 헤더 set/range/date 필터. */
+function ContractGrid({
+  contracts, selectedId, onRowClick, onRowContextMenu,
+}: {
+  contracts: Contract[];
+  selectedId?: string;
+  onRowClick: (c: Contract) => void;
+  onRowContextMenu: (c: Contract, x: number, y: number) => void;
+}) {
+  const tableRef = useRef<JpkTableApi<Contract> | null>(null);
+
+  const columns = useMemo<JpkColumn<Contract>[]>(() => [
+    { headerName: '회사', field: 'companyCode', width: 80, filterable: true,
+      cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
+    { headerName: '차량번호', field: 'plate', width: 110, filterable: true,
+      cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
+    { headerName: '계약번호', field: 'contractNo', width: 130, filterable: true,
+      cellRenderer: ({ value }) => <span className="mono text-medium">{value as string}</span> },
+    { headerName: '고객명', field: 'customerName', width: 130, filterable: true },
+    { headerName: '고객 신분', field: 'customerKind', width: 90, filterable: true,
+      cellRenderer: ({ value }) => <span className="dim">{(value as string) ?? '-'}</span> },
+    { headerName: '연락처', field: 'customerPhone', width: 130,
+      cellRenderer: ({ value }) => <span className="mono dim">{(value as string) || '-'}</span> },
+    { headerName: '시작일', field: 'startDate', width: 110, filterType: 'date' },
+    { headerName: '만기일', field: 'endDate', width: 110, filterType: 'date' },
+    { headerName: '월 청구액', field: 'monthlyAmount', width: 110, align: 'right', filterType: 'range',
+      filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
+      valueFormatter: ({ value }) => (value as number)?.toLocaleString('ko-KR') ?? '0' },
+    { headerName: '보증금', field: 'deposit', width: 110, align: 'right', filterType: 'range',
+      filterStep: 1000000, filterUnit: 10000, filterUnitLabel: '만원',
+      valueFormatter: ({ value }) => value ? (value as number).toLocaleString('ko-KR') : '-' },
+    { headerName: '상태', field: 'status', width: 90, filterable: true,
+      cellRenderer: ({ value }) => (
+        <span className={cn('badge', value === '운행중' ? 'badge-green' : value === '만기' ? 'badge-orange' : '')}>
+          {value as string}
+        </span>
+      ) },
+  ], []);
+
+  const getRowId = useCallback((c: Contract) => c.id, []);
+  const handleRowContextMenu = useCallback((c: Contract, _i: number, ev: React.MouseEvent) => {
+    onRowClick(c);
+    onRowContextMenu(c, ev.clientX, ev.clientY);
+  }, [onRowClick, onRowContextMenu]);
+
+  return (
+    <JpkTable<Contract>
+      ref={tableRef}
+      columns={columns}
+      rows={contracts}
+      getRowId={getRowId}
+      selectedKey={selectedId}
+      storageKey="contract.list"
+      onRowClick={onRowClick}
+      onRowContextMenu={handleRowContextMenu}
+    />
   );
 }
