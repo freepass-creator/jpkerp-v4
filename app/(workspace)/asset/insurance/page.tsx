@@ -9,7 +9,8 @@ const InsuranceRegisterDialog = dynamic(
   () => import('@/components/insurance/insurance-register-dialog').then((m) => m.InsuranceRegisterDialog),
   { ssr: false },
 );
-import { type InsurancePolicy, daysToExpiry, SAMPLE_INSURANCE } from '@/lib/sample-insurance';
+import { type InsurancePolicy, daysToExpiry } from '@/lib/sample-insurance';
+import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { exportToExcel } from '@/lib/excel-export';
 
 const COMPANY_COL_WIDTH = 56;
@@ -17,7 +18,7 @@ const PLATE_COL_WIDTH = 96;
 const MAX_CYCLES = 6;  // 표준 자동차보험 6회 분납
 
 export default function AssetInsurancePage() {
-  const [policies, setPolicies] = useState<InsurancePolicy[]>(SAMPLE_INSURANCE);
+  const [policies, setPolicies] = useInsuranceStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const subTabPending = useAssetSubtabPending();
 

@@ -7,6 +7,7 @@ import { useContractStore } from './use-contract-store';
 import { useJournalStore } from './use-journal-store';
 import { useCompanyStore } from './use-company-store';
 import { useLedgerStore } from './use-ledger-store';
+import { useInsuranceStore } from './use-insurance-store';
 import { collectOverdue, collectIdle } from './pending-aggregators';
 import { collectIntegrity } from './integrity-checks';
 
@@ -35,6 +36,7 @@ export function usePendingSubtabPending(): Record<string, number> {
   const [entries] = useJournalStore();
   const [companies] = useCompanyStore();
   const [ledger] = useLedgerStore();
+  const [policies] = useInsuranceStore();
   return useMemo(() => {
     const today = Date.now();
     const horizon = today + 30 * 24 * 60 * 60 * 1000;
@@ -62,8 +64,8 @@ export function usePendingSubtabPending(): Record<string, number> {
       '/pending/idle':       collectIdle(assets, contracts).length,
       '/pending/inspection': inspection,
       '/pending/return':     returnSoon,
-      '/pending/integrity':  collectIntegrity(assets, contracts, companies, ledger).length,
-      // 보험/할부/세금 — 별도 store 추가 시 카운트 (현재 0)
+      '/pending/integrity':  collectIntegrity(assets, contracts, companies, ledger, policies).length,
+      // 할부/세금 — 별도 store 추가 시 카운트 (현재 0)
     };
-  }, [assets, contracts, entries, companies, ledger]);
+  }, [assets, contracts, entries, companies, ledger, policies]);
 }

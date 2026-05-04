@@ -9,6 +9,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { collectIntegrity, type IntegrityRow, type IntegrityKind } from '@/lib/integrity-checks';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { cn } from '@/lib/cn';
@@ -19,13 +20,14 @@ export default function IntegrityPage() {
   const [contracts] = useContractStore();
   const [companies] = useCompanyStore();
   const [entries] = useLedgerStore();
+  const [policies] = useInsuranceStore();
   const subTabPending = usePendingSubtabPending();
   const [filtered, setFiltered] = useState<readonly IntegrityRow[]>([]);
   const tableRef = useRef<JpkTableApi<IntegrityRow> | null>(null);
 
   const rows = useMemo(
-    () => collectIntegrity(assets, contracts, companies, entries),
-    [assets, contracts, companies, entries],
+    () => collectIntegrity(assets, contracts, companies, entries, policies),
+    [assets, contracts, companies, entries, policies],
   );
 
   const counts = useMemo(() => {
@@ -33,6 +35,7 @@ export default function IntegrityPage() {
       회사미매칭자산: 0, 회사미매칭계약: 0, plate불일치: 0, 계좌내역누락: 0,
       자산필드누락: 0, 계약필드누락: 0, 회사필드누락: 0,
       매각자산계약중: 0, 회사불일치: 0, 날짜역전계약: 0, 날짜역전검사: 0, 보증금분납불일치: 0,
+      미매칭입금: 0, 보험없음: 0, 보험만기경과: 0,
     };
     for (const r of rows) c[r.kind]++;
     return c;
@@ -74,6 +77,9 @@ export default function IntegrityPage() {
           {counts.매각자산계약중 > 0 && <span className="stat-item alert">매각자산 계약중 <strong>{counts.매각자산계약중}</strong></span>}
           {counts.회사불일치 > 0 && <span className="stat-item alert">회사 불일치 <strong>{counts.회사불일치}</strong></span>}
           {counts.plate불일치 > 0 && <span className="stat-item alert">plate 불일치 <strong>{counts.plate불일치}</strong></span>}
+          {counts.보험없음 > 0 && <span className="stat-item alert">보험 없음 <strong>{counts.보험없음}</strong></span>}
+          {counts.보험만기경과 > 0 && <span className="stat-item alert">보험 만기경과 <strong>{counts.보험만기경과}</strong></span>}
+          {counts.미매칭입금 > 0 && <span className="stat-item alert">미매칭 입금 <strong>{counts.미매칭입금}</strong></span>}
           {counts.날짜역전계약 > 0 && <span className="stat-item alert">계약 날짜역전 <strong>{counts.날짜역전계약}</strong></span>}
           {counts.날짜역전검사 > 0 && <span className="stat-item alert">검사 날짜역전 <strong>{counts.날짜역전검사}</strong></span>}
           {counts.계좌내역누락 > 0 && <span className="stat-item alert">계좌내역 누락 <strong>{counts.계좌내역누락}</strong></span>}
@@ -120,6 +126,9 @@ function KindBadge({ kind }: { kind: IntegrityKind }) {
     날짜역전계약:     { tone: 'badge-red',    label: '계약 날짜 역전' },
     날짜역전검사:     { tone: 'badge-red',    label: '검사 날짜 역전' },
     보증금분납불일치:  { tone: 'badge-orange', label: '보증금 분납 불일치' },
+    미매칭입금:       { tone: 'badge-red',    label: '미매칭 입금' },
+    보험없음:         { tone: 'badge-red',    label: '보험 없음' },
+    보험만기경과:     { tone: 'badge-red',    label: '보험 만기경과' },
   };
   const { tone, label } = map[kind];
   return <span className={cn('badge', tone)}>{label}</span>;

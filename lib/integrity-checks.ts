@@ -13,6 +13,7 @@ import type { Asset } from './sample-assets';
 import type { Contract } from './sample-contracts';
 import type { Company } from './sample-companies';
 import type { LedgerEntry } from './sample-finance';
+import type { InsurancePolicy } from './sample-insurance';
 
 export type IntegrityKind =
   | '회사미매칭자산'
@@ -26,7 +27,10 @@ export type IntegrityKind =
   | '회사불일치'      // 같은 plate 자산회사 ≠ 계약회사
   | '날짜역전계약'    // 계약 시작일 > 만기일
   | '날짜역전검사'    // 검사 시작 > 만기
-  | '보증금분납불일치'; // 보증금 분납 합 ≠ 보증금
+  | '보증금분납불일치' // 보증금 분납 합 ≠ 보증금
+  | '미매칭입금'      // 계좌내역 입금인데 매칭 계약 없음 — 수납 정산 못 함
+  | '보험없음'        // 운행중 자산인데 활성 보험증권 없음 — 사고 시 미보장
+  | '보험만기경과';   // 자산에 매칭된 보험이 만기 경과
 
 export type IntegrityRow = {
   id: string;
@@ -286,12 +290,83 @@ export function checkInspectionDateReversal(assets: readonly Asset[]): Integrity
     }));
 }
 
+/**
+ * 보험증권 정합성:
+ *  · 보험없음   — 운행중 자산인데 plate 매칭 보험 0건 (사고 시 미보장)
+ *  · 보험만기경과 — 매칭 보험은 있지만 endDate 가 today 보다 과거
+ */
+export function checkInsuranceMatching(
+  assets: readonly Asset[],
+  policies: readonly InsurancePolicy[],
+): IntegrityRow[] {
+  const today = new Date().toISOString().slice(0, 10);
+  // plate → 가장 만기가 늦은 활성 보험
+  const policiesByPlate = new Map<string, InsurancePolicy>();
+  for (const p of policies) {
+    const plate = p.carNumber ?? '';
+    if (!plate) continue;
+    const prev = policiesByPlate.get(plate);
+    if (!prev || (p.endDate ?? '') > (prev.endDate ?? '')) policiesByPlate.set(plate, p);
+  }
+
+  const out: IntegrityRow[] = [];
+  for (const a of assets) {
+    if (a.status === '매각' || a.status === '등록예정') continue;
+    const policy = policiesByPlate.get(a.plate);
+    if (!policy) {
+      out.push({
+        id: `noins-${a.id}`,
+        kind: '보험없음',
+        companyCode: a.companyCode,
+        plate: a.plate,
+        target: a.vehicleName || a.vehicleClass || '',
+        description: '운행중 자산인데 매칭 보험증권 없음 — 사고 시 미보장 위험',
+        href: `/asset/insurance`,
+      });
+      continue;
+    }
+    if (policy.endDate && policy.endDate < today) {
+      out.push({
+        id: `expins-${a.id}`,
+        kind: '보험만기경과',
+        companyCode: a.companyCode,
+        plate: a.plate,
+        target: a.vehicleName || a.vehicleClass || '',
+        description: `보험 만기 ${policy.endDate} 경과 — ${policy.insurer ?? ''} ${policy.policyNo ?? ''}`,
+        href: `/asset/insurance`,
+        extra: policy.policyNo,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * 계좌내역 입금인데 매칭 계약 없음 — 수납 처리 못 함.
+ * 출금은 자동이체·카드·세금·기타 등 다양해서 매칭 모호 → 입금만 검사.
+ */
+export function checkUnmatchedDeposits(entries: readonly LedgerEntry[]): IntegrityRow[] {
+  return entries
+    .filter((e) => (e.deposit ?? 0) > 0 && !e.matchedContract)
+    .map((e) => ({
+      id: `umd-${e.id}`,
+      kind: '미매칭입금' as const,
+      companyCode: e.companyCode,
+      plate: '',
+      target: e.counterparty || e.memo || '(상대 미상)',
+      description: `${e.txDate} 입금 ${(e.deposit ?? 0).toLocaleString('ko-KR')}원 — 어느 계약 입금인지 미정`,
+      href: '/finance',
+      extra: e.account,
+    }));
+}
+
 /** 모두 합쳐서 한 배열. 정렬: 종류 → 회사 → plate */
 export function collectIntegrity(
   assets: readonly Asset[],
   contracts: readonly Contract[],
   companies: readonly Company[],
   entries: readonly LedgerEntry[],
+  policies: readonly InsurancePolicy[] = [],
 ): IntegrityRow[] {
   const all: IntegrityRow[] = [
     ...checkCompanyMissingAssets(assets),
@@ -305,6 +380,8 @@ export function collectIntegrity(
     ...checkCompanyMismatch(assets, contracts),
     ...checkContractDateReversal(contracts),
     ...checkInspectionDateReversal(assets),
+    ...checkUnmatchedDeposits(entries),
+    ...checkInsuranceMatching(assets, policies),
   ];
   all.sort((a, b) => a.kind.localeCompare(b.kind) || a.companyCode.localeCompare(b.companyCode) || a.plate.localeCompare(b.plate));
   return all;
