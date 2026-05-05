@@ -1,9 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'JPK ERP v4',
   description: '장기렌터카 ERP — 자산/계약/재무/업무일지',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#1B2A4A',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

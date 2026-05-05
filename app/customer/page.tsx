@@ -67,6 +67,10 @@ export default function CustomerEntryPage() {
         <p className="cx-field-hint" style={{ textAlign: 'center', marginTop: 4 }}>
           정보가 일치하지 않으면 계약이 표시되지 않습니다. 등록번호는 즉시 마스킹되며 외부에 노출되지 않습니다.
         </p>
+
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
+          <a className="cx-sample-link" href="/customer/sample">샘플 미리보기 →</a>
+        </div>
       </main>
     </>
   );
