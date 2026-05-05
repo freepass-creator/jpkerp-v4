@@ -1511,22 +1511,6 @@ input[type="checkbox"], input[type="radio"] {
   flex-direction: column;
 }
 
-.cx-topbar {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  padding: 14px 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.cx-brand {
-  font-size: 16px;
-  letter-spacing: 0.02em;
-}
-.cx-brand .cx-brand-base { color: var(--text-sub); }
-.cx-brand .cx-brand-main { color: var(--text-main); font-weight: 700; }
-.cx-brand .cx-brand-erp  { color: var(--brand);     font-weight: 700; }
-
 .cx-main {
   flex: 1;
   width: 100%;

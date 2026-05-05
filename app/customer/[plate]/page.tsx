@@ -69,56 +69,45 @@ export default function CustomerViewPage() {
 
   if (!identReady) {
     return (
-      <>
-        <CustomerHeader />
-        <main className="cx-main">
-          <div className="cx-card cx-empty">조회 중...</div>
-        </main>
-      </>
+      <main className="cx-main">
+        <div className="cx-card cx-empty">조회 중...</div>
+      </main>
     );
   }
 
   if (!ident) {
     return (
-      <>
-        <CustomerHeader />
-        <main className="cx-main">
-          <div className="cx-card">
-            <h1 className="cx-h1">조회 정보 없음</h1>
-            <p className="cx-lead">새로고침 등으로 정보가 사라졌습니다. 다시 조회해주세요.</p>
-            <Link href="/customer" className="cx-submit" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>
-              다시 조회
-            </Link>
-          </div>
-        </main>
-      </>
+      <main className="cx-main">
+        <div className="cx-card">
+          <h1 className="cx-h1">조회 정보 없음</h1>
+          <p className="cx-lead">새로고침 등으로 정보가 사라졌습니다. 다시 조회해주세요.</p>
+          <Link href="/customer" className="cx-submit" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>
+            다시 조회
+          </Link>
+        </div>
+      </main>
     );
   }
 
   if (!contract) {
     return (
-      <>
-        <CustomerHeader />
-        <main className="cx-main">
-          <button type="button" className="cx-back" onClick={() => router.push('/customer')}>
-            <ArrowLeft size={14} /> 다시 조회
-          </button>
-          <div className="cx-card">
-            <h1 className="cx-h1">일치하는 계약이 없습니다</h1>
-            <p className="cx-lead">
-              차량번호 <strong>{plate}</strong> 와 입력하신 등록번호가 일치하는 계약을 찾을 수 없습니다.
-              차량번호와 등록번호를 다시 확인해주세요.
-            </p>
-          </div>
-        </main>
-      </>
+      <main className="cx-main">
+        <button type="button" className="cx-back" onClick={() => router.push('/customer')}>
+          <ArrowLeft size={14} /> 다시 조회
+        </button>
+        <div className="cx-card">
+          <h1 className="cx-h1">일치하는 계약이 없습니다</h1>
+          <p className="cx-lead">
+            차량번호 <strong>{plate}</strong> 와 입력하신 등록번호가 일치하는 계약을 찾을 수 없습니다.
+            차량번호와 등록번호를 다시 확인해주세요.
+          </p>
+        </div>
+      </main>
     );
   }
 
   return (
-    <>
-      <CustomerHeader />
-      <main className="cx-main">
+    <main className="cx-main">
         <button type="button" className="cx-back" onClick={() => router.push('/customer')}>
           <ArrowLeft size={14} /> 다른 차량 조회
         </button>
@@ -139,19 +128,6 @@ export default function CustomerViewPage() {
           등록번호: {maskIdent(contract.customerIdent)} · 표시 정보는 마스킹되어 있습니다.
         </p>
       </main>
-    </>
-  );
-}
-
-function CustomerHeader() {
-  return (
-    <header className="cx-topbar">
-      <div className="cx-brand">
-        <span className="cx-brand-base">team</span>{' '}
-        <span className="cx-brand-main">jpk</span>{' '}
-        <span className="cx-brand-erp">손님</span>
-      </div>
-    </header>
   );
 }
 

@@ -25,14 +25,6 @@ export default function CustomerEntryPage() {
 
   return (
     <>
-      <header className="cx-topbar">
-        <div className="cx-brand">
-          <span className="cx-brand-base">team</span>{' '}
-          <span className="cx-brand-main">jpk</span>{' '}
-          <span className="cx-brand-erp">손님</span>
-        </div>
-      </header>
-
       <main className="cx-main">
         <section className="cx-card">
           <h1 className="cx-h1">내 계약 조회</h1>
@@ -57,12 +49,14 @@ export default function CustomerEntryPage() {
                 id="cx-ident"
                 inputMode="numeric"
                 autoComplete="off"
-                placeholder="주민번호(13자리) 또는 사업자번호(10자리)"
+                placeholder="생년월일 / 사업자번호 / 법인번호 / 전화번호"
                 value={ident}
                 onChange={(e) => setIdent(e.target.value)}
                 required
               />
-              <span className="cx-field-hint">숫자만 입력해도 됩니다 — 하이픈 자동 처리</span>
+              <span className="cx-field-hint">
+                다음 중 아무거나 — 생년월일 6자리(900101) · 사업자번호 10자리 · 법인번호 13자리 · 전화번호. 하이픈은 자동 처리.
+              </span>
             </div>
             <button type="submit" className="cx-submit" disabled={busy || !plate.trim() || !ident.trim()}>
               {busy ? '조회 중...' : '계약 조회'}
