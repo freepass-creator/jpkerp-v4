@@ -5,4 +5,5 @@ export const ADMIN_SUBTABS: SubTab[] = [
   { href: '/admin/staff',      label: '직원관리' },
   { href: '/admin/attendance', label: '근태관리' },
   { href: '/admin/leave',      label: '휴가관리' },
+  { href: '/admin/audit',      label: '감사로그' },
 ];
