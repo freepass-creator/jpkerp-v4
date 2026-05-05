@@ -2049,6 +2049,45 @@ input[type="checkbox"], input[type="radio"] {
   flex-direction: column;
 }
 
+.m-shell-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 하단 탭바 높이 + iOS safe-area 만큼 여백 */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.m-tabbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--m-card);
+  border-top: 1px solid var(--m-border);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 20;
+  box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.04);
+}
+.m-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 64px;
+  color: var(--m-text-weak);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 120ms;
+}
+.m-tab:hover { color: var(--m-text-sub); }
+.m-tab.active {
+  color: var(--m-brand);
+  font-weight: 600;
+}
+
 .m-topbar {
   background: var(--m-card);
   border-bottom: 1px solid var(--m-border);
