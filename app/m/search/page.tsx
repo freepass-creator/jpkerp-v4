@@ -128,7 +128,7 @@ function ResultRow({ hit }: { hit: { asset: import('@/lib/sample-assets').Asset 
     status === '대기' || status === '등록예정' || status === '정비' ? 'm-result-status-warn' :
     '';
   return (
-    <Link href={`/m/upload?plate=${encodeURIComponent(hit.plate)}`} className="m-result-row">
+    <Link href={`/m/search/${encodeURIComponent(hit.plate)}`} className="m-result-row">
       <div className="m-result-row-head">
         <span className="m-result-plate">{hit.plate}</span>
         {status && <span className={`m-result-status ${cls}`}>{status}</span>}
