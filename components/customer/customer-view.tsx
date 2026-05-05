@@ -539,10 +539,10 @@ function DocumentsCollapse({
     {
       key: 'registration',
       label: '자동차등록증',
-      sub: asset?.documentImageUrl ? '등록증 사본' : '준비 중',
+      sub: asset?.fileDataUrl ? '등록증 사본' : '준비 중',
       icon: <IdentificationCard size={20} weight="duotone" />,
-      url: asset?.documentImageUrl,
-      filename: asset?.documentFileName ?? `${contract.plate}-등록증.jpg`,
+      url: asset?.fileDataUrl,
+      filename: asset?.fileName ?? `${contract.plate}-등록증.jpg`,
     },
     {
       key: 'insurance',

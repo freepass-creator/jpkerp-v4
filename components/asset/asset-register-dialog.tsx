@@ -95,19 +95,19 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     preconvertPdfToImage: pdfFirstPageToJpegFile,
     createPlaceholder: async (file, id) => {
       // 등록증 원본을 이미지 dataUrl 로 변환해서 자산에 보관 (PDF 첫 페이지 또는 그대로)
-      const documentImageUrl = await fileToImageDataUrl(file).catch(() => '');
+      const fileDataUrl = await fileToImageDataUrl(file).catch(() => '');
       return {
         id, fileName: file.name, _status: 'pending',
         data: {
           companyCode: '', status: '대기' as const,
-          documentImageUrl, documentFileName: file.name,
+          fileDataUrl, fileName: file.name,
         },
         _duplicate: null,
       };
     },
     applyResult: (prev, raw, allItems) => {
       const mapped = mapVehicleRegToAsset(raw, companies);
-      // OCR 매핑 결과 + placeholder 의 documentImageUrl 보존
+      // OCR 매핑 결과 + placeholder 의 fileDataUrl 보존
       const data = { ...prev.data, ...mapped };
       // 기존 자산 + 동일 배치의 다른 done 항목 모두 인덱스에 넣고 매칭
       const index = buildKeyIndex<Partial<Asset>>([

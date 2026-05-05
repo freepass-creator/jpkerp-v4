@@ -84,8 +84,9 @@ export type Asset = {
   status: AssetStatus;
 
   /* ─── 등록증 원본 (OCR 한 첫 페이지를 이미지 dataUrl 로 보관) ─── */
-  documentImageUrl?: string;
-  documentFileName?: string;
+  /** 등록증 이미지 dataUrl. insurance/contract.fileDataUrl 와 동일 키 (규격 통일). */
+  fileDataUrl?: string;
+  fileName?: string;
 
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.

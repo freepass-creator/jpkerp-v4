@@ -72,7 +72,7 @@ export type Contract = {
   specialTerms?: string;
 
   /* ── 계약서 사본 ── */
-  /** 계약서 PDF/이미지 dataUrl (손님 페이지에서 다운로드). asset.documentImageUrl, insurance.fileDataUrl 와 동일 패턴. */
+  /** 계약서 PDF/이미지 dataUrl (손님 페이지에서 다운로드). 모든 entity 공통 키. */
   fileDataUrl?: string;
   fileName?: string;
 
