@@ -6,16 +6,18 @@ import { ArrowLeft, UploadSimple, Camera, Image as ImageIcon, X, CircleNotch, Ch
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useAuth } from '@/lib/use-auth';
-import { compressImage, fileToDataUrl } from '@/lib/image-compress';
+import { compressImage } from '@/lib/image-compress';
+import { uploadFiles } from '@/lib/firebase/storage';
 import { pushEventUpload, type EventUploadKind, type EventUploadFile } from '@/lib/use-event-uploads-store';
 
 /**
  * 모바일 업로드 — 4 카테고리 (출고/반납/상품화/기타) + 차량 + 사진/파일.
  *
  *  · 카메라 직접 촬영 (input capture="environment") + 갤러리 선택
- *  · 이미지 client 압축 (1280px JPEG 80%) — RTDB dataUrl 부담 감소
- *  · PDF/기타 파일은 원본 그대로
+ *  · 이미지 client 압축 (1280px JPEG 80%) → Blob 로컬 보관, 업로드 시 Firebase Storage 전송
+ *  · PDF/기타 파일은 원본 그대로 Storage 업로드
  *  · 파일당 5MB 가드, 한 업로드당 10개 cap
+ *  · RTDB 에는 download URL 만 저장 (dataUrl 박지 않음)
  */
 
 const KINDS: Array<{ key: EventUploadKind; label: string; sub: string }> = [
@@ -28,10 +30,20 @@ const KINDS: Array<{ key: EventUploadKind; label: string; sub: string }> = [
 const MAX_FILES = 10;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
+/** 업로드 큐의 한 항목 — 미리보기는 객체URL, 실제 업로드는 blob */
 type FileItem = {
   id: string;
   source: File;
-  preview: EventUploadFile | null;     // 압축 + dataUrl 완료된 상태. null = 처리 중
+  /** 압축·준비 완료된 상태. null = 처리 중 */
+  prepared: {
+    blob: Blob;
+    previewUrl: string;
+    name: string;
+    mime: string;
+    size: number;
+    width?: number;
+    height?: number;
+  } | null;
   error?: string;
 };
 
@@ -83,32 +95,44 @@ export default function MobileUploadPage() {
     const newItems: FileItem[] = list.map((f) => ({
       id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       source: f,
-      preview: null,
+      prepared: null,
     }));
     setFiles((prev) => [...prev, ...newItems]);
 
-    // 처리 (압축 또는 dataUrl)
+    // 압축 (이미지) 또는 그대로 (PDF 등) — Blob + 미리보기 URL 만 만들어둠. 실제 업로드는 submit 때.
     for (const item of newItems) {
       try {
         if (item.source.size > MAX_FILE_BYTES * 6) {
-          // 원본이 30MB 초과 — 압축해도 부담. 거부.
           setFiles((prev) => prev.map((f) => f.id === item.id ? { ...f, error: '파일이 너무 큽니다 (>30MB)' } : f));
           continue;
         }
         const isImage = item.source.type.startsWith('image/');
-        let preview: EventUploadFile;
+        let prepared: NonNullable<FileItem['prepared']>;
         if (isImage) {
           const c = await compressImage(item.source, { maxWidth: 1280, quality: 0.8 });
-          preview = { dataUrl: c.dataUrl, name: item.source.name, size: c.size, mime: 'image/jpeg', width: c.width, height: c.height };
+          prepared = {
+            blob: c.blob,
+            previewUrl: URL.createObjectURL(c.blob),
+            name: item.source.name.replace(/\.[^.]+$/, '.jpg'),
+            mime: 'image/jpeg',
+            size: c.size,
+            width: c.width,
+            height: c.height,
+          };
         } else {
           if (item.source.size > MAX_FILE_BYTES) {
             setFiles((prev) => prev.map((f) => f.id === item.id ? { ...f, error: '5MB 초과 — 압축 후 업로드' } : f));
             continue;
           }
-          const dataUrl = await fileToDataUrl(item.source);
-          preview = { dataUrl, name: item.source.name, size: item.source.size, mime: item.source.type || 'application/octet-stream' };
+          prepared = {
+            blob: item.source,
+            previewUrl: URL.createObjectURL(item.source),
+            name: item.source.name,
+            mime: item.source.type || 'application/octet-stream',
+            size: item.source.size,
+          };
         }
-        setFiles((prev) => prev.map((f) => f.id === item.id ? { ...f, preview } : f));
+        setFiles((prev) => prev.map((f) => f.id === item.id ? { ...f, prepared } : f));
       } catch (e) {
         setFiles((prev) => prev.map((f) => f.id === item.id ? { ...f, error: (e as Error).message } : f));
       }
@@ -116,12 +140,26 @@ export default function MobileUploadPage() {
   }
 
   function removeFile(id: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+    setFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.prepared?.previewUrl) URL.revokeObjectURL(target.prepared.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
   }
 
+  // 컴포넌트 unmount 시 객체 URL 정리
+  useEffect(() => {
+    return () => {
+      for (const f of files) {
+        if (f.prepared?.previewUrl) URL.revokeObjectURL(f.prepared.previewUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // submit
-  const ready = !!plate.trim() && files.length > 0 && files.every((f) => f.preview && !f.error);
-  const totalBytes = files.reduce((s, f) => s + (f.preview?.size ?? 0), 0);
+  const ready = !!plate.trim() && files.length > 0 && files.every((f) => f.prepared && !f.error);
+  const totalBytes = files.reduce((s, f) => s + (f.prepared?.size ?? 0), 0);
 
   async function handleSubmit() {
     if (!ready || !user) return;
@@ -129,7 +167,24 @@ export default function MobileUploadPage() {
     setError(null);
     setInfo(null);
     try {
-      const validFiles = files.map((f) => f.preview!).filter(Boolean);
+      const prepared = files.map((f) => f.prepared!).filter(Boolean);
+      // 1) Firebase Storage 업로드 — event_uploads/{plate}/{ts}/{filename}
+      const ts = Date.now();
+      const safePlate = plate.trim().replace(/[^\w가-힣\-]/g, '_') || 'no-plate';
+      const basePath = `event_uploads/${safePlate}/${ts}`;
+      const filesToUpload = prepared.map((p) => new File([p.blob], p.name, { type: p.mime }));
+      const urls = await uploadFiles(basePath, filesToUpload);
+
+      // 2) RTDB entry 에는 download URL 만
+      const validFiles: EventUploadFile[] = prepared.map((p, i) => ({
+        url: urls[i],
+        storagePath: `${basePath}/${p.name}`,
+        name: p.name,
+        size: p.size,
+        mime: p.mime,
+        width: p.width,
+        height: p.height,
+      }));
       const id = await pushEventUpload({
         at: new Date().toISOString(),
         uploader: { uid: user.uid, email: user.email ?? undefined, name: user.displayName ?? undefined },
@@ -139,14 +194,17 @@ export default function MobileUploadPage() {
         files: validFiles,
         note: note.trim() || undefined,
       });
+
       setInfo(`업로드 완료 (${validFiles.length}건${id ? ` · ${id.slice(-6)}` : ''})`);
-      // reset for next upload — 같은 차량으로 추가 업로드 가능
+      // 객체 URL 해제 + reset
+      for (const f of files) {
+        if (f.prepared?.previewUrl) URL.revokeObjectURL(f.prepared.previewUrl);
+      }
       setFiles([]);
       setNote('');
-      // 1.5초 후 안내 사라짐
       setTimeout(() => setInfo(null), 1800);
     } catch (e) {
-      setError((e as Error).message);
+      setError(`업로드 실패: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -275,11 +333,11 @@ export default function MobileUploadPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
               {files.map((f) => (
                 <div key={f.id} style={{ position: 'relative', aspectRatio: '1 / 1', background: 'var(--m-divider)', borderRadius: 6, overflow: 'hidden' }}>
-                  {f.preview?.dataUrl && f.preview.mime.startsWith('image/') ? (
-                    <img src={f.preview.dataUrl} alt={f.preview.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : f.preview ? (
+                  {f.prepared?.previewUrl && f.prepared.mime.startsWith('image/') ? (
+                    <img src={f.prepared.previewUrl} alt={f.prepared.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : f.prepared ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 11, color: 'var(--m-text-sub)', padding: 4, textAlign: 'center' }}>
-                      {f.preview.name}
+                      {f.prepared.name}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>

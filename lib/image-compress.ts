@@ -12,7 +12,7 @@ export type CompressOptions = {
   type?: 'image/jpeg' | 'image/webp' | 'image/png';
 };
 
-export async function compressImage(file: File, opts: CompressOptions = {}): Promise<{ dataUrl: string; width: number; height: number; size: number }> {
+export async function compressImage(file: File, opts: CompressOptions = {}): Promise<{ blob: Blob; width: number; height: number; size: number }> {
   const maxWidth = opts.maxWidth ?? 1280;
   const maxHeight = opts.maxHeight ?? 1920;
   const quality = opts.quality ?? 0.8;
@@ -29,10 +29,14 @@ export async function compressImage(file: File, opts: CompressOptions = {}): Pro
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context 미지원');
   ctx.drawImage(bitmap, 0, 0, w, h);
-  const dataUrl = canvas.toDataURL(type, quality);
-  // dataUrl 의 base64 길이 → 대략 byte 환산
-  const size = Math.round((dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75);
-  return { dataUrl, width: w, height: h, size };
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => {
+      if (!b) return reject(new Error('Canvas → Blob 실패'));
+      resolve(b);
+    }, type, quality);
+  });
+  return { blob, width: w, height: h, size: blob.size };
 }
 
 function fileToImage(file: File): Promise<HTMLImageElement> {

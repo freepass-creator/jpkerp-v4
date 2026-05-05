@@ -21,7 +21,12 @@ import { stripUndef } from './store-utils';
 export type EventUploadKind = '출고' | '반납' | '상품화' | '기타';
 
 export type EventUploadFile = {
-  dataUrl: string;
+  /** Firebase Storage download URL (신규) */
+  url?: string;
+  /** @deprecated 구 RTDB base64 (호환용 — 새 entry 는 url 사용) */
+  dataUrl?: string;
+  /** Firebase Storage 경로 (삭제용) */
+  storagePath?: string;
   name: string;
   size: number;
   mime: string;

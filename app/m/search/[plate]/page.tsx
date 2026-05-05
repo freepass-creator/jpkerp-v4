@@ -347,13 +347,13 @@ function UploadCard({ upload }: { upload: EventUploadEntry }) {
           {images.slice(0, 4).map((f, i) => (
             <a
               key={i}
-              href={f.dataUrl}
+              href={f.url ?? f.dataUrl}
               target="_blank"
               rel="noopener"
               style={{ aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 4, background: 'var(--m-divider)' }}
             >
               <img
-                src={f.dataUrl}
+                src={f.url ?? f.dataUrl}
                 alt={f.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
