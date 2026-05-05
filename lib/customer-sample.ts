@@ -31,11 +31,25 @@ export const SAMPLE_CUSTOMER_CONTRACT: Contract = {
   customerKind: '개인',
   customerIdent: '8801011234567',
   customerPhone: '010-1234-5678',
+  customerLicenseNo: '11-22-345678-90',
+  customerEmail: 'younghyup@example.com',
   startDate: ymd(CONTRACT_START),
   endDate:   ymd(CONTRACT_END),
   monthlyAmount: 880_000,
   deposit: 1_000_000,
   status: '운행중',
+  driverScope: '가족한정',
+  driverAgeLimit: '만 26세 이상',
+  additionalDrivers: [
+    { name: '박지영', relation: '배우자', phone: '010-9876-5432', licenseNo: '11-22-987654-32', birthDate: '1990-03-15' },
+    { name: '박서준', relation: '자녀',   phone: '010-1111-2222', birthDate: '2002-08-22' },
+  ],
+  mileageLimitKm: 30_000,
+  deliveryAddress: '서울특별시 강남구 테헤란로 123, 5층 (jpk렌터카)',
+  returnAddress:   '서울특별시 강남구 테헤란로 123, 5층 (jpk렌터카)',
+  paymentMethod: '자동이체 (신한 110-***-456789)',
+  paymentDay: 5,
+  specialTerms: '・ 만기 1개월 전까지 연장 의사 미통보 시 자동 종료\n・ 사고 발생 시 즉시 통보 의무 (24시간 이내)\n・ 차량 외부 광고 부착 시 사전 승인 필요',
   events: Array.from({ length: 12 }, (_, i) => {
     const due = addMonths(CONTRACT_START, i);
     const cycle = i + 1;

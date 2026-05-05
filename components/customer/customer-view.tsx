@@ -75,10 +75,19 @@ export function CustomerView({
       {/* 6. 펼치기 — 계약 상세 */}
       <ContractInfoCollapse contract={contract} />
 
-      {/* 7. 펼치기 — 차량 상세 */}
+      {/* 7. 펼치기 — 운전 정보 (driverScope/연령/추가운전자/주행거리 중 하나라도 있을 때) */}
+      <DriverInfoCollapse contract={contract} insurance={insurance} />
+
+      {/* 8. 펼치기 — 인도/반납 (deliveryAddress/returnAddress 중 하나라도 있을 때) */}
+      <DeliveryInfoCollapse contract={contract} />
+
+      {/* 9. 펼치기 — 차량 상세 */}
       {asset && <VehicleCollapse asset={asset} />}
 
-      {/* 8. 펼치기 — 서류 */}
+      {/* 10. 펼치기 — 특약사항 (specialTerms 있을 때) */}
+      {contract.specialTerms && <SpecialTermsCollapse text={contract.specialTerms} />}
+
+      {/* 11. 펼치기 — 서류 */}
       <DocumentsCollapse asset={asset} insurance={insurance} contract={contract} />
 
       <p className="cx-field-hint" style={{ textAlign: 'center', marginTop: 8 }}>
@@ -293,6 +302,10 @@ function ContractInfoCollapse({ contract }: { contract: Contract }) {
       </summary>
       <div className="cx-collapse-body">
         <div className="cx-row">
+          <span className="cx-row-label">계약번호</span>
+          <span className="cx-row-value">{contract.contractNo}</span>
+        </div>
+        <div className="cx-row">
           <span className="cx-row-label">계약기간</span>
           <span className="cx-row-value">
             {formatDate(contract.startDate)} ~ {formatDate(contract.endDate)}
@@ -306,9 +319,166 @@ function ContractInfoCollapse({ contract }: { contract: Contract }) {
           <span className="cx-row-label">보증금</span>
           <span className="cx-row-value">{contract.deposit > 0 ? `${formatMoney(contract.deposit)}원` : '없음'}</span>
         </div>
+        {contract.paymentMethod && (
+          <div className="cx-row">
+            <span className="cx-row-label">결제 방법</span>
+            <span className="cx-row-value">{contract.paymentMethod}</span>
+          </div>
+        )}
+        {Number.isFinite(contract.paymentDay) && contract.paymentDay! > 0 && (
+          <div className="cx-row">
+            <span className="cx-row-label">결제일</span>
+            <span className="cx-row-value">매월 {contract.paymentDay}일</span>
+          </div>
+        )}
         <div className="cx-row">
-          <span className="cx-row-label">계약번호</span>
-          <span className="cx-row-value">{contract.contractNo}</span>
+          <span className="cx-row-label">임차인</span>
+          <span className="cx-row-value">{contract.customerName} ({contract.customerKind})</span>
+        </div>
+        {contract.customerLicenseNo && (
+          <div className="cx-row">
+            <span className="cx-row-label">운전면허</span>
+            <span className="cx-row-value">{maskLicense(contract.customerLicenseNo)}</span>
+          </div>
+        )}
+        {contract.customerEmail && (
+          <div className="cx-row">
+            <span className="cx-row-label">이메일</span>
+            <span className="cx-row-value">{contract.customerEmail}</span>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/* ─── 펼치기: 운전 정보 ─── */
+function DriverInfoCollapse({ contract, insurance }: { contract: Contract; insurance: InsurancePolicy | null }) {
+  const drivers = contract.additionalDrivers ?? [];
+  const scope = contract.driverScope ?? insurance?.driverScope;
+  const ageLimit = contract.driverAgeLimit ?? insurance?.driverAge;
+  const mileage = contract.mileageLimitKm;
+
+  if (!scope && !ageLimit && drivers.length === 0 && !mileage) return null;
+
+  const subParts: string[] = [];
+  if (scope) subParts.push(scope);
+  if (drivers.length > 0) subParts.push(`추가 ${drivers.length}명`);
+  if (mileage) subParts.push(`연 ${formatMoney(mileage)}km`);
+
+  return (
+    <details className="cx-collapse">
+      <summary>
+        <div className="cx-collapse-title">
+          <span className="cx-collapse-title-main">운전 정보</span>
+          <span className="cx-collapse-title-sub">{subParts.join(' · ') || '-'}</span>
+        </div>
+      </summary>
+      <div className="cx-collapse-body">
+        {scope && (
+          <div className="cx-row">
+            <span className="cx-row-label">운전자 범위</span>
+            <span className="cx-row-value">{scope}</span>
+          </div>
+        )}
+        {ageLimit && (
+          <div className="cx-row">
+            <span className="cx-row-label">연령 제한</span>
+            <span className="cx-row-value">{ageLimit}</span>
+          </div>
+        )}
+        {mileage && (
+          <div className="cx-row">
+            <span className="cx-row-label">주행거리 한도</span>
+            <span className="cx-row-value">연 {formatMoney(mileage)}km</span>
+          </div>
+        )}
+        {drivers.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--cx-text-sub)', fontWeight: 600, marginBottom: 8 }}>
+              추가 운전자 ({drivers.length}명)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {drivers.map((d, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: 'var(--cx-divider)', borderRadius: 8, padding: '12px 14px',
+                    display: 'flex', flexDirection: 'column', gap: 4,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700 }}>{d.name}</span>
+                    {d.relation && (
+                      <span style={{ fontSize: 12, color: 'var(--cx-text-sub)' }}>· {d.relation}</span>
+                    )}
+                  </div>
+                  {(d.phone || d.licenseNo || d.birthDate) && (
+                    <div style={{ fontSize: 13, color: 'var(--cx-text-sub)', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {d.phone && <span>{d.phone}</span>}
+                      {d.licenseNo && <span>면허 {maskLicense(d.licenseNo)}</span>}
+                      {d.birthDate && <span>{d.birthDate}</span>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/* ─── 펼치기: 인도/반납 ─── */
+function DeliveryInfoCollapse({ contract }: { contract: Contract }) {
+  const { deliveryAddress, returnAddress } = contract;
+  if (!deliveryAddress && !returnAddress) return null;
+
+  const sub = deliveryAddress && returnAddress && deliveryAddress === returnAddress
+    ? '인도·반납 동일 장소'
+    : [deliveryAddress, returnAddress].filter(Boolean).join(' / ').slice(0, 40) + '...';
+
+  return (
+    <details className="cx-collapse">
+      <summary>
+        <div className="cx-collapse-title">
+          <span className="cx-collapse-title-main">인도 · 반납</span>
+          <span className="cx-collapse-title-sub">{sub}</span>
+        </div>
+      </summary>
+      <div className="cx-collapse-body">
+        {deliveryAddress && (
+          <div className="cx-row">
+            <span className="cx-row-label">인도 장소</span>
+            <span className="cx-row-value">{deliveryAddress}</span>
+          </div>
+        )}
+        {returnAddress && (
+          <div className="cx-row">
+            <span className="cx-row-label">반납 장소</span>
+            <span className="cx-row-value">{returnAddress}</span>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/* ─── 펼치기: 특약사항 ─── */
+function SpecialTermsCollapse({ text }: { text: string }) {
+  const lineCount = text.split('\n').filter((l) => l.trim()).length;
+  return (
+    <details className="cx-collapse">
+      <summary>
+        <div className="cx-collapse-title">
+          <span className="cx-collapse-title-main">특약사항</span>
+          <span className="cx-collapse-title-sub">{lineCount}개 항목</span>
+        </div>
+      </summary>
+      <div className="cx-collapse-body">
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.7, color: 'var(--cx-text)' }}>
+          {text}
         </div>
       </div>
     </details>
@@ -457,4 +627,11 @@ function formatDate(s: string): string {
 function formatMoney(n: number): string {
   if (!Number.isFinite(n)) return '-';
   return n.toLocaleString('ko-KR');
+}
+
+/** 운전면허 마스킹 — 11-22-345678-90 → 11-22-******-90. */
+function maskLicense(s: string): string {
+  const digits = s.replace(/[^0-9]/g, '');
+  if (digits.length < 12) return s;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${'*'.repeat(6)}-${digits.slice(10)}`;
 }

@@ -17,6 +17,15 @@ export type ScheduleEvent = {
 
 export type CustomerKind = '개인' | '사업자' | '법인';
 
+/** 추가 운전자 — 본 임차인 외에 운전 가능한 사람. */
+export type AdditionalDriver = {
+  name: string;
+  relation?: string;       // 본인과의 관계 — 배우자 / 자녀 / 직원 등
+  phone?: string;
+  licenseNo?: string;      // 운전면허번호 (마스킹해서 노출)
+  birthDate?: string;      // YYYY-MM-DD — 연령 제한 검증용
+};
+
 export type Contract = {
   id: string;
   companyCode: string;
@@ -26,12 +35,42 @@ export type Contract = {
   customerKind: CustomerKind;    // 신분 — 등록번호 형식 결정
   customerIdent: string;         // 고객등록번호 (주민/사업자/법인등록번호)
   customerPhone: string;         // 연락처 (미납·만기 통지용)
+  customerLicenseNo?: string;    // 임차인 운전면허번호 (마스킹 노출용)
+  customerEmail?: string;        // 임차인 이메일
+
   startDate: string;             // 계약 시작일
   endDate: string;               // 만기일
   monthlyAmount: number;         // 월 대여료
   deposit: number;               // 보증금 (없으면 0)
   status: ContractStatus;
   events: ScheduleEvent[];
+
+  /* ── 운전 조건 ── */
+  /** 운전자 범위 — 누구나운전 / 가족한정 / 임직원한정 / 1인지정 등 */
+  driverScope?: string;
+  /** 연령 제한 — 예: 만 26세 이상 / 만 21세 이상 */
+  driverAgeLimit?: string;
+  /** 추가 운전자 명단 (본 임차인 제외) */
+  additionalDrivers?: AdditionalDriver[];
+  /** 연간 주행거리 한도 (km). 0 또는 미설정이면 무제한. */
+  mileageLimitKm?: number;
+
+  /* ── 인도 / 반납 ── */
+  /** 차량 인도 장소 */
+  deliveryAddress?: string;
+  /** 차량 반납 장소 (보통 인도 장소와 동일하나 다를 수 있음) */
+  returnAddress?: string;
+
+  /* ── 결제 ── */
+  /** 결제 방법 — 자동이체 / 계좌이체 / 카드 / 현금 등 */
+  paymentMethod?: string;
+  /** 매월 결제일 (1-31) — 자동이체/정기결제 일자 */
+  paymentDay?: number;
+
+  /* ── 특약 ── */
+  /** 특약사항 (자유 텍스트, 다중 줄 허용) */
+  specialTerms?: string;
+
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
 } & AuditFields;
