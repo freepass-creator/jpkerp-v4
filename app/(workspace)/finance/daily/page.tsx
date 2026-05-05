@@ -15,6 +15,8 @@ import { useLedgerStore } from '@/lib/use-ledger-store';
 import { JpkTable, type JpkColumn } from '@/components/shared/jpk-table';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
+import { ReceiptMatchDialog } from '@/components/finance/receipt-match-dialog';
+import { Link as LinkIcon } from '@phosphor-icons/react';
 
 /**
  * 자금일보 — 두 뷰:
@@ -78,6 +80,9 @@ export default function FinanceDailyPage() {
   const updateEntry = useCallback((id: string, patch: Partial<LedgerEntry>) => {
     setEntries((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
   }, [setEntries]);
+
+  // 수납 매칭 모달 — 행에서 [매칭] 클릭 시 열림
+  const [matchTarget, setMatchTarget] = useState<LedgerEntry | null>(null);
 
   // JpkTable row handler — 안정화
   const getEntryId = useCallback((r: LedgerEntry) => r.id, []);
@@ -147,18 +152,36 @@ export default function FinanceDailyPage() {
       ),
     },
     {
-      headerName: '매칭 계약·항목', field: 'matchedContract', width: 150, filterable: false,
-      cellRenderer: ({ data }) => (
-        <input
-          className="input"
-          type="text"
-          value={data.matchedContract ?? ''}
-          onChange={(ev) => updateEntry(data.id, { matchedContract: ev.target.value || undefined })}
-          onClick={(e) => e.stopPropagation()}
-          placeholder="C-NNNN-NNNN"
-          style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12 }}
-        />
-      ),
+      headerName: '매칭 계약·회차', field: 'matchedContract', width: 180, filterable: false,
+      cellRenderer: ({ data }) => {
+        const isReceipt = !!data.deposit;
+        if (data.matchedContract) {
+          return (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={(e) => { e.stopPropagation(); setMatchTarget(data); }}
+              style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12 }}
+              title="매칭 정보 보기 / 해제"
+            >
+              <span className="mono">{data.matchedContract}</span>
+              {data.matchedCycle != null && <span className="dim ml-1">· {data.matchedCycle}회</span>}
+            </button>
+          );
+        }
+        if (!isReceipt) return <span className="text-weak" style={{ fontSize: 11 }}>-</span>;
+        return (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={(e) => { e.stopPropagation(); setMatchTarget(data); }}
+            style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12 }}
+            title="미수 회차에 매칭"
+          >
+            <LinkIcon size={11} weight="bold" /> 매칭
+          </button>
+        );
+      },
     },
     {
       headerName: '상태', width: 80, align: 'center',
@@ -273,6 +296,12 @@ export default function FinanceDailyPage() {
           onFilteredChange={setFilteredDaily}
         />
       )}
+
+      <ReceiptMatchDialog
+        open={!!matchTarget}
+        onOpenChange={(o) => !o && setMatchTarget(null)}
+        ledger={matchTarget}
+      />
     </PageShell>
   );
 }

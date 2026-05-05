@@ -31,7 +31,9 @@ export type LedgerEntry = {
   counterparty?: string;    // 상대 계좌·예금주
   method: LedgerMethod;
   subject?: AccountSubject; // 계정과목 (분류)
-  matchedContract?: string; // 매칭 계약
+  matchedContract?: string; // 매칭 계약 (contractNo)
+  matchedCycle?: number;    // 매칭 회차 번호 (1-based)
+  matchedEventId?: string;  // 매칭 ScheduleEvent.id — 회차 events 직접 식별
   note?: string;
   /** 업로드 시각 (ISO). 같은 batch 식별용 — 계좌 미지정 entry 일괄 갱신에 사용. */
   uploadedAt?: string;
