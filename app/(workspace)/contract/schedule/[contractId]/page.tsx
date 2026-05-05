@@ -93,6 +93,20 @@ export default function ContractScheduleDetailPage() {
     }
   }
 
+  /** doneDate 보충 입력 — 마이그레이션 시 입금일 미상이었던 회차 채우기.
+   *  status 토글 없이 doneDate 만 수정. 빈 문자열 입력 시 다시 미상 처리. */
+  function setDoneDate(eventId: string, value: string) {
+    setContracts((prev) => prev.map((c) => {
+      if (c.contractNo !== contractId) return c;
+      return {
+        ...c,
+        events: c.events.map((e) =>
+          e.id === eventId ? { ...e, doneDate: value || undefined } : e
+        ),
+      };
+    }));
+  }
+
   /** 오늘까지 만기 도래한 예정 events 일괄 완료 */
   function bulkCompleteUntilToday() {
     const today = new Date().toISOString().slice(0, 10);
@@ -175,7 +189,12 @@ export default function ContractScheduleDetailPage() {
             </thead>
             <tbody>
               {sortedEvents.map((e) => (
-                <ScheduleRow key={e.id} event={e} onToggle={() => toggleEvent(e.id)} />
+                <ScheduleRow
+                  key={e.id}
+                  event={e}
+                  onToggle={() => toggleEvent(e.id)}
+                  onDoneDate={(v) => setDoneDate(e.id, v)}
+                />
               ))}
             </tbody>
           </table>
@@ -212,18 +231,36 @@ function ContractHeader({ contract }: { contract: Contract }) {
   );
 }
 
-function ScheduleRow({ event: e, onToggle }: { event: ScheduleEvent; onToggle: () => void }) {
+function ScheduleRow({
+  event: e, onToggle, onDoneDate,
+}: {
+  event: ScheduleEvent;
+  onToggle: () => void;
+  onDoneDate: (value: string) => void;
+}) {
   const dday = computeDday(e.dueDate);
   const ddayCls = e.status === '완료' ? '' : ddayCellClass(dday);
   const typeCls = `type-${e.type}`;
   const isDone = e.status === '완료';
+  const onTime = isDone && e.doneDate === e.dueDate;
   return (
     <tr>
       <td className="center"><span className={cn('badge', typeCls)}>{e.type}</span></td>
       <td className="num">{e.cycle ?? '-'}</td>
       <td className="date">{e.dueDate}</td>
       <td className={cn('center', ddayCls)}>{isDone ? '-' : formatDday(dday)}</td>
-      <td className="date">{e.doneDate ?? ''}</td>
+      <td className="date">
+        {isDone ? (
+          <input
+            type="date"
+            className="input"
+            style={{ padding: '2px 4px', fontSize: 12, width: 130 }}
+            value={e.doneDate ?? ''}
+            onChange={(ev) => onDoneDate(ev.target.value)}
+            title={onTime ? '제날짜 수납 (마이그레이션 가정) — 실제 입금일 알면 수정' : '실제 입금일'}
+          />
+        ) : ''}
+      </td>
       <td className="num">{e.amount ? e.amount.toLocaleString('ko-KR') : ''}</td>
       <td className="center"><StatusBadge status={e.status} /></td>
       <td className="dim">{e.note ?? ''}</td>

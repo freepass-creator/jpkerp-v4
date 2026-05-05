@@ -68,23 +68,23 @@ export function buildEventsWithOverdue(
     }
     const cyc = e.cycle ?? 0;
     const due = e.dueDate;
+    // 마이그레이션 — 정확한 입금일 모르니 일단 "제날짜에 수납"한 것으로 doneDate=dueDate.
+    // 운영 도중 실제 입금일 알게 되면 schedule 페이지의 inline date input 으로 보충 입력.
     if (policy.kind === 'all-paid') return { ...e, status: '완료' as const, doneDate: due };
     if (policy.kind === 'from') {
-      // N 회차부터 미수: 1~(N-1) = 완료, N 이상 = 미수
       if (cyc < policy.startCycle) return { ...e, status: '완료' as const, doneDate: due };
-      // N 이상: 도래했으면 지연, 미도래면 예정
       if (due < today) return { ...e, status: '지연' as const };
       return e;
     }
     if (policy.kind === 'list') {
       if (policy.cycles.includes(cyc)) {
         if (due < today) return { ...e, status: '지연' as const };
-        return e; // 예정
+        return e;
       }
       if (due <= today) return { ...e, status: '완료' as const, doneDate: due };
       return e;
     }
-    // auto
+    // auto — 도래분 모두 제날짜 수납 처리
     if (due <= today) return { ...e, status: '완료' as const, doneDate: due };
     return e;
   });
