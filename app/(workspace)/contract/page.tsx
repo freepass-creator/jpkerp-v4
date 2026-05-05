@@ -7,7 +7,7 @@ import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
-import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
+import { EntityFormDialog, type FieldDef, type FieldSection } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -18,8 +18,8 @@ import { ContractRegisterDialog } from '@/components/contract/contract-register-
 import { useAuditStamp } from '@/lib/audit-fields';
 import { cn } from '@/lib/cn';
 
-/** 수정·복사용 폼 필드 (등록은 ContractRegisterDialog 사용). */
-const CONTRACT_EDIT_FIELDS: FieldDef[] = [
+/** 수정·복사용 폼 — 섹션 단위. 등록은 ContractRegisterDialog 사용. */
+const CONTRACT_REQUIRED_FIELDS: FieldDef[] = [
   { key: 'companyCode',    label: '회사코드',  required: true, readOnly: true },
   { key: 'contractNo',     label: '계약번호',  readOnly: true },
   { key: 'plate',          label: '차량번호',  required: true },
@@ -33,10 +33,59 @@ const CONTRACT_EDIT_FIELDS: FieldDef[] = [
   { key: 'deposit',        label: '보증금',    type: 'number' },
 ];
 
-const CONTRACT_DUPLICATE_FIELDS: FieldDef[] = CONTRACT_EDIT_FIELDS.map((f) =>
-  f.key === 'companyCode' ? { ...f, readOnly: false } :
-  f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C-2026-0001)' } : f,
-);
+const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
+  {
+    title: '임차인 추가 정보',
+    fields: [
+      { key: 'customerLicenseNo', label: '운전면허번호', placeholder: '00-00-000000-00' },
+      { key: 'customerEmail',     label: '이메일',       placeholder: 'name@example.com' },
+    ],
+  },
+  {
+    title: '운전 조건',
+    fields: [
+      { key: 'driverScope',     label: '운전자 범위',  type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
+      { key: 'driverAgeLimit',  label: '연령 제한',    placeholder: '예: 만 26세 이상' },
+      { key: 'mileageLimitKm',  label: '연간 주행거리 한도 (km)', type: 'number', placeholder: '0=무제한' },
+    ],
+  },
+  {
+    title: '인도 · 반납',
+    fields: [
+      { key: 'deliveryAddress', label: '인도 장소', colSpan: 2 },
+      { key: 'returnAddress',   label: '반납 장소', colSpan: 2 },
+    ],
+  },
+  {
+    title: '결제',
+    fields: [
+      { key: 'paymentMethod', label: '결제 방법', placeholder: '자동이체 / 계좌이체 / 카드' },
+      { key: 'paymentDay',    label: '결제일 (1-31)', type: 'number' },
+    ],
+  },
+  {
+    title: '특약사항',
+    fields: [
+      { key: 'specialTerms', label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 2 },
+    ],
+  },
+];
+
+const CONTRACT_EDIT_SECTIONS: FieldSection[] = [
+  { title: '필수 정보', fields: CONTRACT_REQUIRED_FIELDS },
+  ...CONTRACT_OPTIONAL_SECTIONS,
+];
+
+const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = [
+  {
+    title: '필수 정보',
+    fields: CONTRACT_REQUIRED_FIELDS.map((f) =>
+      f.key === 'companyCode' ? { ...f, readOnly: false } :
+      f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C-2026-0001)' } : f,
+    ),
+  },
+  ...CONTRACT_OPTIONAL_SECTIONS,
+];
 
 export default function ContractListPage() {
   const [allContracts, setContracts] = useContractStore();
@@ -80,6 +129,8 @@ export default function ContractListPage() {
     const startDate = d.startDate || new Date().toISOString().slice(0, 10);
     const endDate = d.endDate || '';
     const monthlyAmount = Number(d.monthlyAmount) || 0;
+    const mileageRaw = Number(d.mileageLimitKm);
+    const paymentDayRaw = Number(d.paymentDay);
     return {
       id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode: d.companyCode || '',
@@ -89,11 +140,21 @@ export default function ContractListPage() {
       customerKind: (d.customerKind as CustomerKind) || '개인',
       customerIdent: d.customerIdent || '',
       customerPhone: d.customerPhone || '',
+      customerLicenseNo: d.customerLicenseNo?.trim() || undefined,
+      customerEmail:     d.customerEmail?.trim() || undefined,
       startDate,
       endDate,
       monthlyAmount,
       deposit: Number(d.deposit) || 0,
       status: '운행중',
+      driverScope:    d.driverScope?.trim() || undefined,
+      driverAgeLimit: d.driverAgeLimit?.trim() || undefined,
+      mileageLimitKm: Number.isFinite(mileageRaw) && mileageRaw > 0 ? mileageRaw : undefined,
+      deliveryAddress: d.deliveryAddress?.trim() || undefined,
+      returnAddress:   d.returnAddress?.trim() || undefined,
+      paymentMethod:   d.paymentMethod?.trim() || undefined,
+      paymentDay: Number.isFinite(paymentDayRaw) && paymentDayRaw >= 1 && paymentDayRaw <= 31 ? paymentDayRaw : undefined,
+      specialTerms:    d.specialTerms?.trim() || undefined,
       events: generateContractSchedule(startDate, endDate, monthlyAmount),
     };
   }
@@ -142,10 +203,20 @@ export default function ContractListPage() {
     customerKind: selected.customerKind,
     customerIdent: selected.customerIdent,
     customerPhone: selected.customerPhone,
+    customerLicenseNo: selected.customerLicenseNo ?? '',
+    customerEmail:     selected.customerEmail ?? '',
     startDate: selected.startDate,
     endDate: selected.endDate,
     monthlyAmount: String(selected.monthlyAmount),
     deposit: String(selected.deposit ?? 0),
+    driverScope:    selected.driverScope ?? '',
+    driverAgeLimit: selected.driverAgeLimit ?? '',
+    mileageLimitKm: selected.mileageLimitKm ? String(selected.mileageLimitKm) : '',
+    deliveryAddress: selected.deliveryAddress ?? '',
+    returnAddress:   selected.returnAddress ?? '',
+    paymentMethod:   selected.paymentMethod ?? '',
+    paymentDay:      selected.paymentDay ? String(selected.paymentDay) : '',
+    specialTerms:    selected.specialTerms ?? '',
   } : {};
 
   // 복사용 — 식별 필드 비움 (계약번호·차량·고객·연락처)
@@ -225,10 +296,10 @@ export default function ContractListPage() {
         items={selected ? buildCtxItems() : []} />
 
       <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
-        title="계약 수정" fields={CONTRACT_EDIT_FIELDS} initial={editInitial}
+        title="계약 수정" sections={CONTRACT_EDIT_SECTIONS} initial={editInitial}
         submitLabel="수정" onSubmit={handleUpdate} />
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
-        title="계약 복사 (스펙 복제)" fields={CONTRACT_DUPLICATE_FIELDS} initial={dupInitial}
+        title="계약 복사 (스펙 복제)" sections={CONTRACT_DUPLICATE_SECTIONS} initial={dupInitial}
         onSubmit={handleDuplicate} />
     </>
   );

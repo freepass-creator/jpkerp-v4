@@ -575,6 +575,75 @@ function ManualForm({
         <span className="label">보증금</span>
         <input type="number" className="input w-full" value={draft.deposit ?? 0} onChange={(e) => set('deposit', Number(e.target.value))} />
       </label>
+
+      <details className="col-span-4" style={{ marginTop: 8 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-sub)', padding: '4px 0' }}>
+          + 추가 정보 (운전 조건 / 인도반납 / 결제 / 특약)
+        </summary>
+        <div className="form-grid" style={{ marginTop: 10 }}>
+          <label className="block col-span-2">
+            <span className="label">운전면허번호</span>
+            <input className="input w-full" value={draft.customerLicenseNo ?? ''}
+                   onChange={(e) => set('customerLicenseNo', e.target.value)} placeholder="00-00-000000-00" />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">이메일</span>
+            <input className="input w-full" value={draft.customerEmail ?? ''}
+                   onChange={(e) => set('customerEmail', e.target.value)} placeholder="name@example.com" />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">운전자 범위</span>
+            <select className="input w-full" value={draft.driverScope ?? ''}
+                    onChange={(e) => set('driverScope', e.target.value)}>
+              <option value="">- 선택 -</option>
+              <option value="누구나운전">누구나운전</option>
+              <option value="가족한정">가족한정</option>
+              <option value="임직원한정">임직원한정</option>
+              <option value="1인지정">1인지정</option>
+            </select>
+          </label>
+          <label className="block col-span-1">
+            <span className="label">연령 제한</span>
+            <input className="input w-full" value={draft.driverAgeLimit ?? ''}
+                   onChange={(e) => set('driverAgeLimit', e.target.value)} placeholder="만 26세 이상" />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">연간 주행거리 한도 (km)</span>
+            <input type="number" className="input w-full" value={draft.mileageLimitKm ?? ''}
+                   onChange={(e) => set('mileageLimitKm', e.target.value === '' ? undefined : Number(e.target.value))}
+                   placeholder="0=무제한" />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">인도 장소</span>
+            <input className="input w-full" value={draft.deliveryAddress ?? ''}
+                   onChange={(e) => set('deliveryAddress', e.target.value)} />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">반납 장소</span>
+            <input className="input w-full" value={draft.returnAddress ?? ''}
+                   onChange={(e) => set('returnAddress', e.target.value)} />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">결제 방법</span>
+            <input className="input w-full" value={draft.paymentMethod ?? ''}
+                   onChange={(e) => set('paymentMethod', e.target.value)}
+                   placeholder="자동이체 / 계좌이체 / 카드" />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">결제일 (1-31)</span>
+            <input type="number" min="1" max="31" className="input w-full"
+                   value={draft.paymentDay ?? ''}
+                   onChange={(e) => set('paymentDay', e.target.value === '' ? undefined : Number(e.target.value))} />
+          </label>
+          <label className="block col-span-4">
+            <span className="label">특약사항</span>
+            <textarea className="input w-full" rows={3}
+                      value={draft.specialTerms ?? ''}
+                      onChange={(e) => set('specialTerms', e.target.value)}
+                      placeholder="여러 줄 입력 가능 — 손님 페이지에 그대로 표시됨" />
+          </label>
+        </div>
+      </details>
     </div>
   );
 }
