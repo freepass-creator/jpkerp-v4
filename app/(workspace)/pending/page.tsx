@@ -77,20 +77,46 @@ export default function PendingPage() {
     return c;
   }, [items]);
 
+  // 다른 서브탭 미결 합계 — 직원 한눈에 파악
+  const crossCategory: Array<{ key: string; label: string }> = [
+    { key: '/pending/overdue',    label: '미납' },
+    { key: '/pending/idle',       label: '휴차' },
+    { key: '/pending/inspection', label: '검사' },
+    { key: '/pending/insurance',  label: '보험' },
+    { key: '/pending/tax',        label: '세금' },
+    { key: '/pending/return',     label: '반납' },
+    { key: '/pending/integrity',  label: '정합성' },
+  ];
+  const crossActive = crossCategory.filter((c) => (subTabPending[c.key] ?? 0) > 0);
+
   return (
     <PageShell
       subTabs={PENDING_SUBTABS}
       subTabPending={subTabPending}
       footerLeft={
         <>
-          <span className="stat-item">전체 <strong>{items.length}</strong></span>
+          <span className="stat-item">미결업무 <strong>{items.length}</strong></span>
           {filteredRows.length !== items.length && (
             <span className="stat-item">표시 <strong>{filteredRows.length}</strong></span>
           )}
-          <span className="stat-divider" />
-          {Object.entries(counts).map(([label, n]) => (
-            <span key={label} className="stat-item">{label} <strong>{n}</strong></span>
-          ))}
+          {crossActive.length > 0 && (
+            <>
+              <span className="stat-divider" />
+              {crossActive.map((c) => (
+                <span key={c.key} className="stat-item">
+                  {c.label} <strong>{subTabPending[c.key]}</strong>
+                </span>
+              ))}
+            </>
+          )}
+          {Object.keys(counts).length > 0 && (
+            <>
+              <span className="stat-divider" />
+              {Object.entries(counts).map(([label, n]) => (
+                <span key={label} className="stat-item">{label} <strong>{n}</strong></span>
+              ))}
+            </>
+          )}
         </>
       }
     >

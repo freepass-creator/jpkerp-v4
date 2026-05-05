@@ -305,6 +305,41 @@ export default function ContractListPage() {
   );
 }
 
+/**
+ * 계약 행에 채워진 확장 정보 인디케이터 — 한글 1글자씩 6개 영역.
+ * 운(운전조건) / 추(추가운전자) / 인(인도반납) / 결(결제) / 특(특약) / 파(계약서파일)
+ * tooltip 으로 채워진 항목 라벨 노출.
+ */
+function ExtendedInfoCell({ contract }: { contract: Contract }) {
+  const items = [
+    { key: '운', has: !!(contract.driverScope || contract.driverAgeLimit || contract.mileageLimitKm), label: '운전조건' },
+    { key: '추', has: (contract.additionalDrivers?.length ?? 0) > 0, label: '추가운전자' },
+    { key: '인', has: !!(contract.deliveryAddress || contract.returnAddress), label: '인도/반납' },
+    { key: '결', has: !!(contract.paymentMethod || contract.paymentDay), label: '결제' },
+    { key: '특', has: !!contract.specialTerms, label: '특약' },
+    { key: '파', has: !!contract.fileDataUrl, label: '계약서' },
+  ];
+  const filled = items.filter((i) => i.has).length;
+  const tooltip = items.map((i) => `${i.label}${i.has ? ' ✓' : ' ·'}`).join(' / ');
+  return (
+    <span title={tooltip} style={{ display: 'inline-flex', gap: 2, fontSize: 11 }}>
+      {items.map((i) => (
+        <span
+          key={i.key}
+          style={{
+            opacity: i.has ? 1 : 0.25,
+            color: i.has ? 'var(--brand)' : 'var(--text-weak)',
+            fontWeight: i.has ? 600 : 400,
+          }}
+        >
+          {i.key}
+        </span>
+      ))}
+      {filled === 0 && <span className="text-weak ml-1" style={{ fontSize: 10 }}>(기본)</span>}
+    </span>
+  );
+}
+
 /** 계약현황 그리드 — JpkTable 기반. 컬럼 헤더 set/range/date 필터. */
 function ContractGrid({
   contracts, selectedId, onRowClick, onRowContextMenu, globalSearch,
@@ -343,6 +378,8 @@ function ContractGrid({
           {value as string}
         </span>
       ) },
+    { headerName: '추가', field: 'driverScope', width: 90, sortable: false,
+      cellRenderer: ({ data }) => <ExtendedInfoCell contract={data} /> },
   ], []);
 
   const getRowId = useCallback((c: Contract) => c.id, []);
