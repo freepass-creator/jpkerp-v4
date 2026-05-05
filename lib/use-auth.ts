@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as fbSignOut,
   type User,
 } from 'firebase/auth';
@@ -61,4 +62,9 @@ export async function logout(): Promise<void> {
   } catch (e) {
     console.error('[auth] logout failed', e);
   }
+}
+
+/** 비밀번호 재설정 메일 발송. 등록된 이메일이면 메일이 가고, 미등록이면 Firebase가 silently 처리 (보안). */
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
 }

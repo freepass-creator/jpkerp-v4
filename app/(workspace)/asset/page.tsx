@@ -21,13 +21,18 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
 import { type Asset, type AssetStatus } from '@/lib/sample-assets';
 import { useAssetStore } from '@/lib/use-asset-store';
+import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { downloadContractTemplate } from '@/lib/contract-template';
+import Link from 'next/link';
+import { Buildings } from '@phosphor-icons/react';
 
 export default function AssetListPage() {
   const [allAssets, setAssets] = useAssetStore();
+  const [allCompanies] = useCompanyStore();
   // active 자산만 — 소프트 삭제된 자산은 목록·집계에서 제외 (자산코드는 영구 보존)
   const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
+  const hasCompany = useMemo(() => allCompanies.some((c) => !c.deletedAt), [allCompanies]);
   const [selected, setSelected] = useState<Asset | null>(null);
   const { search } = useTopbarSearch();
   const audit = useAuditStamp();
@@ -61,9 +66,13 @@ export default function AssetListPage() {
   }, [subTabPending]);
 
   function handleCreate(partial: Partial<Asset>) {
+    if (!partial.companyCode) {
+      alert('회사코드 누락 — 자산 등록 전 [일반관리 → 회사정보] 에서 회사를 먼저 등록하세요.');
+      return;
+    }
     const next: Asset = {
       id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      companyCode: partial.companyCode ?? 'CP01',
+      companyCode: partial.companyCode,
       plate: partial.plate ?? '',
       firstRegistDate: partial.firstRegistDate ?? '',
       vehicleClass: partial.vehicleClass ?? '',
@@ -162,12 +171,26 @@ export default function AssetListPage() {
         }
       >
         {assets.length === 0 ? (
-          <EmptyState
-            icon={Car}
-            title="등록된 자산 없음"
-            description="자동차등록증 OCR 또는 수기 입력으로 차량 자산을 등록하세요."
-            hint={<>① 우측 하단 [+ 자산등록] 클릭 → 등록증 PDF/이미지 다중 업로드 → 즉시 OCR 분석<br />② 회사·차량번호는 OCR이 자동 매칭. 누락 시 행에서 직접 입력 가능 (인라인)<br />③ 회사 등록이 먼저 (일반관리 → 회사정보)</>}
-          />
+          !hasCompany ? (
+            <EmptyState
+              icon={Buildings}
+              title="회사정보를 먼저 등록해주세요"
+              description="자산·계약·재무 모든 데이터는 회사(사업자) 단위로 묶여 동작합니다."
+              hint={<>① [회사 등록하러 가기] → 사업자등록증 OCR 또는 수기 입력<br />② 회사 등록 후 자동차등록증 OCR 시 자동 매칭<br />③ 그 다음 자산·계약 등록</>}
+              cta={
+                <Link href="/admin/company" className="btn btn-primary">
+                  회사 등록하러 가기 →
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Car}
+              title="등록된 자산 없음"
+              description="자동차등록증 OCR 또는 수기 입력으로 차량 자산을 등록하세요."
+              hint={<>① 우측 하단 [+ 자산등록] 클릭 → 등록증 PDF/이미지 다중 업로드 → 즉시 OCR 분석<br />② 회사·차량번호는 OCR이 자동 매칭. 누락 시 행에서 직접 입력 가능 (인라인)</>}
+            />
+          )
         ) : (
           <div className="table-wrap">
             <AssetGrid

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CircleNotch } from '@phosphor-icons/react';
-import { useAuth, login } from '@/lib/use-auth';
+import { useAuth, login, resetPassword } from '@/lib/use-auth';
 
 /**
  * 인증 게이트 — 미인증 시 로그인 화면. jpkerp3 의 디자인 그대로 포팅.
@@ -32,10 +32,12 @@ function LoginScreen() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setBusy(true);
     try {
       await login(email, password);
@@ -52,6 +54,21 @@ function LoginScreen() {
               : msg,
       );
       setBusy(false);
+    }
+  }
+
+  async function handleForgot() {
+    setError(null);
+    setInfo(null);
+    if (!email.trim()) {
+      setError('이메일을 먼저 입력해주세요');
+      return;
+    }
+    try {
+      await resetPassword(email);
+      setInfo('비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해주세요.');
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -93,12 +110,25 @@ function LoginScreen() {
             />
           </div>
           {error && <p className="auth-message" role="alert">{error}</p>}
+          {info && <p className="auth-message" style={{ color: 'var(--alert-green-text, #137333)' }}>{info}</p>}
           <button type="submit" className="auth-submit" disabled={busy}>
             {busy ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
                 <CircleNotch size={14} className="auth-spin" /> 접속 중...
               </span>
             ) : '로그인'}
+          </button>
+          <button
+            type="button"
+            onClick={handleForgot}
+            style={{
+              background: 'transparent', border: 0, padding: '6px 0', marginTop: 4,
+              fontSize: 12, color: 'var(--text-sub)', cursor: 'pointer',
+              textDecoration: 'underline', textUnderlineOffset: 3,
+              fontFamily: 'inherit',
+            }}
+          >
+            비밀번호 찾기
           </button>
         </form>
         <p className="auth-guide">기존 jpkerp 계정으로 로그인</p>
