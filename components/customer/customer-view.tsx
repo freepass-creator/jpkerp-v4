@@ -40,7 +40,7 @@ export function CustomerView({
         <div
           style={{
             background: '#fef3c7', color: '#92400e',
-            padding: '10px 14px', borderRadius: 12,
+            padding: '10px 14px', borderRadius: 6,
             fontSize: 13, fontWeight: 600, textAlign: 'center',
           }}
         >

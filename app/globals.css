@@ -1553,7 +1553,7 @@ input[type="checkbox"], input[type="radio"] {
 .cx-card {
   background: var(--cx-card);
   border: 1px solid var(--cx-border);
-  border-radius: 18px;
+  border-radius: 10px;
   padding: 24px;
   box-shadow: var(--cx-shadow-sm);
 }
@@ -1599,7 +1599,7 @@ input[type="checkbox"], input[type="radio"] {
   font-size: 16px;
   font-family: inherit;
   border: 1.5px solid var(--cx-border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--cx-card);
   color: var(--cx-text);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -1625,10 +1625,10 @@ input[type="checkbox"], input[type="radio"] {
   background: var(--cx-brand);
   color: #fff;
   border: 0;
-  border-radius: 999px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.05s ease;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.24);
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.18);
 }
 .cx-submit:hover { background: #1d4ed8; }
 .cx-submit:active { transform: translateY(1px); }
@@ -1638,16 +1638,16 @@ input[type="checkbox"], input[type="radio"] {
   cursor: not-allowed;
 }
 
-/* ── Hero — 임팩트 있는 첫 인상 ── */
+/* ── Hero — 격식 있는 첫 인상 (네이비 톤) ── */
 .cx-hero {
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
   color: #fff;
-  border-radius: 20px;
+  border-radius: 10px;
   padding: 28px 24px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  box-shadow: 0 10px 32px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
 }
 .cx-hero-greeting {
   font-size: 13px;
@@ -1675,7 +1675,7 @@ input[type="checkbox"], input[type="radio"] {
   letter-spacing: 0.02em;
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 5px 10px;
   backdrop-filter: blur(4px);
 }
@@ -1686,7 +1686,7 @@ input[type="checkbox"], input[type="radio"] {
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
@@ -1728,7 +1728,7 @@ input[type="checkbox"], input[type="radio"] {
 .cx-dday-card {
   background: var(--cx-card);
   border: 1px solid var(--cx-border);
-  border-radius: 18px;
+  border-radius: 10px;
   padding: 20px 24px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   box-shadow: var(--cx-shadow-sm);
@@ -1770,7 +1770,7 @@ input[type="checkbox"], input[type="radio"] {
   width: 36px; height: 36px;
   background: var(--cx-divider);
   color: var(--cx-text-sub);
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
@@ -1831,7 +1831,7 @@ input[type="checkbox"], input[type="radio"] {
   gap: 14px;
   padding: 14px 16px;
   background: var(--cx-divider);
-  border-radius: 14px;
+  border-radius: 8px;
   text-decoration: none;
   color: var(--cx-text);
   transition: background 0.15s ease, transform 0.05s ease;
@@ -1845,7 +1845,7 @@ input[type="checkbox"], input[type="radio"] {
 .cx-doc-row.is-disabled:hover { background: var(--cx-divider); }
 .cx-doc-icon {
   width: 40px; height: 40px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--cx-card);
   color: var(--cx-brand);
   display: flex; align-items: center; justify-content: center;
@@ -1861,7 +1861,7 @@ input[type="checkbox"], input[type="radio"] {
   font-weight: 600;
   color: var(--cx-text-weak);
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--cx-card);
 }
 
@@ -1887,7 +1887,7 @@ input[type="checkbox"], input[type="radio"] {
   padding: 8px 14px;
   background: var(--cx-brand-soft);
   color: var(--cx-brand);
-  border-radius: 999px;
+  border-radius: 6px;
   font-weight: 700;
   text-decoration: none;
   font-size: 14px;
@@ -1898,9 +1898,10 @@ input[type="checkbox"], input[type="radio"] {
 /* 모바일 (≤ 480px) */
 @media (max-width: 480px) {
   .cx-main { padding: 16px 14px 40px; }
-  .cx-card { padding: 20px; border-radius: 16px; }
+  .cx-card { padding: 20px; border-radius: 8px; }
   .cx-card-tight { padding: 16px 18px; }
-  .cx-hero { padding: 24px 20px; }
+  .cx-hero { padding: 24px 20px; border-radius: 8px; }
+  .cx-dday-card { border-radius: 8px; }
   .cx-h1 { font-size: 22px; }
   .cx-hero-name { font-size: 22px; }
   .cx-dday { font-size: 34px; }
