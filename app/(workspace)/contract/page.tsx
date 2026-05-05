@@ -8,6 +8,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef, type FieldSection } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -177,6 +178,8 @@ export default function ContractListPage() {
         ? { ...a, status: '대기' as const, ...audit.update() }
         : a,
     ));
+    // 환영 SMS — fire-and-forget (실패해도 등록 흐름엔 영향 X)
+    void sendWelcomeSms(contract.id);
   }
 
   function handleUpdate(d: Record<string, string>) {
@@ -193,6 +196,28 @@ export default function ContractListPage() {
     setContracts((prev) => [dup, ...prev]);
     audit.log({ action: 'create', entityType: 'contract', entityId: dup.id, label: dup.contractNo, after: dup });
     setDuplicateOpen(false);
+  }
+
+  /** 새 계약 환영 SMS — fire-and-forget. 인증 토큰 자동 첨부, 서버에서 중복 방지. */
+  async function sendWelcomeSms(contractId: string) {
+    try {
+      const user = getFirebaseAuth().currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      // RTDB write 가 반영될 때까지 살짝 대기 (eventually consistent)
+      await new Promise((r) => setTimeout(r, 800));
+      const res = await fetch('/api/sms/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ contractId }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        console.warn('[welcome-sms] failed', json);
+      }
+    } catch (e) {
+      console.warn('[welcome-sms] error', e);
+    }
   }
 
   function handleDelete() {
