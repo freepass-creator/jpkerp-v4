@@ -50,6 +50,8 @@ export const SAMPLE_CUSTOMER_CONTRACT: Contract = {
   paymentMethod: '자동이체 (신한 110-***-456789)',
   paymentDay: 5,
   specialTerms: '・ 만기 1개월 전까지 연장 의사 미통보 시 자동 종료\n・ 사고 발생 시 즉시 통보 의무 (24시간 이내)\n・ 차량 외부 광고 부착 시 사전 승인 필요',
+  fileDataUrl: 'data:application/pdf;base64,JVBERi0xLjQKJeL=',  // placeholder — 실제로는 업로드된 PDF dataUrl
+  fileName: 'C-2025-0042-계약서.pdf',
   events: Array.from({ length: 12 }, (_, i) => {
     const due = addMonths(CONTRACT_START, i);
     const cycle = i + 1;

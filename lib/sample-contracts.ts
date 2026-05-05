@@ -71,6 +71,11 @@ export type Contract = {
   /** 특약사항 (자유 텍스트, 다중 줄 허용) */
   specialTerms?: string;
 
+  /* ── 계약서 사본 ── */
+  /** 계약서 PDF/이미지 dataUrl (손님 페이지에서 다운로드). asset.documentImageUrl, insurance.fileDataUrl 와 동일 패턴. */
+  fileDataUrl?: string;
+  fileName?: string;
+
   /** 소프트 삭제 — 코드 영구 보존 (재발급 금지). */
   deletedAt?: string;  // ISO 시각. 미설정이면 active.
 } & AuditFields;

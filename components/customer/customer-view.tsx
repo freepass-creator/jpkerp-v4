@@ -554,10 +554,10 @@ function DocumentsCollapse({
     {
       key: 'contract',
       label: '계약서',
-      sub: '준비 중',
+      sub: contract.fileDataUrl ? (contract.fileName ?? '계약서 사본') : '준비 중',
       icon: <FileText size={20} weight="duotone" />,
-      url: undefined,
-      filename: undefined,
+      url: contract.fileDataUrl,
+      filename: contract.fileName ?? `${contract.plate}-계약서.pdf`,
     },
   ];
 

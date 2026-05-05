@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise, FilePdf } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
@@ -11,7 +11,7 @@ import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import type { Asset } from '@/lib/sample-assets';
-import type { Contract, CustomerKind } from '@/lib/sample-contracts';
+import type { Contract, CustomerKind, AdditionalDriver } from '@/lib/sample-contracts';
 import { activeCompanies } from '@/lib/sample-companies';
 
 /**
@@ -642,8 +642,132 @@ function ManualForm({
                       onChange={(e) => set('specialTerms', e.target.value)}
                       placeholder="여러 줄 입력 가능 — 손님 페이지에 그대로 표시됨" />
           </label>
+
+          <div className="block col-span-4">
+            <DriversEditor drivers={draft.additionalDrivers ?? []} onChange={(d) => set('additionalDrivers', d)} />
+          </div>
+
+          <div className="block col-span-4">
+            <ContractFileInput
+              fileName={draft.fileName}
+              hasFile={!!draft.fileDataUrl}
+              onFile={async (file) => {
+                if (!file) {
+                  setDraft({ ...draft, fileDataUrl: undefined, fileName: undefined });
+                  return;
+                }
+                if (file.size > 8 * 1024 * 1024) {
+                  alert('계약서 파일은 8MB 이하만 가능 — 압축 후 다시 업로드해주세요');
+                  return;
+                }
+                const dataUrl = await fileToDataUrl(file);
+                setDraft({ ...draft, fileDataUrl: dataUrl, fileName: file.name });
+              }}
+            />
+          </div>
         </div>
       </details>
+    </div>
+  );
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error ?? new Error('파일 읽기 실패'));
+    r.readAsDataURL(file);
+  });
+}
+
+function ContractFileInput({
+  fileName, hasFile, onFile,
+}: {
+  fileName?: string;
+  hasFile: boolean;
+  onFile: (file: File | null) => void;
+}) {
+  return (
+    <div>
+      <div className="label">계약서 파일 (PDF/이미지)</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+          <FilePdf size={13} weight="bold" /> {hasFile ? '파일 교체' : '파일 선택'}
+          <input
+            type="file"
+            accept=".pdf,image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        {hasFile && (
+          <>
+            <span className="text-sub text-xs">{fileName ?? '(이름 없음)'}</span>
+            <button type="button" className="btn-ghost btn btn-sm" onClick={() => onFile(null)}>
+              <X size={11} /> 제거
+            </button>
+          </>
+        )}
+        {!hasFile && <span className="text-weak text-xs">최대 8MB. 손님 페이지에서 다운로드 가능.</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── 추가 운전자 편집기 ─── */
+function DriversEditor({
+  drivers, onChange,
+}: {
+  drivers: AdditionalDriver[];
+  onChange: (drivers: AdditionalDriver[]) => void;
+}) {
+  function update(i: number, patch: Partial<AdditionalDriver>) {
+    onChange(drivers.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+  function add() {
+    onChange([...drivers, { name: '' }]);
+  }
+  function remove(i: number) {
+    onChange(drivers.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div>
+      <div className="label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>추가 운전자 ({drivers.length}명)</span>
+        <button type="button" className="btn btn-sm" onClick={add}>
+          <Plus size={11} weight="bold" /> 추가
+        </button>
+      </div>
+      {drivers.length === 0 ? (
+        <div className="text-weak text-xs" style={{ padding: '6px 0' }}>
+          추가 운전자가 없으면 본 임차인만 운전 가능. 가족·직원 등록 시 [+추가].
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {drivers.map((d, i) => (
+            <div key={i} style={{
+              display: 'grid',
+              gridTemplateColumns: '1.2fr 0.8fr 1.2fr 1.2fr 1fr auto',
+              gap: 6, alignItems: 'center',
+            }}>
+              <input className="input" placeholder="이름" value={d.name}
+                     onChange={(e) => update(i, { name: e.target.value })} />
+              <input className="input" placeholder="관계 (배우자/자녀)" value={d.relation ?? ''}
+                     onChange={(e) => update(i, { relation: e.target.value || undefined })} />
+              <input className="input" placeholder="연락처" value={d.phone ?? ''}
+                     onChange={(e) => update(i, { phone: e.target.value || undefined })} />
+              <input className="input" placeholder="면허번호" value={d.licenseNo ?? ''}
+                     onChange={(e) => update(i, { licenseNo: e.target.value || undefined })} />
+              <input className="input" type="date" value={d.birthDate ?? ''}
+                     onChange={(e) => update(i, { birthDate: e.target.value || undefined })} />
+              <button type="button" className="btn-ghost btn btn-sm" onClick={() => remove(i)} title="삭제">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
