@@ -1818,6 +1818,102 @@ input[type="checkbox"], input[type="radio"] {
 }
 .cx-back:hover { color: var(--cx-text); }
 
+/* ── 펼치기 카드 (<details> 기반) ── */
+.cx-collapse {
+  background: var(--cx-card);
+  border: 1px solid var(--cx-border);
+  border-radius: 10px;
+  box-shadow: var(--cx-shadow-sm);
+  overflow: hidden;
+}
+.cx-collapse > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-collapse > summary::-webkit-details-marker { display: none; }
+.cx-collapse > summary:hover { background: var(--cx-divider); }
+.cx-collapse > summary::after {
+  content: '';
+  width: 8px; height: 8px;
+  border-right: 2px solid var(--cx-text-sub);
+  border-bottom: 2px solid var(--cx-text-sub);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 4px;
+  margin-bottom: 3px;
+}
+.cx-collapse[open] > summary::after { transform: rotate(-135deg); margin-bottom: -3px; }
+.cx-collapse-title {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.cx-collapse-title-main {
+  font-size: 15px; font-weight: 700; color: var(--cx-text);
+  letter-spacing: -0.01em;
+}
+.cx-collapse-title-sub {
+  font-size: 13px; color: var(--cx-text-sub); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cx-collapse-body {
+  padding: 0 22px 22px;
+  border-top: 1px solid var(--cx-divider);
+  padding-top: 18px;
+}
+
+/* ── 핵심 액션 카드 (다음 납부) ── */
+.cx-action-card {
+  background: var(--cx-card);
+  border: 1px solid var(--cx-border);
+  border-radius: 10px;
+  padding: 20px 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  box-shadow: var(--cx-shadow-sm);
+}
+.cx-action-card.is-overdue {
+  background: var(--cx-danger-bg);
+  border-color: #fecaca;
+}
+.cx-action-card.is-overdue .cx-action-label,
+.cx-action-card.is-overdue .cx-action-value,
+.cx-action-card.is-overdue .cx-action-side-value {
+  color: var(--cx-danger);
+}
+.cx-action-label { font-size: 13px; color: var(--cx-text-sub); font-weight: 600; }
+.cx-action-value {
+  font-size: 22px; font-weight: 800; color: var(--cx-text); margin-top: 4px;
+  letter-spacing: -0.02em; font-feature-settings: 'tnum' on, 'lnum' on;
+}
+.cx-action-sub { font-size: 13px; color: var(--cx-text-sub); margin-top: 4px; }
+.cx-action-side {
+  text-align: right; flex-shrink: 0;
+}
+.cx-action-side-label { font-size: 12px; color: var(--cx-text-sub); }
+.cx-action-side-value {
+  font-size: 18px; font-weight: 800; color: var(--cx-brand);
+  margin-top: 2px; font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+/* ── 회사 빠른 연락 ── */
+.cx-quick-contact {
+  background: var(--cx-card);
+  border: 1px solid var(--cx-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  box-shadow: var(--cx-shadow-sm);
+}
+.cx-quick-contact-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-quick-contact-label { font-size: 12px; color: var(--cx-text-sub); }
+.cx-quick-contact-name { font-size: 15px; font-weight: 700; color: var(--cx-text); }
+
 /* ── 다운로드 리스트 ── */
 .cx-doc-list {
   display: flex;
@@ -1901,8 +1997,14 @@ input[type="checkbox"], input[type="radio"] {
   .cx-card { padding: 20px; border-radius: 8px; }
   .cx-card-tight { padding: 16px 18px; }
   .cx-hero { padding: 24px 20px; border-radius: 8px; }
-  .cx-dday-card { border-radius: 8px; }
+  .cx-dday-card,
+  .cx-action-card,
+  .cx-quick-contact,
+  .cx-collapse { border-radius: 8px; }
+  .cx-collapse > summary { padding: 16px 18px; }
+  .cx-collapse-body { padding: 16px 18px 18px; }
   .cx-h1 { font-size: 22px; }
   .cx-hero-name { font-size: 22px; }
   .cx-dday { font-size: 34px; }
+  .cx-action-value { font-size: 20px; }
 }
