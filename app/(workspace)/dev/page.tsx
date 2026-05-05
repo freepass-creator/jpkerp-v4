@@ -11,6 +11,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { ContractsImportPanel } from '@/components/dev/contracts-import';
 import { cn } from '@/lib/cn';
 
 /**
@@ -18,13 +19,14 @@ import { cn } from '@/lib/cn';
  * 잘못 등록된 데이터 삭제용 단일 진입점. 운영 안정 후 권한 제한 추가.
  */
 
-type Tab = 'companies' | 'assets' | 'contracts' | 'ledger' | 'other';
+type Tab = 'companies' | 'assets' | 'contracts' | 'ledger' | 'import' | 'other';
 
 const TABS: { v: Tab; label: string }[] = [
   { v: 'companies', label: '회사' },
   { v: 'assets', label: '자산' },
   { v: 'contracts', label: '계약' },
   { v: 'ledger', label: '계좌내역' },
+  { v: 'import', label: '데이터 import' },
   { v: 'other', label: '기타 노드' },
 ];
 
@@ -62,6 +64,7 @@ export default function DevPage() {
     assets: assets.length,
     contracts: contracts.length,
     ledger: entries.length,
+    import: 0,
     other: otherNodes.length,
   };
 
@@ -151,11 +154,12 @@ export default function DevPage() {
         </>
       }
     >
-      <div className="table-wrap">
+      <div className={tab === 'import' ? '' : 'table-wrap'}>
         {tab === 'companies' && <CompaniesTable companies={companies} setCompanies={setCompanies} />}
         {tab === 'assets' && <AssetsTable assets={assets} setAssets={setAssets} />}
         {tab === 'contracts' && <ContractsTable contracts={contracts} setContracts={setContracts} />}
         {tab === 'ledger' && <LedgerTable entries={entries} setEntries={setEntries} />}
+        {tab === 'import' && <ContractsImportPanel />}
         {tab === 'other' && <OtherNodesTable nodes={otherNodes} />}
       </div>
 
