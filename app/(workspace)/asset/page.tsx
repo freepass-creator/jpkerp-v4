@@ -77,6 +77,7 @@ export default function AssetListPage() {
     } as Asset;
     setAssets((prev) => [next, ...prev]);
     setSelected(next);
+    audit.log({ action: 'create', entityType: 'asset', entityId: next.id, label: next.plate, after: next });
   }
 
   function handleUpdate(partial: Partial<Asset>) {
@@ -84,6 +85,7 @@ export default function AssetListPage() {
     const updated: Asset = { ...selected, ...partial, ...audit.update() } as Asset;
     setAssets((prev) => prev.map((a) => (a.id === selected.id ? updated : a)));
     setSelected(updated);
+    audit.log({ action: 'update', entityType: 'asset', entityId: updated.id, label: updated.plate, before: selected, after: updated });
   }
 
   function openEdit(mode: EditMode) {
@@ -96,6 +98,7 @@ export default function AssetListPage() {
     if (!selected) return;
     if (!confirm(`${selected.companyCode} ${selected.plate || selected.vehicleName} 자산을 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
     setAssets((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...audit.delete() } : a));
+    audit.log({ action: 'delete', entityType: 'asset', entityId: selected.id, label: selected.plate, before: selected });
     setSelected(null);
   }
 

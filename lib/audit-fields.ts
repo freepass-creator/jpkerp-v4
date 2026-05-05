@@ -22,6 +22,7 @@
 
 import type { User } from 'firebase/auth';
 import { useAuth } from './use-auth';
+import { pushAuditLog, type AuditLogInput } from './audit-log';
 
 export type AuditActor = {
   uid: string;
@@ -77,6 +78,10 @@ export function stampRestore(user: User | null | undefined): { deletedAt: undefi
  *   const audit = useAuditStamp();
  *   setAssets((prev) => prev.map((a) => a.id === id ? { ...a, ...audit.delete() } : a));
  *   setAssets((prev) => [{ ...newAsset, ...audit.create() }, ...prev]);
+ *
+ * append-only 히스토리 (audit_logs/) 도 같은 훅에서:
+ *
+ *   audit.log({ action: 'create', entityType: 'asset', entityId: id, label: plate, after: asset });
  */
 export function useAuditStamp() {
   const { user } = useAuth();
@@ -85,5 +90,6 @@ export function useAuditStamp() {
     update: () => stampUpdate(user),
     delete: () => stampDelete(user),
     restore: () => stampRestore(user),
+    log: (input: AuditLogInput) => pushAuditLog(actorOf(user), input),
   };
 }

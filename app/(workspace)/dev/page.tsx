@@ -354,10 +354,14 @@ function CompaniesTable({ companies, setCompanies }: {
   const audit = useAuditStamp();
   const removeOne = (code: string, name: string) => {
     if (!confirm(`회사 "${name}" (${code}) 삭제할까요? (코드는 영구 보존 — 재발급 안 됨)`)) return;
+    const before = companies.find((c) => c.code === code);
     setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.delete() } : c));
+    audit.log({ action: 'delete', entityType: 'company', entityId: code, label: name, before });
   };
   const restoreOne = (code: string) => {
+    const before = companies.find((c) => c.code === code);
     setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.restore() } : c));
+    audit.log({ action: 'restore', entityType: 'company', entityId: code, label: before?.name, before });
   };
   return (
     <table className="table">
@@ -409,10 +413,14 @@ function AssetsTable({ assets, setAssets }: {
   const audit = useAuditStamp();
   const removeOne = (id: string, plate: string) => {
     if (!confirm(`자산 "${plate || id}" 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
+    const before = assets.find((a) => a.id === id);
     setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.delete() } : a));
+    audit.log({ action: 'delete', entityType: 'asset', entityId: id, label: plate, before });
   };
   const restoreOne = (id: string) => {
+    const before = assets.find((a) => a.id === id);
     setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.restore() } : a));
+    audit.log({ action: 'restore', entityType: 'asset', entityId: id, label: before?.plate, before });
   };
   return (
     <table className="table">
@@ -468,10 +476,14 @@ function ContractsTable({ contracts, setContracts }: {
   const audit = useAuditStamp();
   const removeOne = (id: string, contractNo: string) => {
     if (!confirm(`계약 "${contractNo || id}" 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
+    const before = contracts.find((c) => c.id === id);
     setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.delete() } : c));
+    audit.log({ action: 'delete', entityType: 'contract', entityId: id, label: contractNo, before });
   };
   const restoreOne = (id: string) => {
+    const before = contracts.find((c) => c.id === id);
     setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.restore() } : c));
+    audit.log({ action: 'restore', entityType: 'contract', entityId: id, label: before?.contractNo, before });
   };
   return (
     <table className="table">

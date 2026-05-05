@@ -31,6 +31,7 @@ export default function AdminCompanyPage() {
     }
     const stamped: Company = { ...c, ...audit.create() };
     setCompanies((prev) => [...prev, stamped]);
+    audit.log({ action: 'create', entityType: 'company', entityId: stamped.code, label: stamped.name, after: stamped });
   };
 
   const handleUpdate = (c: Company) => {
@@ -38,6 +39,7 @@ export default function AdminCompanyPage() {
     const stamped: Company = { ...c, ...audit.update() };
     setCompanies((prev) => prev.map((x) => x.code === selected.code ? stamped : x));
     setSelected(stamped);
+    audit.log({ action: 'update', entityType: 'company', entityId: stamped.code, label: stamped.name, before: selected, after: stamped });
   };
 
   // 삭제는 개발도구(/dev) 에서 최고관리자만.

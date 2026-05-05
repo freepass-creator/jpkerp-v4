@@ -30,16 +30,27 @@ export default function AssetInsurancePage() {
   function handleCreate(items: InsurancePolicy[]) {
     const stamped = items.map((i) => ({ ...i, ...audit.create() }));
     setPolicies((prev) => [...stamped, ...prev]);
+    stamped.forEach((p) => audit.log({
+      action: 'create', entityType: 'insurance', entityId: p.id, label: `${p.carNumber ?? ''} ${p.policyNo ?? ''}`.trim(), after: p,
+    }));
   }
 
   function removeOne(id: string) {
+    const before = policies.find((p) => p.id === id);
     setPolicies((p) => p.map((i) => i.id === id ? { ...i, ...audit.delete() } : i));
+    if (before) audit.log({
+      action: 'delete', entityType: 'insurance', entityId: id, label: `${before.carNumber ?? ''} ${before.policyNo ?? ''}`.trim(), before,
+    });
     if (selectedId === id) setSelectedId(null);
   }
 
   function clearAll() {
     if (!confirm(`전체 ${policies.length}건 보험증권을 삭제할까요? (증권번호 영구 보존 — 재발급 안 됨)`)) return;
+    const targets = policies.filter((p) => !p.deletedAt);
     setPolicies((p) => p.map((i) => i.deletedAt ? i : { ...i, ...audit.delete() }));
+    targets.forEach((p) => audit.log({
+      action: 'delete', entityType: 'insurance', entityId: p.id, label: `${p.carNumber ?? ''} ${p.policyNo ?? ''}`.trim(), before: p,
+    }));
     setSelectedId(null);
   }
 

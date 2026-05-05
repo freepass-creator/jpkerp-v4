@@ -101,6 +101,7 @@ export default function ContractListPage() {
   function handleCreate(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>) {
     const contract: Contract = { ...fromDraft(draft), ...audit.create() };
     setContracts((prev) => [contract, ...prev]);
+    audit.log({ action: 'create', entityType: 'contract', entityId: contract.id, label: contract.contractNo, after: contract });
     // cascade: 자산 상태 전환 — '등록예정' → '대기' (출고 대기). 이미 운행중/정비/매각이면 손대지 않음.
     setAssets((prev) => prev.map((a) =>
       a.plate === contract.plate && a.companyCode === contract.companyCode && a.status === '등록예정'
@@ -114,11 +115,14 @@ export default function ContractListPage() {
     const updated: Contract = { ...selected, ...fromFormRecord(d), id: selected.id, contractNo: selected.contractNo, events: selected.events, ...audit.update() };
     setContracts((prev) => prev.map((c) => (c.id === selected.id ? updated : c)));
     setSelected(updated);
+    audit.log({ action: 'update', entityType: 'contract', entityId: updated.id, label: updated.contractNo, before: selected, after: updated });
     setEditOpen(false);
   }
 
   function handleDuplicate(d: Record<string, string>) {
-    setContracts((prev) => [{ ...fromFormRecord(d), ...audit.create() }, ...prev]);
+    const dup: Contract = { ...fromFormRecord(d), ...audit.create() };
+    setContracts((prev) => [dup, ...prev]);
+    audit.log({ action: 'create', entityType: 'contract', entityId: dup.id, label: dup.contractNo, after: dup });
     setDuplicateOpen(false);
   }
 
@@ -126,6 +130,7 @@ export default function ContractListPage() {
     if (!selected) return;
     if (!confirm(`${selected.contractNo} 계약을 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
     setContracts((prev) => prev.map((c) => c.id === selected.id ? { ...c, ...audit.delete() } : c));
+    audit.log({ action: 'delete', entityType: 'contract', entityId: selected.id, label: selected.contractNo, before: selected });
     setSelected(null);
   }
 
