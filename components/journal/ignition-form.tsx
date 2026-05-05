@@ -1,12 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Plus, Lock, LockOpen } from '@phosphor-icons/react';
+import { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
+import { Lock, LockOpen } from '@phosphor-icons/react';
 import type { Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import type { JournalEntry } from '@/lib/sample-journal';
 import { cn } from '@/lib/cn';
 import { daysBetween as daysFromTo } from '@/lib/date-utils';
+
+export interface IgnitionFormHandle {
+  /** 페이지 footer +추가 버튼에서 호출 — 인라인 추가 폼 펼침 */
+  startAdd: () => void;
+}
 
 const OVERDUE_AUTO_DAYS = 3;
 const REASONS_OTHER = ['검사미이행', '계약위반', '연락두절', '기타'];
@@ -45,12 +50,16 @@ function daysOverdue(today: string, dueDate: string): number {
  *  - 수동 추가 차량 (검사미이행·계약위반 등 미납 외 사유)
  *  → 행마다 [제어/해제] 토글
  */
-export function IgnitionForm({ contracts, assets, entries, onAction }: Props) {
+export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function IgnitionForm({ contracts, assets, entries, onAction }, ref) {
   const [reasonMap, setReasonMap] = useState<Record<string, string>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [addPlate, setAddPlate] = useState('');
   const [addReason, setAddReason] = useState('검사미이행');
   const [manualPlates, setManualPlates] = useState<Set<string>>(new Set());
+
+  useImperativeHandle(ref, () => ({
+    startAdd: () => setShowAdd(true),
+  }));
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -199,34 +208,41 @@ export function IgnitionForm({ contracts, assets, entries, onAction }: Props) {
     <div className="block" style={{ gridColumn: 'span 4' }}>
       <div className="panel-head" style={{ border: '1px solid var(--border)', borderBottom: 'none' }}>
         <span>총 <strong style={{ color: 'var(--text)' }}>{rows.length}</strong>대 · 제어 중 <strong style={{ color: 'var(--alert-red-text)' }}>{lockedCount}</strong>대 · 미납 자동(3일+) 포함</span>
-        <span className="panel-head-right" style={{ display: 'flex', gap: 4 }}>
-          {showAdd ? (
-            <>
-              <input
-                className="input mono"
-                type="text"
-                value={addPlate}
-                onChange={(e) => setAddPlate(e.target.value)}
-                placeholder="차량번호"
-                style={{ width: 140 }}
-              />
-              <select
-                className="input"
-                value={addReason}
-                onChange={(e) => setAddReason(e.target.value)}
-              >
-                {REASONS_OTHER.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button type="button" className="btn btn-primary" onClick={commitAdd} disabled={!addPlate.trim()}>확인</button>
-              <button type="button" className="btn" onClick={() => { setShowAdd(false); setAddPlate(''); }}>취소</button>
-            </>
-          ) : (
-            <button type="button" className="btn" onClick={() => setShowAdd(true)}>
-              <Plus size={12} weight="bold" /> 추가 (미납 외)
-            </button>
-          )}
-        </span>
       </div>
+
+      {/* 인라인 추가 폼 — footer +추가 버튼으로 펼침/접힘 */}
+      {showAdd && (
+        <div style={{
+          display: 'flex',
+          gap: 4,
+          padding: '8px 12px',
+          background: 'var(--bg-card)',
+          borderLeft: '1px solid var(--border)',
+          borderRight: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border-strong)',
+          alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--text-sub)' }}>미납 외 사유 추가</span>
+          <input
+            className="input mono"
+            type="text"
+            value={addPlate}
+            onChange={(e) => setAddPlate(e.target.value)}
+            placeholder="차량번호"
+            style={{ width: 140 }}
+            autoFocus
+          />
+          <select
+            className="input"
+            value={addReason}
+            onChange={(e) => setAddReason(e.target.value)}
+          >
+            {REASONS_OTHER.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <button type="button" className="btn btn-primary" onClick={commitAdd} disabled={!addPlate.trim()}>확인</button>
+          <button type="button" className="btn" onClick={() => { setShowAdd(false); setAddPlate(''); }}>취소</button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div style={{
@@ -308,4 +324,4 @@ export function IgnitionForm({ contracts, assets, entries, onAction }: Props) {
       )}
     </div>
   );
-}
+});

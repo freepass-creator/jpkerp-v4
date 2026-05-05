@@ -15,7 +15,7 @@ import type { Asset } from '@/lib/sample-assets';
 import { PcForm } from '@/components/journal/pc-form';
 import { IocForm } from '@/components/journal/ioc-form';
 import { AccidentForm } from '@/components/journal/accident-form';
-import { IgnitionForm } from '@/components/journal/ignition-form';
+import { IgnitionForm, type IgnitionFormHandle } from '@/components/journal/ignition-form';
 import type { EvidenceUploaderHandle } from '@/components/journal/evidence-uploader';
 import { cn } from '@/lib/cn';
 
@@ -315,6 +315,7 @@ export default function JournalPage() {
   const [status, setStatus] = useState<string>('진행중');
   const [data, setData] = useState<Record<string, string>>(() => emptyData(FORMS['contact']));
   const uploaderRef = useRef<EvidenceUploaderHandle | null>(null);
+  const ignitionRef = useRef<IgnitionFormHandle | null>(null);
 
   // 시간이 비어있으면 날짜만 (예: "2026-04-29"), 있으면 합침 ("2026-04-29 13:45")
   const at = atTime ? `${atDate} ${atTime}` : atDate;
@@ -539,7 +540,11 @@ export default function JournalPage() {
         </>
       }
       footerRight={
-        kind === 'ignition' ? null : (
+        kind === 'ignition' ? (
+          <button className="btn btn-primary" onClick={() => ignitionRef.current?.startAdd()}>
+            <Plus size={14} weight="bold" /> 추가 (미납 외)
+          </button>
+        ) : (
           <>
             <button className="btn" onClick={reset}>
               <ArrowCounterClockwise size={14} weight="bold" /> 초기화
@@ -680,6 +685,7 @@ export default function JournalPage() {
               {kind === 'accident' && <AccidentForm data={data} setData={setData} />}
               {kind === 'ignition' && (
                 <IgnitionForm
+                  ref={ignitionRef}
                   contracts={contracts}
                   assets={assets}
                   entries={entries}

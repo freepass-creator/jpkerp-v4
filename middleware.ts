@@ -24,9 +24,9 @@ export function middleware(req: NextRequest) {
   const ua = req.headers.get('user-agent') ?? '';
   if (!MOBILE_UA_RE.test(ua)) return NextResponse.next();
 
-  // PC 라우트로 들어온 모바일 → /m 으로
+  // PC 라우트로 들어온 모바일 → /m/upload 으로 (업로드가 첫화면)
   const url = req.nextUrl.clone();
-  url.pathname = '/m';
+  url.pathname = '/m/upload';
   url.search = search;
   return NextResponse.redirect(url);
 }
