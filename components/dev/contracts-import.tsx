@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle, Warning, ArrowCounterClockwise, FileXls } from '@phosphor-icons/react';
-import { generateContractSchedule, type Contract, type CustomerKind, type AdditionalDriver } from '@/lib/sample-contracts';
+import { type Contract, type CustomerKind, type AdditionalDriver } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { nextSequenceCode } from '@/lib/code-gen';
+import { buildEventsWithOverdue } from '@/lib/contract-events';
 
 /**
  * 계약 일괄 import — 운영 데이터 마이그레이션 전용 (/dev 탭).
@@ -63,16 +64,6 @@ type ImportRow = {
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function parseOverdue(raw: string): { kind: 'auto' } | { kind: 'all-paid' } | { kind: 'list'; cycles: number[] } {
-  const t = raw.trim();
-  if (!t) return { kind: 'auto' };
-  if (t === '0' || t === '없음' || t.toLowerCase() === 'none') return { kind: 'all-paid' };
-  const cycles = t.split(',')
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  return { kind: 'list', cycles };
 }
 
 function parseTSV(text: string, existingContracts: readonly Contract[]): ImportRow[] {
@@ -147,47 +138,9 @@ function parseTSV(text: string, existingContracts: readonly Contract[]): ImportR
   });
 }
 
-/**
- * 계약 1건 + 미수 정보로 events 배열 생성.
- * generateContractSchedule 로 기본 events 만든 뒤 미수 회차 분기 적용.
- */
-function buildEventsWithOverdue(
-  startDate: string, endDate: string, monthlyAmount: number,
-  overdueRaw: string,
-): Contract['events'] {
-  const events = generateContractSchedule(startDate, endDate, monthlyAmount);
-  if (events.length === 0) return [];
-  const today = todayStr();
-  const policy = parseOverdue(overdueRaw);
-
-  return events.map((e) => {
-    if (e.type !== '수납') {
-      // 출고/반납 — 도래했으면 자동 완료 (운영 마이그레이션 가정)
-      if (e.dueDate <= today) return { ...e, status: '완료' as const, doneDate: e.dueDate };
-      return e;
-    }
-    const cyc = e.cycle ?? 0;
-    const due = e.dueDate;
-    if (policy.kind === 'all-paid') return { ...e, status: '완료' as const, doneDate: due };
-    if (policy.kind === 'list') {
-      // 명시된 미수 회차는 미완료 (도래했으면 지연, 미도래면 예정)
-      if (policy.cycles.includes(cyc)) {
-        if (due < today) return { ...e, status: '지연' as const };
-        return e; // 예정
-      }
-      // 명시 외 회차: 도래했으면 완료, 미도래면 예정
-      if (due <= today) return { ...e, status: '완료' as const, doneDate: due };
-      return e;
-    }
-    // auto — 도래했으면 완료, 미도래면 예정
-    if (due <= today) return { ...e, status: '완료' as const, doneDate: due };
-    return e;
-  });
-}
-
 const SAMPLE_TSV = SHEET_HEADERS.map(([, l]) => l).join('\t') + '\n' + [
   'CP01', '', '12가3456', '홍길동', '개인', '900101-1234567', '010-1234-5678',
-  '2025-01-01', '2026-12-31', '500000', '1000000', '3,4,5',
+  '2025-01-01', '2026-12-31', '500000', '1000000', '5',
   '가족한정', '만 26세 이상', '30000', '강남구 사무소', '강남구 사무소',
   '자동이체', '5', '특약 없음',
 ].join('\t');
@@ -306,9 +259,14 @@ export function ContractsImportPanel() {
       <div className="alert alert-info" style={{ fontSize: 12 }}>
         <strong>계약 일괄 import (운영 데이터 마이그레이션)</strong>
         <div className="mt-1 dim">
+          단건 신규 등록(/contract)은 항상 자동생성(모두 예정) — 운영 진입한 마이그레이션 데이터만 여기서 처리.
           첫 줄 헤더 (한글 라벨). 계약번호가 비면 자동 부여, 있으면 기존 매칭 → events 갱신.
           <br />
-          <strong>미수회차</strong>: <code>3,4,5</code> = 3·4·5회차만 미수 / 빈값 = 도래분 모두 완료 처리 / <code>0</code> 또는 <code>없음</code> = 미수 없음 (모두 완료)
+          <strong>미수회차</strong>:
+          {' '}<code>5</code> = 5회차부터 미수 (1~4 자동 완료, 5 이후 미수) — 가장 일반
+          {' / '}<code>3,4,5</code> = 명시 회차만 미수 (드문 비연속)
+          {' / '}빈값 = 도래분 모두 완료
+          {' / '}<code>0</code> 또는 <code>없음</code> = 미수 없음 (모두 완료)
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-sm" onClick={copyHeader}>
