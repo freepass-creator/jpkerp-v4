@@ -1,4 +1,5 @@
 import { generateContractSchedule, type Contract } from './sample-contracts';
+import { todayStr } from './date-utils';
 
 /**
  * 계약 등록 시 events 생성 — /dev 일괄 import 의 미수 처리용.
@@ -17,11 +18,6 @@ import { generateContractSchedule, type Contract } from './sample-contracts';
  *
  * 출고/반납 events: 도래했으면 자동 완료 (운영 진입 가정).
  */
-
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export type OverduePolicy =
   | { kind: 'auto' }                            // 도래 = 완료, 미도래 = 예정

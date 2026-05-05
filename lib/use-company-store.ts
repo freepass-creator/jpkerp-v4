@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ref, set, onValue, get } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef, asArray as asArrayBase } from './store-utils';
 import type { Company } from './sample-companies';
 
 /**
@@ -19,25 +20,7 @@ let cache: Company[] = [];
 const listeners = new Set<(v: Company[]) => void>();
 let subscribed = false;
 
-function asArray(val: unknown): Company[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is Company => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, Company>);
-  return [];
-}
-
-/** RTDB 는 undefined 거부 — 재귀 strip. 빈 배열/객체는 보존. */
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
-}
+const asArray = (val: unknown) => asArrayBase<Company>(val);
 
 async function migrateLocalToRtdb() {
   if (typeof window === 'undefined') return;

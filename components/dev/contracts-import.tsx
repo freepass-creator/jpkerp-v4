@@ -7,6 +7,7 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { nextSequenceCode } from '@/lib/code-gen';
 import { buildEventsWithOverdue } from '@/lib/contract-events';
+import { todayStr } from '@/lib/date-utils';
 
 /**
  * 계약 일괄 import — 운영 데이터 마이그레이션 전용 (/dev 탭).
@@ -61,10 +62,6 @@ type ImportRow = {
   matchedId?: string;
 };
 
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function parseTSV(text: string, existingContracts: readonly Contract[]): ImportRow[] {
   const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());

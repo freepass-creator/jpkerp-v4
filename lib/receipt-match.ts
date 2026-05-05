@@ -1,5 +1,6 @@
 import type { Contract, ScheduleEvent } from './sample-contracts';
 import type { LedgerEntry } from './sample-finance';
+import { todayStr } from './date-utils';
 
 /**
  * 자금일보 입금 ↔ 계약 수납 회차 매칭 — 수납관리의 핵심 사이클.
@@ -24,11 +25,6 @@ export type ReceiptCandidate = {
   event: ScheduleEvent;     // 수납 회차 (cycle 보유)
   score: number;            // 매칭 적합도 — counterparty 일치 + 금액 일치 등
 };
-
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function dateOnly(txDate: string): string {
   // 'YYYY-MM-DD HH:mm' → 'YYYY-MM-DD'

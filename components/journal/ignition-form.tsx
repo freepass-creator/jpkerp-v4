@@ -6,6 +6,7 @@ import type { Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import type { JournalEntry } from '@/lib/sample-journal';
 import { cn } from '@/lib/cn';
+import { daysBetween as daysFromTo } from '@/lib/date-utils';
 
 const OVERDUE_AUTO_DAYS = 3;
 const REASONS_OTHER = ['검사미이행', '계약위반', '연락두절', '기타'];
@@ -32,10 +33,9 @@ interface Row {
   source: 'overdue' | 'locked' | 'manual';
 }
 
-function daysBetween(a: string, b: string): number {
-  const da = new Date(a);
-  const db = new Date(b);
-  return Math.floor((da.getTime() - db.getTime()) / 86400000);
+/** 미납 경과 일수 — today 기준으로 dueDate 가 며칠 지났는지 (양수). */
+function daysOverdue(today: string, dueDate: string): number {
+  return daysFromTo(dueDate, today);
 }
 
 /**
@@ -86,7 +86,7 @@ export function IgnitionForm({ contracts, assets, entries, onAction }: Props) {
         if (ev.status === '완료' || ev.status === '취소') continue;
         if (!ev.dueDate || ev.dueDate >= today) continue;
         unpaidAmount += ev.amount ?? 0;
-        const d = daysBetween(today, ev.dueDate);
+        const d = daysOverdue(today, ev.dueDate);
         if (d > maxOverdueDays) maxOverdueDays = d;
       }
       const ign = ignitionMap.get(c.plate);
@@ -138,7 +138,7 @@ export function IgnitionForm({ contracts, assets, entries, onAction }: Props) {
       for (const ev of c.events ?? []) {
         if (ev.type !== '수납' || ev.status === '완료' || ev.status === '취소') continue;
         if (!ev.dueDate || ev.dueDate >= today) continue;
-        const d = daysBetween(today, ev.dueDate);
+        const d = daysOverdue(today, ev.dueDate);
         if (d > maxOverdueDays) maxOverdueDays = d;
       }
       if (maxOverdueDays >= OVERDUE_AUTO_DAYS) {

@@ -1,4 +1,5 @@
 import 'server-only';
+import { smsByteLength as byteLength } from './byte-length';
 
 /**
  * Aligo (smartsms.aligo.in) API 클라이언트 — 서버 전용.
@@ -31,15 +32,6 @@ export type SendArgs = {
 };
 
 const API_URL = 'https://apis.aligo.in/send/';
-
-/** 한글 자모 길이 — 한글 1자 = 2 byte 로 계산 (Aligo 기준). */
-function byteLength(s: string): number {
-  let n = 0;
-  for (const ch of s) {
-    n += ch.charCodeAt(0) > 127 ? 2 : 1;
-  }
-  return n;
-}
 
 function detectMsgType(content: string): 'SMS' | 'LMS' {
   return byteLength(content) > 90 ? 'LMS' : 'SMS';

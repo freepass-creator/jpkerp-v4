@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ref, set, onValue, get } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef, asArray as asArrayBase } from './store-utils';
 import type { Contract } from './sample-contracts';
 
 /**
@@ -16,33 +17,15 @@ let cache: Contract[] = [];
 const listeners = new Set<(v: Contract[]) => void>();
 let subscribed = false;
 
+/** Contract 전용 — 기본 asArray 위에 events 중첩 객체→배열 정규화 추가. */
 function asArray(val: unknown): Contract[] {
-  if (!val) return [];
-  const list = Array.isArray(val)
-    ? val.filter((x): x is Contract => x != null && typeof x === 'object')
-    : typeof val === 'object'
-      ? Object.values(val as Record<string, Contract>)
-      : [];
-  // RTDB는 sparse / 인덱스 누락 배열을 object로 저장 → 중첩 events도 정규화
-  return list.map((c) => {
+  return asArrayBase<Contract>(val).map((c) => {
     const ev = (c as Contract & { events?: unknown }).events;
     if (ev && !Array.isArray(ev) && typeof ev === 'object') {
       return { ...c, events: Object.values(ev) as Contract['events'] };
     }
     return c;
   });
-}
-
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
 }
 
 async function migrateLocalToRtdb() {

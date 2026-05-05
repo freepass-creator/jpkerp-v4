@@ -13,6 +13,7 @@ import { useContractStore } from '@/lib/use-contract-store';
 import type { Asset } from '@/lib/sample-assets';
 import type { Contract, CustomerKind, AdditionalDriver } from '@/lib/sample-contracts';
 import { activeCompanies } from '@/lib/sample-companies';
+import { fileToDataUrl } from '@/lib/image-compress';
 
 /**
  * 계약 등록 통합 다이얼로그 — 3 모드:
@@ -669,15 +670,6 @@ function ManualForm({
       </details>
     </div>
   );
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(r.error ?? new Error('파일 읽기 실패'));
-    r.readAsDataURL(file);
-  });
 }
 
 function ContractFileInput({

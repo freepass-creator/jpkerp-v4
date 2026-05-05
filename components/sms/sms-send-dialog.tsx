@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CircleNotch, PaperPlaneTilt } from '@phosphor-icons/react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { renderTemplate, type SmsTemplateKind, type SmsTemplateContext } from '@/lib/sms/templates';
+import { smsByteLength as byteLength } from '@/lib/sms/byte-length';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import type { Contract } from '@/lib/sample-contracts';
 import type { Company } from '@/lib/sample-companies';
@@ -194,8 +195,3 @@ export function SmsSendDialog({
   );
 }
 
-function byteLength(s: string): number {
-  let n = 0;
-  for (const ch of s) n += ch.charCodeAt(0) > 127 ? 2 : 1;
-  return n;
-}

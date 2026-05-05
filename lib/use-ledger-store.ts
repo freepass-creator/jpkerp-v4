@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ref, set, onValue, get } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef, asArray as asArrayBase } from './store-utils';
 import type { LedgerEntry } from './sample-finance';
 
 /**
@@ -21,25 +22,7 @@ let subscribed = false;
 /** RTDB 가 자체 write 를 echo 로 다시 fire 하는 걸 거르기 위한 직렬화 캐시 */
 let lastSerialized = '';
 
-function asArray(val: unknown): LedgerEntry[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is LedgerEntry => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, LedgerEntry>);
-  return [];
-}
-
-/** RTDB 는 undefined 거부 — 재귀 strip. */
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
-}
+const asArray = (val: unknown) => asArrayBase<LedgerEntry>(val);
 
 async function migrateLocalToRtdb() {
   if (typeof window === 'undefined') return;

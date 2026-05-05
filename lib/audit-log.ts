@@ -19,6 +19,7 @@
 
 import { ref, push } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef } from './store-utils';
 import type { AuditActor } from './audit-fields';
 
 export type AuditAction = 'create' | 'update' | 'delete' | 'restore';
@@ -44,18 +45,6 @@ export type AuditLogEntry = {
 };
 
 const RTDB_PATH = 'audit_logs';
-
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
-}
 
 export type AuditLogInput = Omit<AuditLogEntry, 'at' | 'actor'>;
 

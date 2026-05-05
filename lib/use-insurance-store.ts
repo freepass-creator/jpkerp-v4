@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ref, set, onValue, get } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef, asArray as asArrayBase } from './store-utils';
 import type { InsurancePolicy } from './sample-insurance';
 
 /**
@@ -16,33 +17,15 @@ let cache: InsurancePolicy[] = [];
 const listeners = new Set<(v: InsurancePolicy[]) => void>();
 let subscribed = false;
 
+/** InsurancePolicy 전용 — 기본 asArray 위에 installments 중첩 객체→배열 정규화 추가. */
 function asArray(val: unknown): InsurancePolicy[] {
-  if (!val) return [];
-  const list = Array.isArray(val)
-    ? val.filter((x): x is InsurancePolicy => x != null && typeof x === 'object')
-    : typeof val === 'object'
-      ? Object.values(val as Record<string, InsurancePolicy>)
-      : [];
-  // RTDB는 sparse / 인덱스 누락 배열을 object로 저장 → 중첩 installments도 정규화 필요
-  return list.map((p) => {
+  return asArrayBase<InsurancePolicy>(val).map((p) => {
     const inst = (p as InsurancePolicy & { installments?: unknown }).installments;
     if (inst && !Array.isArray(inst) && typeof inst === 'object') {
       return { ...p, installments: Object.values(inst) as InsurancePolicy['installments'] };
     }
     return p;
   });
-}
-
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
 }
 
 async function migrateLocalToRtdb() {

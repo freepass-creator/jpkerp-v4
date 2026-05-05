@@ -8,6 +8,7 @@ import type { Asset } from '@/lib/sample-assets';
 import type { InsurancePolicy } from '@/lib/sample-insurance';
 import type { Company } from '@/lib/sample-companies';
 import { maskIdent } from '@/lib/customer-match';
+import { todayStr, daysBetween, formatDate, formatMoney } from '@/lib/date-utils';
 
 /**
  * 손님 페이지 본문 — 핵심만 펼쳐 노출, 나머지는 펼치기.
@@ -605,29 +606,6 @@ function DocumentsCollapse({
 }
 
 /* ─── helpers ─── */
-
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from);
-  const b = new Date(to);
-  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime())) return NaN;
-  const ms = b.getTime() - a.getTime();
-  return Math.round(ms / 86_400_000);
-}
-
-function formatDate(s: string): string {
-  if (!s) return '-';
-  return s.replace(/-/g, '. ');
-}
-
-function formatMoney(n: number): string {
-  if (!Number.isFinite(n)) return '-';
-  return n.toLocaleString('ko-KR');
-}
 
 /** 운전면허 마스킹 — 11-22-345678-90 → 11-22-******-90. */
 function maskLicense(s: string): string {

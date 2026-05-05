@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ref, set, onValue, get } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef, asArray as asArrayBase } from './store-utils';
 import type { JournalEntry } from './sample-journal';
 
 /**
@@ -16,24 +17,7 @@ let cache: JournalEntry[] = [];
 const listeners = new Set<(v: JournalEntry[]) => void>();
 let subscribed = false;
 
-function asArray(val: unknown): JournalEntry[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is JournalEntry => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, JournalEntry>);
-  return [];
-}
-
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
-}
+const asArray = (val: unknown) => asArrayBase<JournalEntry>(val);
 
 async function migrateLocalToRtdb() {
   if (typeof window === 'undefined') return;

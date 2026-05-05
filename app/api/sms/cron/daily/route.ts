@@ -5,6 +5,8 @@ import { overdueContent, expireContent } from '@/lib/sms/templates';
 import { getAdminRtdb } from '@/lib/firebase/admin';
 import type { Contract, ScheduleEvent } from '@/lib/sample-contracts';
 import type { Company } from '@/lib/sample-companies';
+import { todayStr, daysBetween } from '@/lib/date-utils';
+import { asArray } from '@/lib/store-utils';
 
 /**
  * 매일 cron — 미납·만기 SMS 자동 발송. Vercel Cron (vercel.json) 으로 09:00 KST 트리거.
@@ -31,22 +33,6 @@ type LogEntry = {
   meta?: { contractId?: string; stage?: string };
 };
 
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from);
-  const b = new Date(to);
-  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime())) return NaN;
-  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
-}
-function asArray<T>(val: unknown): T[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is T => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, T>);
-  return [];
-}
 
 function authorize(req: Request): boolean {
   const expected = process.env.CRON_SECRET;

@@ -5,6 +5,7 @@ import type { Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import type { InsurancePolicy } from '@/lib/sample-insurance';
 import type { Company } from '@/lib/sample-companies';
+import { asArray } from '@/lib/store-utils';
 
 /**
  * 손님 페이지 매칭 — 서버에서 Firebase Admin SDK 로 RTDB 조회 후 1건만 반환.
@@ -38,13 +39,6 @@ type SafeContract = Omit<Contract, 'createdBy' | 'createdAt' | 'updatedBy' | 'up
 
 /** 손님에게 노출할 Company — audit fields 제거. */
 type SafeCompany = Omit<Company, 'createdBy' | 'createdAt' | 'updatedBy' | 'updatedAt' | 'deletedBy'>;
-
-function asArray<T>(val: unknown): T[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter((x): x is T => x != null && typeof x === 'object');
-  if (typeof val === 'object') return Object.values(val as Record<string, T>);
-  return [];
-}
 
 /** RTDB 가 sparse 배열 → 객체로 저장하는 케이스 대응 (events 정규화). */
 function normalizeContract(c: Contract): Contract {

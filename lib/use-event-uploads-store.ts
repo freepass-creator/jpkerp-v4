@@ -2,6 +2,7 @@
 
 import { ref, push } from 'firebase/database';
 import { getRtdb } from './firebase/client';
+import { stripUndef } from './store-utils';
 
 /**
  * 모바일 업로드 — 출고/반납/상품화/기타 사진·파일 RTDB 적재.
@@ -40,18 +41,6 @@ export type EventUploadEntry = {
 };
 
 const RTDB_PATH = 'event_uploads';
-
-function stripUndef<T>(v: T): T {
-  if (Array.isArray(v)) return v.map(stripUndef) as unknown as T;
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (val !== undefined) out[k] = stripUndef(val);
-    }
-    return out as T;
-  }
-  return v;
-}
 
 export async function pushEventUpload(entry: Omit<EventUploadEntry, 'id'>): Promise<string> {
   const r = ref(getRtdb(), RTDB_PATH);
