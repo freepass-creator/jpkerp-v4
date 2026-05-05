@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { CaretRight, MagnifyingGlass, User, Bell, SignOut } from '@phosphor-icons/react';
 import { useAuth, logout } from '@/lib/use-auth';
@@ -9,6 +10,7 @@ import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
+import { ContextMenu } from '@/components/ui/context-menu';
 
 const ALL_SUBTABS = [...ASSET_SUBTABS, ...ADMIN_SUBTABS, ...CONTRACT_SUBTABS, ...FINANCE_SUBTABS];
 
@@ -102,15 +104,31 @@ export function Topbar() {
 
 function UserPanel() {
   const { user } = useAuth();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
   if (!user) return null;
   const name = user.displayName ?? user.email?.split('@')[0] ?? '사용자';
   const email = user.email ?? '';
+
+  function openMenu() {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setMenu({ x: r.right - 180, y: r.bottom + 4 });
+  }
+
   return (
     <div className="ml-auto flex items-center gap-2">
       <button className="btn-ghost btn btn-icon" title="알림">
         <Bell size={14} />
       </button>
-      <div className="topbar-user">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="topbar-user"
+        title="계정 메뉴"
+        onClick={openMenu}
+      >
         {user.photoURL ? (
           <img src={user.photoURL} alt={name} className="topbar-user-avatar" referrerPolicy="no-referrer" />
         ) : (
@@ -118,20 +136,25 @@ function UserPanel() {
             <User size={12} weight="bold" />
           </div>
         )}
-        <div className="leading-tight">
+        <div className="leading-tight text-left">
           <div className="text-medium">{name}</div>
           <div className="text-weak">{email}</div>
         </div>
-      </div>
-      <button
-        className="btn-ghost btn btn-icon"
-        title="로그아웃"
-        onClick={() => {
-          if (confirm('로그아웃 하시겠어요?')) logout();
-        }}
-      >
-        <SignOut size={14} />
       </button>
+      <ContextMenu
+        open={menu !== null}
+        x={menu?.x ?? 0}
+        y={menu?.y ?? 0}
+        items={[
+          {
+            label: '로그아웃',
+            icon: <SignOut size={13} />,
+            danger: true,
+            onClick: () => logout(),
+          },
+        ]}
+        onClose={() => setMenu(null)}
+      />
     </div>
   );
 }

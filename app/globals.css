@@ -248,7 +248,7 @@ td.num, td.date, th.num, th.date {
   align-items: center;
 }
 
-/* 우측 사용자 정보 */
+/* 우측 사용자 정보 — 클릭 시 계정 메뉴 */
 .topbar-user {
   display: flex;
   align-items: center;
@@ -256,8 +256,13 @@ td.num, td.date, th.num, th.date {
   padding: 0 8px 0 6px;
   cursor: pointer;
   border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
 }
 .topbar-user:hover { background: var(--bg-stripe); }
+.topbar-user:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 0; }
 .topbar-user-avatar {
   width: 22px; height: 22px;
   background: var(--brand);
