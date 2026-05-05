@@ -1,93 +1,101 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react';
-import { useContractStore } from '@/lib/use-contract-store';
-import { useAssetStore } from '@/lib/use-asset-store';
-import { useCompanyStore } from '@/lib/use-company-store';
-import { useInsuranceStore } from '@/lib/use-insurance-store';
-import { findCustomerContract, normalizePlate, normalizeIdent } from '@/lib/customer-match';
+import { normalizePlate, normalizeIdent } from '@/lib/customer-match';
 import type { Contract } from '@/lib/sample-contracts';
+import type { Asset } from '@/lib/sample-assets';
+import type { InsurancePolicy } from '@/lib/sample-insurance';
+import type { Company } from '@/lib/sample-companies';
 import { CustomerView } from '@/components/customer/customer-view';
 
 /**
  * 손님 페이지 본문 — /customer/[plate]?ident=...
  *
  * 흐름:
- *  1. URL 의 ?ident= 와 plate 매칭
- *  2. ident 는 즉시 sessionStorage 로 옮기고 URL 에서 제거 (history.replaceState)
- *  3. 새로고침 시 sessionStorage 에서 복구
- *  4. 일치하는 계약 → CustomerView 렌더, 미일치 → 안내 + [다시 조회]
+ *  1. URL 의 ?ident= 와 plate → sessionStorage 로 옮기고 URL 정리
+ *  2. /api/customer/lookup POST { plate, ident } 서버 매칭 (Firebase Admin SDK)
+ *  3. 결과 → CustomerView 렌더, 미매칭 → 안내
+ *
+ * 보안: 클라이언트는 RTDB 직접 구독하지 않음. RTDB Rules 가 비인증 read 차단.
  */
+
+type LookupResponse = {
+  contract: Contract;
+  asset: Asset | null;
+  insurance: InsurancePolicy | null;
+  company: Company | null;
+};
+
+type LoadState =
+  | { kind: 'init' }
+  | { kind: 'loading' }
+  | { kind: 'no-ident' }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; data: LookupResponse };
+
 export default function CustomerViewPage() {
   const params = useParams();
   const search = useSearchParams();
   const router = useRouter();
   const plate = decodeURIComponent((params?.plate as string) ?? '');
 
-  const [ident, setIdent] = useState<string | null>(null);
-  const [identReady, setIdentReady] = useState(false);
+  const [state, setState] = useState<LoadState>({ kind: 'init' });
 
-  // ident 한 번만 로드: URL → sessionStorage → URL 정리
   useEffect(() => {
     const KEY = `cx:ident:${normalizePlate(plate)}`;
     const fromUrl = search?.get('ident');
+    let ident: string | null = null;
+
     if (fromUrl) {
-      const norm = normalizeIdent(fromUrl);
-      sessionStorage.setItem(KEY, norm);
-      setIdent(norm);
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState(null, '', cleanUrl);
+      ident = normalizeIdent(fromUrl);
+      sessionStorage.setItem(KEY, ident);
+      // URL 에서 ident 제거 (뒤로가기 시에도 노출 안 되게)
+      window.history.replaceState(null, '', window.location.pathname);
     } else {
-      const stored = sessionStorage.getItem(KEY);
-      setIdent(stored);
+      ident = sessionStorage.getItem(KEY);
     }
-    setIdentReady(true);
+
+    if (!ident) {
+      setState({ kind: 'no-ident' });
+      return;
+    }
+
+    setState({ kind: 'loading' });
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/customer/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plate, ident }),
+        });
+        if (cancelled) return;
+        if (res.status === 404) {
+          setState({ kind: 'not-found' });
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setState({ kind: 'error', message: err?.detail ?? `${res.status}` });
+          return;
+        }
+        const data = (await res.json()) as LookupResponse;
+        setState({ kind: 'ready', data });
+      } catch (e) {
+        if (cancelled) return;
+        setState({ kind: 'error', message: (e as Error).message });
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [plate, search]);
 
-  const [contracts] = useContractStore();
-  const [assets] = useAssetStore();
-  const [companies] = useCompanyStore();
-  const [policies] = useInsuranceStore();
-
-  const contract = useMemo<Contract | null>(() => {
-    if (!ident) return null;
-    return findCustomerContract(contracts, plate, ident);
-  }, [contracts, plate, ident]);
-
-  const asset = useMemo(() => {
-    if (!contract) return null;
-    return assets.find(
-      (a) => normalizePlate(a.plate) === normalizePlate(contract.plate) && a.companyCode === contract.companyCode,
-    ) ?? null;
-  }, [assets, contract]);
-
-  const company = useMemo(() => {
-    if (!contract) return null;
-    return companies.find((c) => c.code === contract.companyCode) ?? null;
-  }, [companies, contract]);
-
-  const insurance = useMemo(() => {
-    if (!contract) return null;
-    const today = new Date().toISOString().slice(0, 10);
-    const matches = policies.filter(
-      (p) => !p.deletedAt
-        && p.carNumber && normalizePlate(p.carNumber) === normalizePlate(contract.plate)
-        && p.companyCode === contract.companyCode,
-    );
-    // 유효(미만료) 우선, 다음 가장 최근 endDate
-    matches.sort((a, b) => {
-      const aValid = (a.endDate ?? '') >= today ? 0 : 1;
-      const bValid = (b.endDate ?? '') >= today ? 0 : 1;
-      if (aValid !== bValid) return aValid - bValid;
-      return (b.endDate ?? '').localeCompare(a.endDate ?? '');
-    });
-    return matches[0] ?? null;
-  }, [policies, contract]);
-
-  if (!identReady) {
+  if (state.kind === 'init' || state.kind === 'loading') {
     return (
       <main className="cx-main">
         <div className="cx-card cx-empty">조회 중...</div>
@@ -95,7 +103,7 @@ export default function CustomerViewPage() {
     );
   }
 
-  if (!ident) {
+  if (state.kind === 'no-ident') {
     return (
       <main className="cx-main">
         <div className="cx-card">
@@ -109,7 +117,7 @@ export default function CustomerViewPage() {
     );
   }
 
-  if (!contract) {
+  if (state.kind === 'not-found') {
     return (
       <main className="cx-main">
         <button type="button" className="cx-back" onClick={() => router.push('/customer')}>
@@ -126,5 +134,21 @@ export default function CustomerViewPage() {
     );
   }
 
+  if (state.kind === 'error') {
+    return (
+      <main className="cx-main">
+        <button type="button" className="cx-back" onClick={() => router.push('/customer')}>
+          <ArrowLeft size={14} weight="bold" /> 다시 조회
+        </button>
+        <div className="cx-card">
+          <h1 className="cx-h1">조회 중 오류</h1>
+          <p className="cx-lead">잠시 후 다시 시도해주세요.</p>
+          <p className="cx-field-hint" style={{ marginTop: 8 }}>{state.message}</p>
+        </div>
+      </main>
+    );
+  }
+
+  const { contract, asset, insurance, company } = state.data;
   return <CustomerView contract={contract} asset={asset} insurance={insurance} company={company} />;
 }
