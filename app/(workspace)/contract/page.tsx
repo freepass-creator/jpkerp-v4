@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { PencilSimple, Copy, Trash } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Trash, PaperPlaneTilt } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
+import { useCompanyStore } from '@/lib/use-company-store';
+import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { EntityFormDialog, type FieldDef, type FieldSection } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -97,8 +99,14 @@ export default function ContractListPage() {
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
   const audit = useAuditStamp();
+  const [companies] = useCompanyStore();
+  const selectedCompany = useMemo(
+    () => (selected ? companies.find((c) => c.code === selected.companyCode) ?? null : null),
+    [companies, selected],
+  );
 
   const totals = useMemo(() => {
     const totalAssets = assets.filter((a) => a.status !== '매각' && a.status !== '등록예정').length;
@@ -233,6 +241,7 @@ export default function ContractListPage() {
     return [
       { label: '수정',     icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
       { label: '복사',     icon: <Copy size={12} weight="bold" />,         onClick: () => setDuplicateOpen(true) },
+      { label: '문자 발송', icon: <PaperPlaneTilt size={12} weight="bold" />, onClick: () => setSmsOpen(true) },
       { label: '삭제',     icon: <Trash size={12} weight="bold" />,        onClick: handleDelete, danger: true },
     ];
   }
@@ -301,6 +310,8 @@ export default function ContractListPage() {
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
         title="계약 복사 (스펙 복제)" sections={CONTRACT_DUPLICATE_SECTIONS} initial={dupInitial}
         onSubmit={handleDuplicate} />
+      <SmsSendDialog open={smsOpen} onOpenChange={setSmsOpen}
+        contract={selected} company={selectedCompany} />
     </>
   );
 }
