@@ -34,7 +34,23 @@
     "companies":  { ".read": "auth != null", ".write": "auth != null" },
     "insurances": { ".read": "auth != null", ".write": "auth != null" },
     "journal_entries": { ".read": "auth != null", ".write": "auth != null" },
-    "ledger":     { ".read": "auth != null", ".write": "auth != null" }
+    "ledger":     { ".read": "auth != null", ".write": "auth != null" },
+
+    "event_uploads": {
+      ".read": "auth != null",
+      ".indexOn": ["at", "plate", "kind"],
+      "$id": {
+        ".write": "auth != null && !data.exists()"
+      }
+    },
+
+    "sms_logs": {
+      ".read": "auth != null",
+      ".indexOn": ["at"],
+      "$id": {
+        ".write": "auth != null && !data.exists()"
+      }
+    }
   }
 }
 ```
