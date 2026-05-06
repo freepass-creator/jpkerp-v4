@@ -180,7 +180,7 @@ export default function ContractListPage() {
   function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>): Contract {
     return {
       id: genId('c'),
-      contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo)),
+      contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo), { date: draft.startDate || undefined }),
       ...draft,
       status: '운행중',
       events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount, {
@@ -248,8 +248,8 @@ export default function ContractListPage() {
 
   /** 수정/복사 폼 record → Contract — 등록은 ContractRegisterDialog 가 처리. */
   function fromFormRecord(d: Record<string, string>): Contract {
-    const contractNo = d.contractNo?.trim() || nextDateScopedCode('C', contracts.map((c) => c.contractNo));
     const startDate = d.startDate || new Date().toISOString().slice(0, 10);
+    const contractNo = d.contractNo?.trim() || nextDateScopedCode('C', contracts.map((c) => c.contractNo), { date: startDate });
     const endDate = d.endDate || '';
     const monthlyAmount = Number(d.monthlyAmount) || 0;
     const mileageRaw = Number(d.mileageLimitKm);

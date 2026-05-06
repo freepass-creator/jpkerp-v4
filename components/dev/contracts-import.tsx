@@ -206,7 +206,7 @@ export function ContractsImportPanel() {
             const id = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const contractNo = d.contractNo?.trim()
               ? d.contractNo.trim()
-              : nextDateScopedCode('C', Array.from(usedContractNos));
+              : nextDateScopedCode('C', Array.from(usedContractNos), { date: d.startDate || undefined });
             usedContractNos.add(contractNo);
             const created: Contract = {
               id,
