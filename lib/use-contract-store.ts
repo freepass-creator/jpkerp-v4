@@ -1,9 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { ref, set, onValue } from 'firebase/database';
-import { getRtdb } from './firebase/client';
-import { stripUndef } from './store-utils';
+import { createKeyedStore } from './create-keyed-store';
 import type { Contract } from './sample-contracts';
 
 /**
@@ -11,76 +8,23 @@ import type { Contract } from './sample-contracts';
  *   contracts/CT2605060001/{...}, contracts/CT2605060002/{...}
  * legacy 배열도 read 시 호환 처리. events 중첩 객체→배열 정규화 보존.
  */
-const RTDB_PATH = 'contracts';
+const { useStore } = createKeyedStore<Contract>({
+  path: 'contracts',
+  getKey: (c) => c.contractNo,
+  storeName: 'contract-store',
+  sortBy: (a, b) => (a.contractNo ?? '').localeCompare(b.contractNo ?? ''),
+  alertLabel: '계약',
+  // events 중첩 객체→배열 정규화 (RTDB 가 sparse 배열을 obj 로 저장하는 경우 대비).
+  normalizeItem: (c) => {
+    const ev = (c as Contract & { events?: unknown }).events;
+    if (ev && !Array.isArray(ev) && typeof ev === 'object') {
+      return { ...c, events: Object.values(ev) as Contract['events'] };
+    }
+    return c;
+  },
+});
 
-let cache: Contract[] = [];
-const listeners = new Set<(v: Contract[]) => void>();
-let subscribed = false;
-
-/** events 중첩 객체→배열 정규화 (RTDB 가 sparse 배열을 obj 로 저장하는 경우 대비). */
-function normalizeEvents(c: Contract): Contract {
-  const ev = (c as Contract & { events?: unknown }).events;
-  if (ev && !Array.isArray(ev) && typeof ev === 'object') {
-    return { ...c, events: Object.values(ev) as Contract['events'] };
-  }
-  return c;
-}
-
-/** RTDB 에서 읽은 raw 값 → Contract[]. keyed object / legacy array 둘 다 지원. */
-function fromRtdb(val: unknown): Contract[] {
-  if (!val || typeof val !== 'object') return [];
-  const arr = Array.isArray(val)
-    ? val.filter((x): x is Contract => x != null && typeof x === 'object')
-    : Object.values(val as Record<string, Contract>).filter((x): x is Contract => x != null && typeof x === 'object');
-  return arr
-    .map(normalizeEvents)
-    .sort((a, b) => (a.contractNo ?? '').localeCompare(b.contractNo ?? ''));
-}
-
-/** Contract[] → RTDB keyed object (contractNo 키). */
-function toRtdb(arr: Contract[]): Record<string, Contract> {
-  const out: Record<string, Contract> = {};
-  for (const c of arr) {
-    if (c.contractNo) out[c.contractNo] = c;
-  }
-  return out;
-}
-
-function ensureSubscription() {
-  if (subscribed || typeof window === 'undefined') return;
-  subscribed = true;
-  onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
-    const v = fromRtdb(snap.val());
-    cache = v;
-    listeners.forEach((l) => l(v));
-  });
-}
-
-export function useContractStore() {
-  const [contracts, setLocal] = useState<Contract[]>(() => cache);
-
-  useEffect(() => {
-    ensureSubscription();
-    const fn = (v: Contract[]) => setLocal(v);
-    listeners.add(fn);
-    setLocal(cache);
-    return () => { listeners.delete(fn); };
-  }, []);
-
-  const setContracts = useCallback((updater: Contract[] | ((prev: Contract[]) => Contract[])) => {
-    const prev = cache;
-    const next = typeof updater === 'function' ? (updater as (p: Contract[]) => Contract[])(prev) : updater;
-    cache = next;
-    listeners.forEach((l) => l(next));
-    const obj = toRtdb(next);
-    set(ref(getRtdb(), RTDB_PATH), stripUndef(obj)).catch((e) => {
-      console.error('[contract-store] write failed', e);
-      if (typeof window !== 'undefined') alert(`계약 저장 실패: ${e?.message ?? e}\n\nFirebase Console → Realtime Database → Rules 확인 필요.`);
-    });
-  }, []);
-
-  return [contracts, setContracts] as const;
-}
+export const useContractStore = useStore;
 
 /**
  * 차량번호로 활성(운행중) 계약 찾기.

@@ -1,0 +1,111 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { ref, set, onValue } from 'firebase/database';
+import { getRtdb } from './firebase/client';
+import { stripUndef } from './store-utils';
+
+/**
+ * RTDB keyed-object store factory — 도메인 무관 공용.
+ *
+ * 6개 store (회사·차량·계약·보험·일지·거래원장) 가 같은 패턴 반복.
+ * 이 팩토리는 그 공통을:
+ *   · 모듈 레벨 cache + listeners
+ *   · onValue 구독 (legacy array / keyed object 둘 다 지원)
+ *   · setX → keyed object 로 변환 후 write + 콘솔 로깅
+ *   · React 훅 useStore() 노출
+ *
+ *   const { useStore } = createKeyedStore<Company>({
+ *     path: 'companies',
+ *     getKey: (c) => c.code,
+ *     storeName: 'company-store',
+ *     sortBy: (a, b) => (a.code ?? '').localeCompare(b.code ?? ''),
+ *   });
+ *   export const useCompanyStore = useStore;
+ *
+ * 중첩 배열 (보험 installments / 계약 events) 정규화는 normalizeItem 옵션으로.
+ */
+
+type Options<T> = {
+  /** RTDB 경로 (예: 'companies', 'assets'). */
+  path: string;
+  /** 항목 → key. 키가 없으면 (false) write 시 제외. */
+  getKey: (item: T) => string | undefined;
+  /** 로깅 prefix (예: 'company-store'). */
+  storeName: string;
+  /** UI 표시 시 정렬. 안 주면 RTDB 순서. */
+  sortBy?: (a: T, b: T) => number;
+  /** read 후 항목별 정규화 (예: nested 객체→배열). 없으면 그대로. */
+  normalizeItem?: (item: T) => T;
+  /** write 실패 시 alert 메시지 prefix. */
+  alertLabel?: string;
+};
+
+export function createKeyedStore<T>(opts: Options<T>) {
+  const { path, getKey, storeName, sortBy, normalizeItem, alertLabel } = opts;
+
+  let cache: T[] = [];
+  const listeners = new Set<(v: T[]) => void>();
+  let subscribed = false;
+
+  function fromRtdb(val: unknown): T[] {
+    if (!val || typeof val !== 'object') return [];
+    const arr = Array.isArray(val)
+      ? val.filter((x): x is T => x != null && typeof x === 'object')
+      : Object.values(val as Record<string, T>).filter((x): x is T => x != null && typeof x === 'object');
+    const normalized = normalizeItem ? arr.map(normalizeItem) : arr;
+    return sortBy ? normalized.sort(sortBy) : normalized;
+  }
+
+  function toRtdb(arr: T[]): Record<string, T> {
+    const out: Record<string, T> = {};
+    for (const item of arr) {
+      const k = getKey(item);
+      if (k) out[k] = item;
+    }
+    return out;
+  }
+
+  function ensureSubscription() {
+    if (subscribed || typeof window === 'undefined') return;
+    subscribed = true;
+    onValue(ref(getRtdb(), path), (snap) => {
+      const v = fromRtdb(snap.val());
+      cache = v;
+      listeners.forEach((l) => l(v));
+    });
+  }
+
+  function useStore() {
+    const [items, setLocal] = useState<T[]>(() => cache);
+
+    useEffect(() => {
+      ensureSubscription();
+      const fn = (v: T[]) => setLocal(v);
+      listeners.add(fn);
+      setLocal(cache);
+      return () => { listeners.delete(fn); };
+    }, []);
+
+    const setItems = useCallback((updater: T[] | ((prev: T[]) => T[])) => {
+      const prev = cache;
+      const next = typeof updater === 'function' ? (updater as (p: T[]) => T[])(prev) : updater;
+      cache = next;
+      listeners.forEach((l) => l(next));
+      const obj = toRtdb(next);
+      console.log(`[${storeName}] writing ${next.length} items to RTDB ${path}/...`);
+      set(ref(getRtdb(), path), stripUndef(obj))
+        .then(() => console.log(`[${storeName}] ✓ RTDB write OK (${next.length} items)`))
+        .catch((e) => {
+          console.error(`[${storeName}] ✗ write failed`, e);
+          if (typeof window !== 'undefined') {
+            alert(`${alertLabel ?? path} 저장 실패: ${e?.message ?? e}\n\nFirebase Console → Realtime Database → Rules 확인 필요.`);
+          }
+        });
+    }, []);
+
+    return [items, setItems] as const;
+  }
+
+  return { useStore, getCache: () => cache };
+}
