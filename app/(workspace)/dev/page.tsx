@@ -151,6 +151,32 @@ export default function DevPage() {
           <button className="btn" onClick={() => setPurgeOpen(true)}>
             <TrashSimple size={14} weight="bold" /> 데이터 삭제
           </button>
+          <button
+            className="btn"
+            onClick={async () => {
+              const txt = prompt('전체 RTDB 를 비웁니다. 되돌릴 수 없습니다.\n\n계속하려면 "WIPE-ALL" 입력:');
+              if (txt !== 'WIPE-ALL') return;
+              try {
+                const auth = (await import('firebase/auth')).getAuth();
+                const token = await auth.currentUser?.getIdToken();
+                if (!token) { alert('로그인 필요'); return; }
+                const r = await fetch('/api/dev/wipe-all', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ confirm: 'WIPE-ALL' }),
+                });
+                const j = await r.json();
+                if (j.ok) alert(`완료 — ${j.removedNodes}개 노드 삭제됨. 새로고침하세요.`);
+                else alert(`실패: ${j.error}`);
+              } catch (e) {
+                alert(`오류: ${(e as Error).message}`);
+              }
+            }}
+            style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
+            title="Firebase RTDB 루트 전체 비우기 — 모든 노드 한방에 삭제"
+          >
+            <TrashSimple size={14} weight="bold" /> RTDB 전체 초기화
+          </button>
         </>
       }
     >
