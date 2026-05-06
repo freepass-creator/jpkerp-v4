@@ -73,8 +73,14 @@ export default function AssetListPage() {
       return;
     }
     const companyCode = partial.companyCode;
-    const existingCodes = allAssets.map((a) => a.assetCode).filter((c): c is string => !!c);
-    const assetCode = nextCompanyScopedCode('VH', companyCode, existingCodes, { pad: 4 });
+    // 배치 등록(register-dialog) 은 partial.assetCode 를 미리 발급해서 넘김 — 그대로 사용.
+    // 단건/복사 등 코드가 없는 케이스만 새로 발급.
+    const assetCode = partial.assetCode || nextCompanyScopedCode(
+      'VH',
+      companyCode,
+      allAssets.map((a) => a.assetCode).filter((c): c is string => !!c),
+      { pad: 4 },
+    );
     const next: Asset = {
       id: genId('a'),
       companyCode,
@@ -86,7 +92,6 @@ export default function AssetListPage() {
       vin: partial.vin ?? '',
       ownerName: partial.ownerName ?? '',
       ...partial,
-      // assetCode 는 항상 새로 부여 — partial 의 (복사 시 undefined 든 기존 값이든) 무시하고 신규 생성
       assetCode,
       status: partial.status ?? '등록예정',
       ...audit.create(),

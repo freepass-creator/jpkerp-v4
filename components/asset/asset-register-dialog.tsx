@@ -5,6 +5,7 @@ import { Upload, FileXls, Pencil, Plus, X, CheckCircle, CircleNotch, Warning, Ar
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
+import { nextCompanyScopedCode } from '@/lib/code-gen';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { RegistrationForm } from './registration-form';
 import type { Asset } from '@/lib/sample-assets';
@@ -138,7 +139,19 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
       alert('등록 가능한 항목이 없습니다. 차량번호·회사 누락 항목은 행에서 직접 입력 후 등록하세요.');
       return;
     }
-    registerableItems.forEach((i) => onCreate(i.data));
+    // 배치 등록 — 각 항목에 assetCode 미리 발급해서 forEach 중 중복 방지.
+    // (forEach 안에서 onCreate→setAssets 가 React state 갱신 전이라
+    //  store 의 allAssets 가 아직 안 바뀐 상태로 다음 iteration 이 같은 코드 발급 받음)
+    const baseExisting = assets.map((a) => a.assetCode).filter((c): c is string => !!c);
+    const issuedThisBatch: string[] = [];
+    registerableItems.forEach((i) => {
+      const companyCode = i.data.companyCode;
+      if (!companyCode) return;
+      const allCodes = [...baseExisting, ...issuedThisBatch];
+      const assetCode = nextCompanyScopedCode('VH', companyCode, allCodes, { pad: 4 });
+      issuedThisBatch.push(assetCode);
+      onCreate({ ...i.data, assetCode });
+    });
     setOpen(false);
     setTimeout(ocr.reset, 100);
   }

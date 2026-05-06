@@ -34,6 +34,8 @@ export function AssetGrid({
     /* 식별자 */
     { headerName: '회사', field: 'companyCode', width: 80, filterable: true,
       cellRenderer: ({ value }) => <span className="plate text-medium">{(value as string) || '-'}</span> },
+    { headerName: '자산코드', field: 'assetCode', width: 110, filterable: true,
+      cellRenderer: ({ value }) => <span className="mono text-medium">{(value as string) || '-'}</span> },
     { headerName: '차량번호', field: 'plate', width: 110, filterable: true,
       cellRenderer: ({ value }) => <span className="plate text-medium">{(value as string) || '-'}</span> },
 
