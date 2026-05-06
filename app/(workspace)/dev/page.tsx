@@ -105,6 +105,40 @@ export default function DevPage() {
   // 수납생성 다이얼로그
   const [receiptOpen, setReceiptOpen] = useState(false);
 
+  /** 일괄 수납생성 — 모든 계약, dueDate ≤ today 인 예정 수납회차 → 완료 자동 처리. */
+  function bulkSeedReceipts() {
+    if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
+    const today = todayStr();
+    let calcChanged = 0;
+    let calcCycles = 0;
+    for (const c of contracts) {
+      if (c.deletedAt) continue;
+      let here = 0;
+      for (const e of c.events) {
+        if (e.type === '수납' && e.status === '예정' && e.dueDate <= today) here++;
+      }
+      if (here > 0) { calcChanged++; calcCycles += here; }
+    }
+    if (calcCycles === 0) { alert('처리할 회차 없음 — 모든 미수가 이미 완료 상태'); return; }
+    if (!confirm(
+      `일괄 수납생성\n\n· 영향 계약: ${calcChanged}건\n· 자동수납 회차: ${calcCycles}회차\n\n`
+      + `오늘(${today}) 기준 dueDate ≤ today 인 예정 회차를 모두 완료(doneDate=dueDate)로 전환합니다.\n계속할까요?`,
+    )) return;
+    setContracts((prev) => prev.map((c) => {
+      if (c.deletedAt) return c;
+      let modified = false;
+      const events = c.events.map((e) => {
+        if (e.type === '수납' && e.status === '예정' && e.dueDate <= today) {
+          modified = true;
+          return { ...e, status: '완료' as const, doneDate: e.dueDate };
+        }
+        return e;
+      });
+      return modified ? { ...c, events } : c;
+    }));
+    alert(`완료 — ${calcChanged}건 계약 / ${calcCycles}회차 자동수납`);
+  }
+
   /** 출고생성 — 모든 계약 출고완료 + 자산 운행중. */
   function seedDeliveries() {
     if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
@@ -184,8 +218,11 @@ export default function DevPage() {
         <>
           <span className="dev-group-box">
             <span className="dev-group-label">생성</span>
-            <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → events 재구성">
+            <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="단건 — 고객 정보 + 미수 회차 입력 → events 재구성">
               <CurrencyKrw size={13} weight="bold" /> 수납생성
+            </button>
+            <button className="btn btn-sm" onClick={bulkSeedReceipts} title="전체 — 오늘 기준 dueDate 도래분 자동 완료처리">
+              <CurrencyKrw size={13} weight="bold" /> 일괄수납
             </button>
             <button className="btn btn-sm" onClick={seedDeliveries} title="모든 계약 출고완료 + 자산 운행중">
               <Truck size={13} weight="bold" /> 출고생성
@@ -217,7 +254,7 @@ export default function DevPage() {
     >
       {section === 'inspect' && <InspectSection rows={deleteRows} />}
       {section === 'import' && <ImportSection />}
-      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
+      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onBulkReceipt={bulkSeedReceipts} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
       {section === 'other' && <OtherSection nodes={otherNodes} />}
     </PageShell>
 
@@ -251,6 +288,36 @@ type DeleteRow = {
 };
 
 function InspectSection({ rows }: { rows: DeleteRow[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [items, setItems] = useState<Record<string, [string, unknown][]>>({});
+
+  async function loadItems(path: string) {
+    try {
+      const snap = await get(ref(getRtdb(), path));
+      const val = snap.val();
+      const entries = val && typeof val === 'object' ? Object.entries(val) : [];
+      setItems((prev) => ({ ...prev, [path]: entries }));
+    } catch (e) {
+      console.error('[dev] loadItems failed', e);
+    }
+  }
+  function toggle(path: string, count: number | null) {
+    if (expanded === path) { setExpanded(null); return; }
+    if (!count) return; // 빈 노드는 펼치지 않음
+    setExpanded(path);
+    void loadItems(path);
+  }
+
+  async function removeItem(path: string, itemKey: string) {
+    if (!confirm(`/${path}/${itemKey} 1건 삭제. 되돌릴 수 없습니다. 계속?`)) return;
+    try {
+      await set(ref(getRtdb(), `${path}/${itemKey}`), null);
+      await loadItems(path);
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   function handlePurge(row: DeleteRow) {
     if (row.count === 0) { alert(`${row.label} 노드 비어있음.`); return; }
     const c = row.count == null ? '?' : row.count;
@@ -261,12 +328,12 @@ function InspectSection({ rows }: { rows: DeleteRow[] }) {
   return (
     <div style={{ padding: 12 }}>
       <div className="text-weak text-xs" style={{ marginBottom: 10 }}>
-        모든 알려진 RTDB 노드 카운트 + 노드 통째 삭제. 행 단위 삭제는 entity 페이지에서.
-        총 <strong>{totalKnown}</strong>건.
+        알려진 RTDB 노드 카운트. 건수 클릭 → 개별 항목 펼침 + 행 단위 삭제. 총 <strong>{totalKnown}</strong>건.
       </div>
       <table className="table">
         <thead>
           <tr>
+            <th style={{ width: 30 }}></th>
             <th style={{ width: 140 }}>노드</th>
             <th className="mono dim">RTDB 경로</th>
             <th className="num" style={{ width: 80 }}>건수</th>
@@ -274,26 +341,60 @@ function InspectSection({ rows }: { rows: DeleteRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.path}>
-              <td className="text-medium">{row.label}</td>
-              <td className="mono dim">/{row.path}</td>
-              <td className="num">{row.count == null ? '…' : row.count}</td>
-              <td className="center">
-                <button
-                  className="btn btn-sm"
-                  onClick={() => handlePurge(row)}
-                  disabled={row.count === 0}
-                  style={{
-                    color: 'var(--alert-red-text)',
-                    borderColor: 'var(--alert-red-text)',
-                  }}
+          {rows.map((row) => {
+            const isOpen = expanded === row.path;
+            const isExpandable = (row.count ?? 0) > 0;
+            return (
+              <Fragment key={row.path}>
+                <tr
+                  onClick={() => toggle(row.path, row.count)}
+                  style={{ cursor: isExpandable ? 'pointer' : 'default' }}
                 >
-                  <TrashSimple size={12} weight="bold" /> 노드 통째 삭제
-                </button>
-              </td>
-            </tr>
-          ))}
+                  <td className="center">
+                    {isExpandable && (isOpen ? <CaretDown size={11} /> : <CaretRight size={11} />)}
+                  </td>
+                  <td className="text-medium">{row.label}</td>
+                  <td className="mono dim">/{row.path}</td>
+                  <td className="num">{row.count == null ? '…' : row.count}</td>
+                  <td className="center" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => handlePurge(row)}
+                      disabled={row.count === 0}
+                      style={{
+                        color: 'var(--alert-red-text)',
+                        borderColor: 'var(--alert-red-text)',
+                      }}
+                    >
+                      <TrashSimple size={12} weight="bold" /> 노드 통째
+                    </button>
+                  </td>
+                </tr>
+                {isOpen && (items[row.path] ?? []).map(([itemKey, itemVal]) => (
+                  <tr key={`${row.path}/${itemKey}`} style={{ background: 'var(--bg-stripe)' }}>
+                    <td></td>
+                    <td colSpan={3} className="mono dim" style={{ paddingLeft: 20 }}>
+                      <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{itemKey}</span>
+                      <span style={{ marginLeft: 12, color: 'var(--text-weak)' }}>
+                        {previewValue(itemVal)}
+                      </span>
+                    </td>
+                    <td className="center">
+                      <button className="btn btn-sm" onClick={() => removeItem(row.path, itemKey)}>
+                        <Trash size={12} weight="bold" /> 삭제
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {isOpen && (items[row.path]?.length ?? 0) === 0 && (
+                  <tr style={{ background: 'var(--bg-stripe)' }}>
+                    <td></td>
+                    <td colSpan={4} className="dim" style={{ paddingLeft: 20 }}>(로딩 중…)</td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -315,24 +416,40 @@ function ImportSection() {
 
 /* ─── 시드·시뮬레이션 섹션 ─── */
 function SeedSection({
-  onReceiptOpen, onSeedDeliveries, contractsCount,
+  onReceiptOpen, onBulkReceipt, onSeedDeliveries, contractsCount,
 }: {
   onReceiptOpen: () => void;
+  onBulkReceipt: () => void;
   onSeedDeliveries: () => void;
   contractsCount: number;
 }) {
   return (
-    <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
       <div className="dev-card">
-        <div className="dev-card-title">수납생성 — 마이그레이션</div>
+        <div className="dev-card-title">수납생성 — 단건 마이그레이션</div>
         <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
-          기존 운영 데이터에서 옮겨올 때. 고객명·등록번호로 계약 찾고, 현재 미수 회차 수만 입력하면
-          그 시점 기준 events 재구성.
+          기존 운영 데이터에서 1건씩 옮겨올 때. 고객명·등록번호로 계약 찾고, 현재 미수 회차 수를 직접 입력.
           <br />· 미수 외 회차: 완료 처리
           <br />· 미수 N회차: 예정 (자동으로 /pending/overdue 표시)
         </p>
         <button className="btn" onClick={onReceiptOpen} disabled={contractsCount === 0}>
           <CurrencyKrw size={14} weight="bold" /> 수납생성 다이얼로그 열기
+        </button>
+        {contractsCount === 0 && (
+          <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
+        )}
+      </div>
+
+      <div className="dev-card">
+        <div className="dev-card-title">일괄 수납생성 — 오늘 기준 자동</div>
+        <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
+          모든 계약을 일괄로 처리. 각 계약의 수납 회차 중 <strong>dueDate ≤ 오늘</strong> + <strong>예정</strong> 상태인 것을
+          모두 완료(doneDate = dueDate)로 자동 전환.
+          <br />· 실행 후 미수 = 0 (모든 도래분 자동 수납)
+          <br />· 미래 회차는 그대로 예정 유지
+        </p>
+        <button className="btn" onClick={onBulkReceipt} disabled={contractsCount === 0}>
+          <CurrencyKrw size={14} weight="bold" /> 일괄 수납생성 실행
         </button>
         {contractsCount === 0 && (
           <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
