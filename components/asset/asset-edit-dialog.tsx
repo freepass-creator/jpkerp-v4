@@ -50,6 +50,7 @@ function clearUniqueFields(asset: Partial<Asset>): Partial<Asset> {
   return {
     ...asset,
     id: undefined,
+    assetCode: undefined,  // 복사 시 새 자산코드 자동 부여
     plate: '',
     vin: '',
     documentNo: '',

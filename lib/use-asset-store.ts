@@ -1,52 +1,49 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { ref, set, onValue, get } from 'firebase/database';
+import { ref, set, onValue } from 'firebase/database';
 import { getRtdb } from './firebase/client';
-import { stripUndef, asArray as asArrayBase } from './store-utils';
+import { stripUndef } from './store-utils';
 import type { Asset } from './sample-assets';
 
 /**
- * 자산(차량) 영구 저장소 — Firebase RTDB.
- * use-company-store 와 동일 패턴: 모듈 캐시 + onValue 구독 + localStorage 마이그레이션.
+ * 자산(차량) 영구 저장소 — Firebase RTDB. RTDB 노드는 **assetCode 를 키로 하는 객체**:
+ *   assets/AS-CP01-0001/{...}, assets/AS-CP02-0003/{...}
+ * legacy 배열(0,1,2 인덱스) 도 read 시 호환 처리.
+ * assetCode 가 없는 (마이그레이션 중) 데이터는 fallback 으로 id 를 키로 사용.
  */
 const RTDB_PATH = 'assets';
-const LOCAL_KEY_LEGACY = 'jpkerp-v4:assets';
 
 let cache: Asset[] = [];
 const listeners = new Set<(v: Asset[]) => void>();
 let subscribed = false;
 
-const asArray = (val: unknown) => asArrayBase<Asset>(val);
+/** RTDB 에서 읽은 raw 값 → Asset[]. keyed object / legacy array 둘 다 지원. */
+function fromRtdb(val: unknown): Asset[] {
+  if (!val || typeof val !== 'object') return [];
+  const arr = Array.isArray(val)
+    ? val.filter((x): x is Asset => x != null && typeof x === 'object')
+    : Object.values(val as Record<string, Asset>).filter((x): x is Asset => x != null && typeof x === 'object');
+  return arr.sort((a, b) => (a.assetCode ?? a.id ?? '').localeCompare(b.assetCode ?? b.id ?? ''));
+}
 
-async function migrateLocalToRtdb() {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY_LEGACY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as Asset[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return;
-    const snap = await get(ref(getRtdb(), RTDB_PATH));
-    if (snap.exists() && asArray(snap.val()).length > 0) {
-      localStorage.removeItem(LOCAL_KEY_LEGACY);
-      return;
-    }
-    await set(ref(getRtdb(), RTDB_PATH), stripUndef(parsed));
-    localStorage.removeItem(LOCAL_KEY_LEGACY);
-  } catch (e) {
-    console.warn('[asset-store] migrate failed', e);
+/** Asset[] → RTDB keyed object (assetCode 키, 없으면 id fallback). */
+function toRtdb(arr: Asset[]): Record<string, Asset> {
+  const out: Record<string, Asset> = {};
+  for (const a of arr) {
+    const key = a.assetCode ?? a.id;
+    if (key) out[key] = a;
   }
+  return out;
 }
 
 function ensureSubscription() {
   if (subscribed || typeof window === 'undefined') return;
   subscribed = true;
-  void migrateLocalToRtdb().finally(() => {
-    onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
-      const v = asArray(snap.val());
-      cache = v;
-      listeners.forEach((l) => l(v));
-    });
+  onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
+    const v = fromRtdb(snap.val());
+    cache = v;
+    listeners.forEach((l) => l(v));
   });
 }
 
@@ -66,7 +63,8 @@ export function useAssetStore() {
     const next = typeof updater === 'function' ? (updater as (p: Asset[]) => Asset[])(prev) : updater;
     cache = next;
     listeners.forEach((l) => l(next));
-    set(ref(getRtdb(), RTDB_PATH), stripUndef(next)).catch((e) => {
+    const obj = toRtdb(next);
+    set(ref(getRtdb(), RTDB_PATH), stripUndef(obj)).catch((e) => {
       console.error('[asset-store] write failed', e);
       if (typeof window !== 'undefined') alert(`자산 저장 실패: ${e?.message ?? e}\n\nFirebase Console → Realtime Database → Rules 확인 필요.`);
     });

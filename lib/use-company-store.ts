@@ -1,56 +1,47 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { ref, set, onValue, get } from 'firebase/database';
+import { ref, set, onValue } from 'firebase/database';
 import { getRtdb } from './firebase/client';
-import { stripUndef, asArray as asArrayBase } from './store-utils';
+import { stripUndef } from './store-utils';
 import type { Company } from './sample-companies';
 
 /**
- * 회사정보 영구 저장소 — Firebase RTDB.
- *
- *  - 모듈 레벨 캐시 + pub/sub: 같은 탭 모든 컴포넌트가 같은 데이터 즉시 공유
- *  - onValue 구독: 다른 사용자/디바이스가 변경하면 실시간 반영
- *  - localStorage 마이그레이션: RTDB 가 비어있고 localStorage 에 있으면 1회 push 후 삭제
+ * 회사정보 영구 저장소 — Firebase RTDB. RTDB 노드는 **회사코드를 키로 하는 객체**:
+ *   companies/CP01/{...}, companies/CP02/{...}
+ * 배열 형태 (legacy 0,1,2 인덱스) 도 read 시 호환 처리.
  */
 const RTDB_PATH = 'companies';
-const LOCAL_KEY_LEGACY = 'jpkerp-v4:companies';
 
 let cache: Company[] = [];
 const listeners = new Set<(v: Company[]) => void>();
 let subscribed = false;
 
-const asArray = (val: unknown) => asArrayBase<Company>(val);
+/** RTDB 에서 읽은 raw 값 → Company[]. keyed object / legacy array 둘 다 지원. */
+function fromRtdb(val: unknown): Company[] {
+  if (!val || typeof val !== 'object') return [];
+  const arr = Array.isArray(val)
+    ? val.filter((x): x is Company => x != null && typeof x === 'object')
+    : Object.values(val as Record<string, Company>).filter((x): x is Company => x != null && typeof x === 'object');
+  return arr.sort((a, b) => (a.code ?? '').localeCompare(b.code ?? ''));
+}
 
-async function migrateLocalToRtdb() {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY_LEGACY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as Company[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return;
-    const snap = await get(ref(getRtdb(), RTDB_PATH));
-    if (snap.exists() && asArray(snap.val()).length > 0) {
-      // RTDB 가 이미 있음 — local 만 정리
-      localStorage.removeItem(LOCAL_KEY_LEGACY);
-      return;
-    }
-    await set(ref(getRtdb(), RTDB_PATH), stripUndef(parsed));
-    localStorage.removeItem(LOCAL_KEY_LEGACY);
-  } catch (e) {
-    console.warn('[company-store] migrate failed', e);
+/** Company[] → RTDB keyed object (code 키). */
+function toRtdb(arr: Company[]): Record<string, Company> {
+  const out: Record<string, Company> = {};
+  for (const c of arr) {
+    if (c.code) out[c.code] = c;
   }
+  return out;
 }
 
 function ensureSubscription() {
   if (subscribed || typeof window === 'undefined') return;
   subscribed = true;
-  void migrateLocalToRtdb().finally(() => {
-    onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
-      const v = asArray(snap.val());
-      cache = v;
-      listeners.forEach((l) => l(v));
-    });
+  onValue(ref(getRtdb(), RTDB_PATH), (snap) => {
+    const v = fromRtdb(snap.val());
+    cache = v;
+    listeners.forEach((l) => l(v));
   });
 }
 
@@ -70,8 +61,9 @@ export function useCompanyStore() {
     const next = typeof updater === 'function' ? (updater as (p: Company[]) => Company[])(prev) : updater;
     cache = next;
     listeners.forEach((l) => l(next));
-    console.log(`[company-store] writing ${next.length} companies to RTDB...`);
-    set(ref(getRtdb(), RTDB_PATH), stripUndef(next))
+    const obj = toRtdb(next);
+    console.log(`[company-store] writing ${next.length} companies (keyed by code) to RTDB...`);
+    set(ref(getRtdb(), RTDB_PATH), stripUndef(obj))
       .then(() => console.log(`[company-store] ✓ RTDB write OK (${next.length} companies)`))
       .catch((e) => {
         console.error('[company-store] ✗ write failed', e);

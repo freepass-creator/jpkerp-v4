@@ -23,6 +23,7 @@ import { type Asset, type AssetStatus } from '@/lib/sample-assets';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { nextCompanyScopedCode } from '@/lib/code-gen';
 import { downloadContractTemplate } from '@/lib/contract-template';
 import Link from 'next/link';
 import { Buildings } from '@phosphor-icons/react';
@@ -70,9 +71,12 @@ export default function AssetListPage() {
       alert('회사코드 누락 — 자산 등록 전 [일반관리 → 회사정보] 에서 회사를 먼저 등록하세요.');
       return;
     }
+    const companyCode = partial.companyCode;
+    const existingCodes = allAssets.map((a) => a.assetCode).filter((c): c is string => !!c);
+    const assetCode = nextCompanyScopedCode('AS', companyCode, existingCodes, { pad: 4 });
     const next: Asset = {
       id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      companyCode: partial.companyCode,
+      companyCode,
       plate: partial.plate ?? '',
       firstRegistDate: partial.firstRegistDate ?? '',
       vehicleClass: partial.vehicleClass ?? '',
@@ -81,6 +85,8 @@ export default function AssetListPage() {
       vin: partial.vin ?? '',
       ownerName: partial.ownerName ?? '',
       ...partial,
+      // assetCode 는 항상 새로 부여 — partial 의 (복사 시 undefined 든 기존 값이든) 무시하고 신규 생성
+      assetCode,
       status: partial.status ?? '등록예정',
       ...audit.create(),
     } as Asset;
@@ -91,7 +97,10 @@ export default function AssetListPage() {
 
   function handleUpdate(partial: Partial<Asset>) {
     if (!selected) return;
-    const updated: Asset = { ...selected, ...partial, ...audit.update() } as Asset;
+    // assetCode 는 변경 불가 — 원본 보존
+    const { assetCode: _ignore, ...rest } = partial;
+    void _ignore;
+    const updated: Asset = { ...selected, ...rest, assetCode: selected.assetCode, ...audit.update() } as Asset;
     setAssets((prev) => prev.map((a) => (a.id === selected.id ? updated : a)));
     setSelected(updated);
     audit.log({ action: 'update', entityType: 'asset', entityId: updated.id, label: updated.plate, before: selected, after: updated });
