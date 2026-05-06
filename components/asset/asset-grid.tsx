@@ -8,6 +8,8 @@ type Props = {
   assets: Asset[];
   selectedId?: string;
   onRowClick?: (asset: Asset) => void;
+  /** 행 더블클릭 — 상세/수정 다이얼로그 열기 */
+  onRowDoubleClick?: (asset: Asset) => void;
   onRowContextMenu?: (asset: Asset, x: number, y: number) => void;
   /** 필터 변경 시 호출 — 페이지에서 footer 카운트/엑셀 추출용 */
   onFilteredChange?: (rows: readonly Asset[]) => void;
@@ -26,7 +28,7 @@ const numFmt = (v: unknown) =>
  * 컬럼 순서: 회사 → 차량번호 → 등록증 ① ~ ㉟ (검사 ㉚~㉟ 제외) → 메타 → 부가.
  */
 export function AssetGrid({
-  assets, selectedId, onRowClick, onRowContextMenu, onFilteredChange, storageKey = 'asset.grid', globalSearch,
+  assets, selectedId, onRowClick, onRowDoubleClick, onRowContextMenu, onFilteredChange, storageKey = 'asset.grid', globalSearch,
 }: Props) {
   const tableRef = useRef<JpkTableApi<Asset> | null>(null);
 
@@ -107,6 +109,7 @@ export function AssetGrid({
 
   const getRowId = useCallback((a: Asset) => a.id, []);
   const handleRowClick = useCallback((a: Asset) => onRowClick?.(a), [onRowClick]);
+  const handleRowDoubleClick = useCallback((a: Asset) => onRowDoubleClick?.(a), [onRowDoubleClick]);
   const handleRowContextMenu = useCallback((a: Asset, _i: number, ev: React.MouseEvent) => {
     if (!onRowContextMenu) return;
     onRowClick?.(a);
@@ -122,6 +125,7 @@ export function AssetGrid({
       selectedKey={selectedId}
       storageKey={storageKey}
       onRowClick={handleRowClick}
+      onRowDoubleClick={handleRowDoubleClick}
       onRowContextMenu={handleRowContextMenu}
       onFilteredChange={onFilteredChange}
       globalSearch={globalSearch}

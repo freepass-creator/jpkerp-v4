@@ -57,6 +57,7 @@ interface JpkTableProps<T> {
   rows: readonly T[];
   getRowId?: (row: T, index: number) => string;
   onRowClick?: (row: T, index: number) => void;
+  onRowDoubleClick?: (row: T, index: number) => void;
   onRowContextMenu?: (row: T, index: number, ev: React.MouseEvent) => void;
   onCountChange?: (count: number) => void;
   onFilteredChange?: (rows: readonly T[]) => void;
@@ -91,7 +92,7 @@ function toPeriodKey(txDate: string, gran: Granularity): string {
 
 function JpkTableInner<T>(
   {
-    columns, rows, getRowId, onRowClick, onRowContextMenu, onCountChange, onFilteredChange,
+    columns, rows, getRowId, onRowClick, onRowDoubleClick, onRowContextMenu, onCountChange, onFilteredChange,
     className, storageKey, hideHeader, selectedKey: selectedKeyProp,
     globalSearch,
   }: JpkTableProps<T>,
@@ -438,6 +439,7 @@ function JpkTableInner<T>(
                   columns={columns}
                   isSelected={selectedKey === rowKey}
                   onRowClick={onRowClick}
+                  onRowDoubleClick={onRowDoubleClick}
                   onRowContextMenu={onRowContextMenu}
                   onSelectInternal={selectedKeyProp === undefined ? setSelectedKeyInner : undefined}
                 />
@@ -463,13 +465,14 @@ type JpkTableRowProps<T> = {
   columns: JpkColumn<T>[];
   isSelected: boolean;
   onRowClick?: (row: T, index: number) => void;
+  onRowDoubleClick?: (row: T, index: number) => void;
   onRowContextMenu?: (row: T, index: number, ev: React.MouseEvent) => void;
   onSelectInternal?: (key: string) => void;
 };
 
 function JpkTableRowInner<T>({
   row, rowKey, rowIndex, columns, isSelected,
-  onRowClick, onRowContextMenu, onSelectInternal,
+  onRowClick, onRowDoubleClick, onRowContextMenu, onSelectInternal,
 }: JpkTableRowProps<T>) {
   return (
     <tr
@@ -477,6 +480,10 @@ function JpkTableRowInner<T>({
         onSelectInternal?.(rowKey);
         onRowClick?.(row, rowIndex);
       }}
+      onDoubleClick={onRowDoubleClick ? () => {
+        onSelectInternal?.(rowKey);
+        onRowDoubleClick(row, rowIndex);
+      } : undefined}
       onContextMenu={onRowContextMenu ? (ev) => {
         ev.preventDefault();
         onSelectInternal?.(rowKey);

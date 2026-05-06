@@ -212,6 +212,7 @@ export default function AssetListPage() {
               assets={assets}
               selectedId={selected?.id}
               onRowClick={setSelected}
+              onRowDoubleClick={(a) => { setSelected(a); setEditMode('edit'); setEditOpen(true); }}
               onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
               globalSearch={search}
             />
