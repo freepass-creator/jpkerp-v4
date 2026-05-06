@@ -2308,3 +2308,22 @@ input[type="checkbox"], input[type="radio"] {
   color: var(--alert-red-text);
 }
 
+/* /dev 페이지 카드형 admin panel — 운영 양식 X */
+.dev-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--bg-card);
+}
+.dev-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-medium);
+}
+.dev-card-danger {
+  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.04);
+}
+

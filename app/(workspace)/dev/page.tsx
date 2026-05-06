@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useState, useEffect } from 'react';
-import { Trash, TrashSimple, CaretRight, CaretDown, CurrencyKrw, Truck, ShieldCheck, ClockCounterClockwise } from '@phosphor-icons/react';
+import { Trash, TrashSimple, CaretRight, CaretDown, CurrencyKrw, Truck, ArrowClockwise, ArrowSquareOut, ShieldCheck, ClockCounterClockwise } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { ref, onValue, set, get } from 'firebase/database';
 import { PageShell } from '@/components/layout/page-shell';
@@ -11,6 +11,9 @@ import { useCompanyStore } from '@/lib/use-company-store';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useCustomerStore } from '@/lib/use-customer-store';
+import { useInsuranceStore } from '@/lib/use-insurance-store';
+import { useJournalStore } from '@/lib/use-journal-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { ContractsImportPanel } from '@/components/dev/contracts-import';
 import type { Contract } from '@/lib/sample-contracts';
@@ -18,52 +21,78 @@ import { todayStr } from '@/lib/date-utils';
 import { cn } from '@/lib/cn';
 
 /**
- * 개발도구 — RTDB 데이터 점검·정리.
- * 잘못 등록된 데이터 삭제용 단일 진입점. 운영 안정 후 권한 제한 추가.
+ * 개발도구 — 사용자 본인 전용 admin tool.
+ * 양식 무시. 3 섹션: 데이터 삭제 / 데이터 생성 / 기타 노드.
  */
 
-type Tab = 'companies' | 'assets' | 'contracts' | 'ledger' | 'import' | 'other';
+type Section = 'inspect' | 'import' | 'seed' | 'other';
 
-type TabGroup = 'master' | 'transactional' | 'tools' | 'misc';
-const TABS: { v: Tab; label: string; group: TabGroup }[] = [
-  // 마스터 — 회사·자산·계약·계좌내역
-  { v: 'companies', label: '회사',     group: 'master' },
-  { v: 'assets',    label: '자산',     group: 'master' },
-  { v: 'contracts', label: '계약',     group: 'master' },
-  { v: 'ledger',    label: '계좌내역', group: 'master' },
-  // 작업 — 마이그레이션·일괄
-  { v: 'import',    label: '데이터 import', group: 'tools' },
-  // 기타 — 옛날 v3 노드 등
-  { v: 'other',     label: '기타 노드', group: 'misc' },
-];
-
-const GROUP_LABEL: Record<TabGroup, string> = {
-  master: '점검',
-  transactional: '트랜잭션',
-  tools: '작업',
-  misc: '기타',
+const SECTION_LABEL: Record<Section, string> = {
+  inspect: '데이터 점검',
+  import:  '데이터 일괄등록',
+  seed:    '시드·시뮬레이션',
+  other:   '기타 노드',
 };
 
-const KNOWN_PATHS = new Set(['companies', 'assets', 'contracts', 'ledger']);
+/** RTDB 알려진 노드 — store 가 있으면 setter([]), 없으면 set(ref, null). */
+const KNOWN_NODES = [
+  'companies',
+  'assets',
+  'contracts',
+  'customers',
+  'insurances',
+  'journal_entries',
+  'ledger',
+  'audit_logs',
+  'event_uploads',
+  'sms_logs',
+] as const;
 
 type OtherNode = { key: string; count: number };
 
+const FIREBASE_CONSOLE_URL =
+  'https://console.firebase.google.com/project/jpkerp/database/jpkerp-default-rtdb/data';
+
 export default function DevPage() {
-  const [tab, setTab] = useState<Tab>('companies');
+  const [section, setSection] = useState<Section>('inspect');
+
+  // 모든 store
   const [companies, setCompanies] = useCompanyStore();
   const [assets, setAssets] = useAssetStore();
   const [contracts, setContracts] = useContractStore();
-  const [entries, setEntries] = useLedgerStore();
-  const [otherNodes, setOtherNodes] = useState<OtherNode[]>([]);
+  const [ledger, setLedger] = useLedgerStore();
+  const [customers, setCustomers] = useCustomerStore();
+  const [insurances, setInsurances] = useInsuranceStore();
+  const [journals, setJournals] = useJournalStore();
 
-  // 기타 탭 — RTDB 루트 자식 키 중 KNOWN_PATHS 외 모든 노드 카운트
+  // store 없는 노드 — count 만 따로 구독
+  const [rawCounts, setRawCounts] = useState<Record<string, number | null>>({
+    audit_logs: null,
+    event_uploads: null,
+    sms_logs: null,
+  });
   useEffect(() => {
-    if (tab !== 'other') return;
+    const db = getRtdb();
+    const unsubs = (['audit_logs', 'event_uploads', 'sms_logs'] as const).map((path) =>
+      onValue(ref(db, path), (snap) => {
+        const v = snap.val();
+        const c = v && typeof v === 'object' ? Object.keys(v as object).length : 0;
+        setRawCounts((p) => ({ ...p, [path]: c }));
+      }),
+    );
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
+  // 기타 노드 — KNOWN_NODES 외 모든 RTDB 루트
+  const [otherNodes, setOtherNodes] = useState<OtherNode[]>([]);
+  useEffect(() => {
+    if (section !== 'other') return;
+    const known = new Set<string>(KNOWN_NODES);
     const unsub = onValue(ref(getRtdb(), '/'), (snap) => {
       const root = (snap.val() ?? {}) as Record<string, unknown>;
       const list: OtherNode[] = [];
       for (const [k, v] of Object.entries(root)) {
-        if (KNOWN_PATHS.has(k)) continue;
+        if (known.has(k)) continue;
         const count = v && typeof v === 'object' ? Object.keys(v as object).length : 0;
         list.push({ key: k, count });
       }
@@ -71,39 +100,12 @@ export default function DevPage() {
       setOtherNodes(list);
     });
     return unsub;
-  }, [tab]);
+  }, [section]);
 
-  const counts: Record<Tab, number> = {
-    companies: companies.length,
-    assets: assets.length,
-    contracts: contracts.length,
-    ledger: entries.length,
-    import: 0,
-    other: otherNodes.length,
-  };
-
-  const [purgeOpen, setPurgeOpen] = useState(false);
-
-  /** 다이얼로그에서 선택된 노드들 삭제 — selected 가 비어있으면 noop. */
-  function purge(selected: { companies: boolean; assets: boolean; contracts: boolean; ledger: boolean }) {
-    const lines: string[] = [];
-    if (selected.companies && counts.companies > 0) lines.push(`회사 ${counts.companies}`);
-    if (selected.assets && counts.assets > 0) lines.push(`자산 ${counts.assets}`);
-    if (selected.contracts && counts.contracts > 0) lines.push(`계약 ${counts.contracts}`);
-    if (selected.ledger && counts.ledger > 0) lines.push(`계좌내역 ${counts.ledger}`);
-    if (lines.length === 0) return;
-    if (!confirm(`다음을 삭제합니다.\n${lines.join(' · ')}\n\n되돌릴 수 없습니다. 계속할까요?`)) return;
-    if (selected.companies) setCompanies([]);
-    if (selected.assets) setAssets([]);
-    if (selected.contracts) setContracts([]);
-    if (selected.ledger) setEntries([]);
-    setPurgeOpen(false);
-  }
-
-  // 수납 마이그레이션 dialog — 고객명·등록번호로 매칭 후 미수 회차 입력
+  // 수납생성 다이얼로그
   const [receiptOpen, setReceiptOpen] = useState(false);
 
-  /** 시드 — 출고생성: 모든 계약의 출고 이벤트 완료 + 자산 상태 운행중 전환. */
+  /** 출고생성 — 모든 계약 출고완료 + 자산 운행중. */
   function seedDeliveries() {
     if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
     if (!confirm(`전체 계약 ${contracts.length}건의 출고를 완료 처리하고 매칭 자산을 운행중으로 전환합니다.\n계속할까요?`)) return;
@@ -125,187 +127,241 @@ export default function DevPage() {
     ));
   }
 
-  return (
-    <PageShell
-      filterbar={
-        <div className="chip-group" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {(['master', 'tools', 'misc'] as TabGroup[]).map((g) => {
-            const tabs = TABS.filter((t) => t.group === g);
-            if (tabs.length === 0) return null;
-            return (
-              <span key={g} className="dev-group-box">
-                <span className="dev-group-label">{GROUP_LABEL[g]}</span>
-                {tabs.map((t) => (
-                  <button
-                    key={t.v}
-                    type="button"
-                    className={cn('chip', tab === t.v && 'active')}
-                    onClick={() => setTab(t.v)}
-                  >
-                    {t.label} ({counts[t.v]})
-                  </button>
-                ))}
-              </span>
-            );
-          })}
-        </div>
-      }
-      footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
-      footerRight={
-        <>
-          {/* 생성 / 시드 — 마이그레이션·시뮬레이션 */}
-          <span className="dev-group-box">
-            <span className="dev-group-label">생성</span>
-            <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → 그 계약의 events 재구성">
-              <CurrencyKrw size={13} weight="bold" /> 수납생성
-            </button>
-            <button className="btn btn-sm" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
-              <Truck size={13} weight="bold" /> 출고생성
-            </button>
-          </span>
+  /** 전체 RTDB 초기화 — KNOWN_NODES 일괄 set null. */
+  async function wipeRtdb() {
+    const txt = prompt(
+      '전체 RTDB 초기화 — 모든 노드 wipe. 권한 거부되는 건 표시만.\n\n계속하려면 "WIPE-ALL" 입력:',
+    );
+    if (txt !== 'WIPE-ALL') return;
+    const db = getRtdb();
+    const ok: string[] = [];
+    const failed: string[] = [];
+    for (const n of KNOWN_NODES) {
+      try { await set(ref(db, n), null); ok.push(n); }
+      catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
+    }
+    alert(
+      `완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n`
+      + `실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}`,
+    );
+  }
 
-          {/* 보수 / 정합성 — 운영 데이터 무결성 */}
-          <span className="dev-group-box">
-            <span className="dev-group-label">보수</span>
-            <Link href="/pending/integrity" className="btn btn-sm" title="14종 모순 케이스 자동 점검">
-              <ShieldCheck size={13} weight="bold" /> 정합성
-            </Link>
-            <Link href="/admin/audit" className="btn btn-sm" title="모든 변경 이력 시계열 조회">
-              <ClockCounterClockwise size={13} weight="bold" /> 감사로그
-            </Link>
-          </span>
-
-          {/* 삭제 / 초기화 — 운영 안정 후 권한 제한 추가 */}
-          <span className="dev-group-box dev-group-box-danger">
-            <span className="dev-group-label">삭제</span>
-            <button className="btn btn-sm" onClick={() => setPurgeOpen(true)} title="회사·자산·계약·계좌내역 노드 선택 후 일괄 hard-delete">
-              <TrashSimple size={13} weight="bold" /> 데이터 삭제
-            </button>
-            <button
-              className="btn btn-sm"
-              onClick={async () => {
-                const txt = prompt('알려진 RTDB 노드 일괄 삭제. 권한(Rules) 거부되는 건 표시만.\n\n계속하려면 "WIPE-ALL" 입력:');
-                if (txt !== 'WIPE-ALL') return;
-                const NODES = [
-                  'companies', 'assets', 'contracts', 'customers', 'insurances', 'journal_entries',
-                  'ledger', 'audit_logs', 'event_uploads', 'sms_logs',
-                  'partners', 'billings', 'events', 'mobile_uploads',
-                  'vehicle_master', 'contract_templates', 'sequences', 'code_sequences',
-                  'uploads', 'alimtalk_queue', 'members',
-                  'vendors', 'loans', 'autodebits', 'gps_devices', 'tasks', 'ocr_documents', 'car_models',
-                ];
-                const { ref: dbRef, set } = await import('firebase/database');
-                const { getRtdb } = await import('@/lib/firebase/client');
-                const db = getRtdb();
-                const ok: string[] = [];
-                const failed: string[] = [];
-                for (const n of NODES) {
-                  try { await set(dbRef(db, n), null); ok.push(n); }
-                  catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
-                }
-                alert(`완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}\n\nFirebase Console 새로고침해서 확인.`);
-              }}
-              style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
-              title="알려진 RTDB 노드 일괄 삭제"
-            >
-              <TrashSimple size={13} weight="bold" /> RTDB 초기화
-            </button>
-          </span>
-        </>
-      }
-    >
-      <div className={tab === 'import' ? '' : 'table-wrap'}>
-        {tab === 'companies' && <CompaniesTable companies={companies} setCompanies={setCompanies} />}
-        {tab === 'assets' && <AssetsTable assets={assets} setAssets={setAssets} />}
-        {tab === 'contracts' && <ContractsTable contracts={contracts} setContracts={setContracts} />}
-        {tab === 'ledger' && <LedgerTable entries={entries} setEntries={setEntries} />}
-        {tab === 'import' && <ContractsImportPanel />}
-        {tab === 'other' && <OtherNodesTable nodes={otherNodes} />}
-      </div>
-
-      <PurgeDialog open={purgeOpen} onOpenChange={setPurgeOpen} counts={counts} onPurge={purge} />
-      <ReceiptSeedDialog
-        open={receiptOpen}
-        onOpenChange={setReceiptOpen}
-        contracts={contracts}
-        setContracts={setContracts}
-      />
-    </PageShell>
-  );
-}
-
-/* ─── 데이터 삭제 다이얼로그 ─── */
-function PurgeDialog({
-  open, onOpenChange, counts, onPurge,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  counts: Record<Tab, number>;
-  onPurge: (sel: { companies: boolean; assets: boolean; contracts: boolean; ledger: boolean }) => void;
-}) {
-  const [sel, setSel] = useState({ companies: false, assets: false, contracts: false, ledger: false });
-
-  // 다이얼로그 열릴 때마다 선택 초기화
-  useEffect(() => {
-    if (open) setSel({ companies: false, assets: false, contracts: false, ledger: false });
-  }, [open]);
-
-  const total = counts.companies + counts.assets + counts.contracts + counts.ledger;
-  const selectedCount = (sel.companies ? counts.companies : 0)
-                      + (sel.assets ? counts.assets : 0)
-                      + (sel.contracts ? counts.contracts : 0)
-                      + (sel.ledger ? counts.ledger : 0);
-  const someSelected = selectedCount > 0;
-
-  const ROWS: Array<[keyof typeof sel, string, number]> = [
-    ['companies', '회사', counts.companies],
-    ['assets', '자산', counts.assets],
-    ['contracts', '계약', counts.contracts],
-    ['ledger', '계좌내역', counts.ledger],
+  const SECTIONS: Section[] = ['inspect', 'import', 'seed', 'other'];
+  const deleteRows: DeleteRow[] = [
+    { path: 'companies', label: '회사', count: companies.length, purge: () => setCompanies([]) },
+    { path: 'assets', label: '자산', count: assets.length, purge: () => setAssets([]) },
+    { path: 'contracts', label: '계약', count: contracts.length, purge: () => setContracts([]) },
+    { path: 'customers', label: '고객', count: customers.length, purge: () => setCustomers([]) },
+    { path: 'insurances', label: '보험', count: insurances.length, purge: () => setInsurances([]) },
+    { path: 'journal_entries', label: '업무일지', count: journals.length, purge: () => setJournals([]) },
+    { path: 'ledger', label: '자금일보', count: ledger.length, purge: () => setLedger([]) },
+    { path: 'audit_logs', label: '감사로그', count: rawCounts.audit_logs, purge: () => purgeRawNode('audit_logs', '감사로그') },
+    { path: 'event_uploads', label: '모바일업로드', count: rawCounts.event_uploads, purge: () => purgeRawNode('event_uploads', '모바일업로드') },
+    { path: 'sms_logs', label: 'SMS로그', count: rawCounts.sms_logs, purge: () => purgeRawNode('sms_logs', 'SMS로그') },
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="데이터 삭제" size="md">
-        <div className="space-y-3">
-          <div className="alert alert-warn">
-            삭제는 되돌릴 수 없습니다. 운영 데이터가 있는지 다시 한 번 확인하세요.
-          </div>
-          <div className="space-y-1">
-            {ROWS.map(([key, label, count]) => (
-              <label key={key} className="flex items-center justify-between p-2"
-                     style={{ border: '1px solid var(--border)', cursor: count === 0 ? 'not-allowed' : 'pointer', opacity: count === 0 ? 0.5 : 1 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="checkbox" disabled={count === 0}
-                         checked={sel[key]}
-                         onChange={(e) => setSel((p) => ({ ...p, [key]: e.target.checked }))} />
-                  <span className="text-medium">{label}</span>
-                </span>
-                <span className="text-sub">{count.toLocaleString('ko-KR')}건</span>
-              </label>
-            ))}
-          </div>
-          <div className="text-weak text-xs">
-            기타 노드 삭제는 [기타 노드] 탭에서 노드별로 진행 — 운영 외 데이터 보호용.
-          </div>
+    <>
+    <PageShell
+      filterbar={
+        <div className="chip-group">
+          {SECTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={cn('chip', section === s && 'active')}
+              onClick={() => setSection(s)}
+            >
+              {SECTION_LABEL[s]}
+            </button>
+          ))}
         </div>
+      }
+      footerLeft={
+        <span className="stat-item text-weak text-xs">사용자 본인 전용 — 운영 안정 후 권한 제한 추가</span>
+      }
+      footerRight={
+        <>
+          <span className="dev-group-box">
+            <span className="dev-group-label">생성</span>
+            <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → events 재구성">
+              <CurrencyKrw size={13} weight="bold" /> 수납생성
+            </button>
+            <button className="btn btn-sm" onClick={seedDeliveries} title="모든 계약 출고완료 + 자산 운행중">
+              <Truck size={13} weight="bold" /> 출고생성
+            </button>
+          </span>
+          <span className="dev-group-box">
+            <span className="dev-group-label">보수</span>
+            <Link href="/pending/integrity" className="btn btn-sm" title="14종 모순 점검">
+              <ShieldCheck size={13} weight="bold" /> 정합성
+            </Link>
+            <Link href="/admin/audit" className="btn btn-sm" title="모든 변경 이력">
+              <ClockCounterClockwise size={13} weight="bold" /> 감사로그
+            </Link>
+          </span>
+          <span className="dev-group-box dev-group-box-danger">
+            <span className="dev-group-label">위험</span>
+            <button className="btn btn-sm" onClick={wipeRtdb} title="알려진 RTDB 노드 일괄 삭제" style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}>
+              <TrashSimple size={13} weight="bold" /> 전체 초기화
+            </button>
+          </span>
+          <a className="btn btn-sm" href={FIREBASE_CONSOLE_URL} target="_blank" rel="noreferrer" title="Firebase Console (RTDB)">
+            <ArrowSquareOut size={13} weight="bold" /> Console
+          </a>
+          <button className="btn btn-sm" onClick={() => location.reload()} title="브라우저 새로고침">
+            <ArrowClockwise size={13} weight="bold" />
+          </button>
+        </>
+      }
+    >
+      {section === 'inspect' && <InspectSection rows={deleteRows} />}
+      {section === 'import' && <ImportSection />}
+      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
+      {section === 'other' && <OtherSection nodes={otherNodes} />}
+    </PageShell>
 
-        <DialogFooter>
-          <DialogClose asChild><button className="btn">취소</button></DialogClose>
-          <button className="btn" disabled={!someSelected} onClick={() => onPurge(sel)}>
-            선택 삭제 {someSelected && `(${selectedCount.toLocaleString('ko-KR')}건)`}
-          </button>
-          <button className="btn btn-primary" disabled={total === 0}
-                  onClick={() => onPurge({ companies: true, assets: true, contracts: true, ledger: true })}>
-            모두 삭제 {total > 0 && `(${total.toLocaleString('ko-KR')}건)`}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ReceiptSeedDialog
+      open={receiptOpen}
+      onOpenChange={setReceiptOpen}
+      contracts={contracts}
+      setContracts={setContracts}
+    />
+    </>
   );
 }
 
-/* ─── 기타 노드 ─── */
+/** store 가 없는 RTDB 노드 직접 wipe. */
+async function purgeRawNode(path: string, label: string) {
+  if (!confirm(`${label} 노드 전체 삭제. 되돌릴 수 없습니다. 계속?`)) return;
+  try {
+    await set(ref(getRtdb(), path), null);
+    alert(`${label} 삭제 완료`);
+  } catch (e) {
+    alert(`삭제 실패: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/* ─── 데이터 삭제 섹션 ─── */
+type DeleteRow = {
+  path: string;
+  label: string;
+  count: number | null;
+  purge: () => void;
+};
+
+function InspectSection({ rows }: { rows: DeleteRow[] }) {
+  function handlePurge(row: DeleteRow) {
+    if (row.count === 0) { alert(`${row.label} 노드 비어있음.`); return; }
+    const c = row.count == null ? '?' : row.count;
+    if (!confirm(`${row.label} 노드 전체 ${c}건 삭제. 되돌릴 수 없습니다. 계속?`)) return;
+    row.purge();
+  }
+  const totalKnown = rows.reduce((sum, r) => sum + (r.count ?? 0), 0);
+  return (
+    <div style={{ padding: 12 }}>
+      <div className="text-weak text-xs" style={{ marginBottom: 10 }}>
+        모든 알려진 RTDB 노드 카운트 + 노드 통째 삭제. 행 단위 삭제는 entity 페이지에서.
+        총 <strong>{totalKnown}</strong>건.
+      </div>
+      <table className="table">
+        <thead>
+          <tr>
+            <th style={{ width: 140 }}>노드</th>
+            <th className="mono dim">RTDB 경로</th>
+            <th className="num" style={{ width: 80 }}>건수</th>
+            <th className="center" style={{ width: 150 }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.path}>
+              <td className="text-medium">{row.label}</td>
+              <td className="mono dim">/{row.path}</td>
+              <td className="num">{row.count == null ? '…' : row.count}</td>
+              <td className="center">
+                <button
+                  className="btn btn-sm"
+                  onClick={() => handlePurge(row)}
+                  disabled={row.count === 0}
+                  style={{
+                    color: 'var(--alert-red-text)',
+                    borderColor: 'var(--alert-red-text)',
+                  }}
+                >
+                  <TrashSimple size={12} weight="bold" /> 노드 통째 삭제
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ─── 데이터 일괄등록 섹션 ─── */
+function ImportSection() {
+  return (
+    <div style={{ padding: 12 }}>
+      <div className="text-weak text-xs" style={{ marginBottom: 10 }}>
+        TSV 양식 — 헤더 한 줄 + 데이터 행. 계약번호 일치 시 update, 없으면 신규 등록.
+        <br />미수 회차 컬럼: <code>3,4,5</code> 같은 콤마 구분 / 비우면 자동 (오늘까지 도래분 완료) / <code>0</code> 또는 <code>없음</code> 이면 모두 완료
+      </div>
+      <ContractsImportPanel />
+    </div>
+  );
+}
+
+/* ─── 시드·시뮬레이션 섹션 ─── */
+function SeedSection({
+  onReceiptOpen, onSeedDeliveries, contractsCount,
+}: {
+  onReceiptOpen: () => void;
+  onSeedDeliveries: () => void;
+  contractsCount: number;
+}) {
+  return (
+    <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="dev-card">
+        <div className="dev-card-title">수납생성 — 마이그레이션</div>
+        <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
+          기존 운영 데이터에서 옮겨올 때. 고객명·등록번호로 계약 찾고, 현재 미수 회차 수만 입력하면
+          그 시점 기준 events 재구성.
+          <br />· 미수 외 회차: 완료 처리
+          <br />· 미수 N회차: 예정 (자동으로 /pending/overdue 표시)
+        </p>
+        <button className="btn" onClick={onReceiptOpen} disabled={contractsCount === 0}>
+          <CurrencyKrw size={14} weight="bold" /> 수납생성 다이얼로그 열기
+        </button>
+        {contractsCount === 0 && (
+          <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
+        )}
+      </div>
+
+      <div className="dev-card">
+        <div className="dev-card-title">출고생성 — 일괄 시뮬레이션</div>
+        <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
+          모든 active 계약의 출고 events 를 완료 처리하고, 매칭 자산을 운행중 상태로 일괄 전환.
+          신규 운영 셋업 시 시뮬레이션용. 운영 데이터엔 신중하게.
+        </p>
+        <button className="btn" onClick={onSeedDeliveries} disabled={contractsCount === 0}>
+          <Truck size={14} weight="bold" /> 출고생성 일괄 실행
+        </button>
+        {contractsCount === 0 && (
+          <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── 기타 노드 wrapper ─── */
+function OtherSection({ nodes }: { nodes: OtherNode[] }) {
+  return <OtherNodesTable nodes={nodes} />;
+}
+
+/* ─── 기타 노드 섹션 — KNOWN_NODES 외 RTDB 루트 ─── */
 function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [items, setItems] = useState<Record<string, [string, unknown][]>>({});
@@ -349,58 +405,64 @@ function OtherNodesTable({ nodes }: { nodes: OtherNode[] }) {
   };
 
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th style={{ width: 30 }}></th>
-          <th>노드 경로</th>
-          <th className="num">건수</th>
-          <th className="center" style={{ width: 110 }}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {nodes.length === 0 ? (
-          <tr><td colSpan={4} className="empty-row">jpkerp 4개 노드 외에 RTDB 다른 노드 없음</td></tr>
-        ) : nodes.map((n) => (
-          <Fragment key={n.key}>
-            <tr onClick={() => toggle(n.key)} style={{ cursor: 'pointer' }}>
-              <td className="center">
-                {expanded === n.key ? <CaretDown size={11} /> : <CaretRight size={11} />}
-              </td>
-              <td className="mono text-medium">/{n.key}</td>
-              <td className="num">{n.count}</td>
-              <td className="center" onClick={(e) => e.stopPropagation()}>
-                <button className="btn btn-sm" onClick={() => removeNode(n.key, n.count)}>
-                  <TrashSimple size={12} weight="bold" /> 노드 전체
-                </button>
-              </td>
-            </tr>
-            {expanded === n.key && (items[n.key] ?? []).map(([itemKey, itemVal]) => (
-              <tr key={`${n.key}/${itemKey}`} style={{ background: 'var(--bg-stripe)' }}>
-                <td></td>
-                <td colSpan={2} className="mono dim" style={{ paddingLeft: 20 }}>
-                  <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{itemKey}</span>
-                  <span style={{ marginLeft: 12, color: 'var(--text-weak)' }}>
-                    {previewValue(itemVal)}
-                  </span>
-                </td>
+    <section className="dev-card">
+      <div className="dev-card-title">기타 노드 (v3 잔여 · 미분류)</div>
+      <div className="text-weak text-xs" style={{ marginBottom: 10 }}>
+        알려진 10개 노드 외 RTDB 루트 직속 노드 + 개별 삭제.
+      </div>
+      <table className="table">
+        <thead>
+          <tr>
+            <th style={{ width: 30 }}></th>
+            <th>노드 경로</th>
+            <th className="num">건수</th>
+            <th className="center" style={{ width: 110 }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {nodes.length === 0 ? (
+            <tr><td colSpan={4} className="empty-row">알려진 노드 외 RTDB 다른 노드 없음</td></tr>
+          ) : nodes.map((n) => (
+            <Fragment key={n.key}>
+              <tr onClick={() => toggle(n.key)} style={{ cursor: 'pointer' }}>
                 <td className="center">
-                  <button className="btn btn-sm" onClick={() => removeItem(n.key, itemKey)}>
-                    <Trash size={12} weight="bold" /> 삭제
+                  {expanded === n.key ? <CaretDown size={11} /> : <CaretRight size={11} />}
+                </td>
+                <td className="mono text-medium">/{n.key}</td>
+                <td className="num">{n.count}</td>
+                <td className="center" onClick={(e) => e.stopPropagation()}>
+                  <button className="btn btn-sm" onClick={() => removeNode(n.key, n.count)}>
+                    <TrashSimple size={12} weight="bold" /> 노드 전체
                   </button>
                 </td>
               </tr>
-            ))}
-            {expanded === n.key && (items[n.key]?.length ?? 0) === 0 && (
-              <tr style={{ background: 'var(--bg-stripe)' }}>
-                <td></td>
-                <td colSpan={3} className="dim" style={{ paddingLeft: 20 }}>(빈 노드)</td>
-              </tr>
-            )}
-          </Fragment>
-        ))}
-      </tbody>
-    </table>
+              {expanded === n.key && (items[n.key] ?? []).map(([itemKey, itemVal]) => (
+                <tr key={`${n.key}/${itemKey}`} style={{ background: 'var(--bg-stripe)' }}>
+                  <td></td>
+                  <td colSpan={2} className="mono dim" style={{ paddingLeft: 20 }}>
+                    <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{itemKey}</span>
+                    <span style={{ marginLeft: 12, color: 'var(--text-weak)' }}>
+                      {previewValue(itemVal)}
+                    </span>
+                  </td>
+                  <td className="center">
+                    <button className="btn btn-sm" onClick={() => removeItem(n.key, itemKey)}>
+                      <Trash size={12} weight="bold" /> 삭제
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {expanded === n.key && (items[n.key]?.length ?? 0) === 0 && (
+                <tr style={{ background: 'var(--bg-stripe)' }}>
+                  <td></td>
+                  <td colSpan={3} className="dim" style={{ paddingLeft: 20 }}>(빈 노드)</td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 
@@ -414,240 +476,6 @@ function previewValue(v: unknown): string {
   }
   const s = String(v);
   return s.length > 80 ? s.slice(0, 80) + '...' : s;
-}
-
-/* ─── 회사 ─── */
-function CompaniesTable({ companies, setCompanies }: {
-  companies: ReturnType<typeof useCompanyStore>[0];
-  setCompanies: ReturnType<typeof useCompanyStore>[1];
-}) {
-  const audit = useAuditStamp();
-  const removeOne = (code: string, name: string) => {
-    if (!confirm(`회사 "${name}" (${code}) 삭제할까요? (코드는 영구 보존 — 재발급 안 됨)`)) return;
-    const before = companies.find((c) => c.code === code);
-    setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.delete() } : c));
-    audit.log({ action: 'delete', entityType: 'company', entityId: code, label: name, before });
-  };
-  const restoreOne = (code: string) => {
-    const before = companies.find((c) => c.code === code);
-    setCompanies((p) => p.map((c) => c.code === code ? { ...c, ...audit.restore() } : c));
-    audit.log({ action: 'restore', entityType: 'company', entityId: code, label: before?.name, before });
-  };
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>회사코드</th>
-          <th>회사명</th>
-          <th>대표자</th>
-          <th>사업자등록번호</th>
-          <th className="num">계좌</th>
-          <th className="num">카드</th>
-          <th className="center" style={{ width: 80 }}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {companies.length === 0 ? (
-          <tr><td colSpan={7} className="empty-row">등록된 회사 없음</td></tr>
-        ) : companies.map((c, i) => (
-          <tr key={c.code || `__${i}__`} style={c.deletedAt ? { opacity: 0.5 } : undefined}>
-            <td className="plate text-medium">{c.code}{c.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
-            <td>{c.name}</td>
-            <td>{c.ceo || '-'}</td>
-            <td className="mono">{c.bizNo}</td>
-            <td className="num">{c.accounts?.length ?? 0}</td>
-            <td className="num">{c.cards?.length ?? 0}</td>
-            <td className="center">
-              {c.deletedAt ? (
-                <button className="btn btn-sm" onClick={() => restoreOne(c.code)} title="복원">
-                  복원
-                </button>
-              ) : (
-                <button className="btn btn-sm" onClick={() => removeOne(c.code, c.name)} title="삭제">
-                  <Trash size={12} weight="bold" /> 삭제
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/* ─── 자산 ─── */
-function AssetsTable({ assets, setAssets }: {
-  assets: ReturnType<typeof useAssetStore>[0];
-  setAssets: ReturnType<typeof useAssetStore>[1];
-}) {
-  const audit = useAuditStamp();
-  const removeOne = (id: string, plate: string) => {
-    if (!confirm(`자산 "${plate || id}" 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
-    const before = assets.find((a) => a.id === id);
-    setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.delete() } : a));
-    audit.log({ action: 'delete', entityType: 'asset', entityId: id, label: plate, before });
-  };
-  const restoreOne = (id: string) => {
-    const before = assets.find((a) => a.id === id);
-    setAssets((p) => p.map((a) => a.id === id ? { ...a, ...audit.restore() } : a));
-    audit.log({ action: 'restore', entityType: 'asset', entityId: id, label: before?.plate, before });
-  };
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>회사</th>
-          <th>차량번호</th>
-          <th>차명</th>
-          <th>차대번호</th>
-          <th>형식</th>
-          <th>제작연월</th>
-          <th>상태</th>
-          <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 80 }}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {assets.length === 0 ? (
-          <tr><td colSpan={9} className="empty-row">등록된 자산 없음</td></tr>
-        ) : assets.map((a) => (
-          <tr key={a.id} style={a.deletedAt ? { opacity: 0.5 } : undefined}>
-            <td className="plate">{a.companyCode}</td>
-            <td className="plate text-medium">{a.plate || '-'}{a.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
-            <td>{a.vehicleName || '-'}</td>
-            <td className="mono dim">{a.vin || '-'}</td>
-            <td className="dim">{a.modelType || '-'}</td>
-            <td className="dim">{a.manufactureDate || '-'}</td>
-            <td>{a.status}</td>
-            <td className="mono dim">{a.id}</td>
-            <td className="center">
-              {a.deletedAt ? (
-                <button className="btn btn-sm" onClick={() => restoreOne(a.id)} title="복원">
-                  복원
-                </button>
-              ) : (
-                <button className="btn btn-sm" onClick={() => removeOne(a.id, a.plate)} title="삭제">
-                  <Trash size={12} weight="bold" /> 삭제
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/* ─── 계약 ─── */
-function ContractsTable({ contracts, setContracts }: {
-  contracts: ReturnType<typeof useContractStore>[0];
-  setContracts: ReturnType<typeof useContractStore>[1];
-}) {
-  const audit = useAuditStamp();
-  const removeOne = (id: string, contractNo: string) => {
-    if (!confirm(`계약 "${contractNo || id}" 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
-    const before = contracts.find((c) => c.id === id);
-    setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.delete() } : c));
-    audit.log({ action: 'delete', entityType: 'contract', entityId: id, label: contractNo, before });
-  };
-  const restoreOne = (id: string) => {
-    const before = contracts.find((c) => c.id === id);
-    setContracts((p) => p.map((c) => c.id === id ? { ...c, ...audit.restore() } : c));
-    audit.log({ action: 'restore', entityType: 'contract', entityId: id, label: before?.contractNo, before });
-  };
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>회사</th>
-          <th>계약번호</th>
-          <th>차량번호</th>
-          <th>고객</th>
-          <th className="date">시작</th>
-          <th className="date">만기</th>
-          <th>상태</th>
-          <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 80 }}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {contracts.length === 0 ? (
-          <tr><td colSpan={9} className="empty-row">등록된 계약 없음</td></tr>
-        ) : contracts.map((c) => (
-          <tr key={c.id} style={c.deletedAt ? { opacity: 0.5 } : undefined}>
-            <td className="plate">{c.companyCode}</td>
-            <td className="mono text-medium">{c.contractNo}{c.deletedAt && <span className="text-red text-xs"> 삭제됨</span>}</td>
-            <td className="plate">{c.plate}</td>
-            <td>{c.customerName}</td>
-            <td className="date">{c.startDate}</td>
-            <td className="date">{c.endDate}</td>
-            <td>{c.status}</td>
-            <td className="mono dim">{c.id}</td>
-            <td className="center">
-              {c.deletedAt ? (
-                <button className="btn btn-sm" onClick={() => restoreOne(c.id)} title="복원">
-                  복원
-                </button>
-              ) : (
-                <button className="btn btn-sm" onClick={() => removeOne(c.id, c.contractNo)} title="삭제">
-                  <Trash size={12} weight="bold" /> 삭제
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/* ─── 계좌내역 ─── */
-function LedgerTable({ entries, setEntries }: {
-  entries: ReturnType<typeof useLedgerStore>[0];
-  setEntries: ReturnType<typeof useLedgerStore>[1];
-}) {
-  const removeOne = (id: string, memo: string) => {
-    if (!confirm(`거래 "${memo}" 삭제할까요?`)) return;
-    setEntries((p) => p.filter((e) => e.id !== id));
-  };
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>회사</th>
-          <th className="date">거래일시</th>
-          <th className="num">입금</th>
-          <th className="num">출금</th>
-          <th>적요</th>
-          <th>상대</th>
-          <th>계좌</th>
-          <th className="mono dim">ID</th>
-          <th className="center" style={{ width: 80 }}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {entries.length === 0 ? (
-          <tr><td colSpan={9} className="empty-row">등록된 거래 없음</td></tr>
-        ) : entries.map((e) => (
-          <tr key={e.id}>
-            <td className="plate">{e.companyCode}</td>
-            <td className="date mono">{e.txDate}</td>
-            <td className="num">{e.deposit ? e.deposit.toLocaleString('ko-KR') : ''}</td>
-            <td className="num">{e.withdraw ? e.withdraw.toLocaleString('ko-KR') : ''}</td>
-            <td>{e.memo}</td>
-            <td className="dim">{e.counterparty ?? ''}</td>
-            <td className="mono dim">{e.account ?? '-'}</td>
-            <td className="mono dim">{e.id}</td>
-            <td className="center">
-              <button className="btn btn-sm" onClick={() => removeOne(e.id, e.memo)} title="삭제">
-                <Trash size={12} weight="bold" /> 삭제
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
 }
 
 /* ─── 수납생성 다이얼로그 — 마이그레이션 도구 ─── */
@@ -664,12 +492,10 @@ function ReceiptSeedDialog({
   const [ident, setIdent] = useState('');
   const [overdueCount, setOverdueCount] = useState(0);
 
-  // 다이얼로그 열릴 때 초기화
   useEffect(() => {
     if (open) { setName(''); setIdent(''); setOverdueCount(0); }
   }, [open]);
 
-  // 고객명 + 등록번호 매칭 — 둘 중 하나만 있어도 OK. 등록번호는 앞 6자리 또는 전체
   const matched: Contract[] = (() => {
     const n = name.trim();
     const i = ident.replace(/[\s\-]/g, '').trim();
@@ -682,7 +508,6 @@ function ReceiptSeedDialog({
     });
   })();
 
-  // 단일 매칭 시 events 미리보기
   const target = matched.length === 1 ? matched[0] : null;
   const receiptEvents = target
     ? target.events.filter((e) => e.type === '수납').sort((a, b) => a.dueDate.localeCompare(b.dueDate))
@@ -762,7 +587,6 @@ function ReceiptSeedDialog({
             </label>
           </div>
 
-          {/* 매칭 결과 */}
           {(name || ident) && (
             <div style={{ background: 'var(--bg-card)', padding: 8, border: '1px solid var(--border)', borderRadius: 4 }}>
               {matched.length === 0 && <span className="text-red text-xs">매칭되는 계약 없음</span>}
