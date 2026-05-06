@@ -12,11 +12,12 @@
  * 다만 동일한 import 표면을 위해 mode='create' 도 인자로 허용 (내부에서 'duplicate' 와 동일 처리).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import type { Customer, CustomerKind } from '@/lib/sample-customers';
 import type { Company } from '@/lib/sample-companies';
+import { useDialogShortcuts, countChanges } from '@/lib/use-dialog-shortcuts';
 
 export type CustomerDialogMode = 'view' | 'edit' | 'create' | 'duplicate';
 
@@ -94,20 +95,30 @@ function formToCustomer(f: FormState, base: Customer): Customer {
 export function CustomerEditDialog({ open, onOpenChange, mode, initial, companies, onSave, onDelete }: Props) {
   const [currentMode, setCurrentMode] = useState<CustomerDialogMode>(mode);
   const [form, setForm] = useState<FormState>(() => customerToForm(initial));
+  const [initialSnapshot, setInitialSnapshot] = useState<FormState>(() => customerToForm(initial));
 
   useEffect(() => {
     if (!open) return;
     setCurrentMode(mode);
+    let next: FormState;
     if (mode === 'duplicate') {
       // unique 필드 비움 — 동일인 재등록 방지 + 코드는 새로 발급되어야 함
       const f = customerToForm(initial);
-      setForm({ ...f, code: '', name: '', ident: '', phone: '', licenseNo: '', email: '' });
+      next = { ...f, code: '', name: '', ident: '', phone: '', licenseNo: '', email: '' };
     } else {
-      setForm(customerToForm(initial));
+      next = customerToForm(initial);
     }
+    setForm(next);
+    setInitialSnapshot(next);
   }, [open, mode, initial]);
 
   const isReadonly = currentMode === 'view';
+
+  // 변경 감지
+  const dirtyCount = useMemo(
+    () => countChanges(initialSnapshot as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>),
+    [initialSnapshot, form],
+  );
 
   const titleText =
     currentMode === 'view'      ? `고객 상세 — ${initial.code} ${initial.name}` :
@@ -137,6 +148,24 @@ export function CustomerEditDialog({ open, onOpenChange, mode, initial, companie
     onDelete?.();
     onOpenChange(false);
   }
+
+  function handleClose() {
+    if (currentMode === 'edit' && dirtyCount > 0) {
+      if (!window.confirm('미저장 변경이 있습니다. 닫을까요?')) return;
+    }
+    onOpenChange(false);
+  }
+
+  // 키보드 단축키 — Esc 닫기 / Ctrl+S 저장
+  const canSave =
+    (currentMode === 'edit' && dirtyCount > 0) ||
+    currentMode === 'create' ||
+    currentMode === 'duplicate';
+  useDialogShortcuts({
+    open,
+    onClose: handleClose,
+    onSave: canSave ? handleSave : undefined,
+  });
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
@@ -230,7 +259,18 @@ export function CustomerEditDialog({ open, onOpenChange, mode, initial, companie
                 취소 (조회로 복귀)
               </button>
               <DialogClose asChild><button className="btn">닫기</button></DialogClose>
-              <button className="btn btn-primary" onClick={handleSave}>저장</button>
+              {dirtyCount > 0 && (
+                <span className="text-weak" style={{ fontSize: 12, marginRight: 4 }}>
+                  변경 {dirtyCount}건 미저장
+                </span>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={dirtyCount === 0}
+                onClick={handleSave}
+              >
+                저장
+              </button>
             </>
           ) : (
             // duplicate / create

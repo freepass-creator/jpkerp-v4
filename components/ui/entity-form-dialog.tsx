@@ -17,9 +17,10 @@
  *   />
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from './dialog';
 import { cn } from '@/lib/cn';
+import { useDialogShortcuts, countChanges } from '@/lib/use-dialog-shortcuts';
 
 export type FieldDef = {
   key: string;
@@ -92,6 +93,27 @@ export function EntityFormDialog({
   const allSections: FieldSection[] = sections ?? (fields ? [{ title: '', fields }] : []);
   const isReadonly = currentMode === 'view';
 
+  // 변경 감지 — initial vs current data
+  const dirtyCount = useMemo(() => countChanges(initial, data), [initial, data]);
+
+  function handleClose() {
+    if (currentMode === 'edit' && dirtyCount > 0) {
+      if (!window.confirm('미저장 변경이 있습니다. 닫을까요?')) return;
+    }
+    onOpenChange(false);
+  }
+
+  // 키보드 단축키 — Esc 닫기 / Ctrl+S 저장
+  const canSave =
+    (currentMode === 'edit' && dirtyCount > 0) ||
+    currentMode === 'create' ||
+    currentMode === 'duplicate';
+  useDialogShortcuts({
+    open,
+    onClose: handleClose,
+    onSave: canSave ? () => onSubmit(data) : undefined,
+  });
+
   // 모드별 색깔 dot 헤더
   const titleNode = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -144,7 +166,18 @@ export function EntityFormDialog({
                 취소 (조회로 복귀)
               </button>
               <DialogClose asChild><button className="btn">닫기</button></DialogClose>
-              <button className="btn btn-primary" onClick={() => onSubmit(data)}>저장</button>
+              {dirtyCount > 0 && (
+                <span className="text-weak" style={{ fontSize: 12, marginRight: 4 }}>
+                  변경 {dirtyCount}건 미저장
+                </span>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={dirtyCount === 0}
+                onClick={() => onSubmit(data)}
+              >
+                저장
+              </button>
             </>
           ) : (
             // create / duplicate

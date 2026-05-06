@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Upload, Pencil, FileXls, Plus, X, CircleNotch, Warning, CheckCircle, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -9,6 +9,7 @@ import type { Company, CompanyAccount, CompanyCard } from '@/lib/sample-companie
 import { nextCompanyCode } from '@/lib/code-gen';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
 import { cn } from '@/lib/cn';
+import { useDialogShortcuts, countChanges } from '@/lib/use-dialog-shortcuts';
 
 /**
  * 회사 등록·조회·수정·복사 — 자산 다이얼로그 패턴(4-mode + 색상) 적용.
@@ -90,6 +91,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
 
   const [tab, setTab] = useState<'ocr' | 'manual'>('ocr');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [initialSnapshot, setInitialSnapshot] = useState<FormState>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [ocrPreview, setOcrPreview] = useState<string>('');
@@ -103,7 +105,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
     setCurrentMode(initialMode);
     if (initial) {
       const isDup = initialMode === 'duplicate';
-      setForm({
+      const next: FormState = {
         // duplicate 시 회사코드/사업자번호/법인번호는 unique — 비움
         code: isDup ? nextCompanyCode(existingCodes) : initial.code,
         name: isDup ? '' : initial.name,
@@ -126,22 +128,49 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
         // duplicate 시 계좌/카드도 비움 (다른 회사 명의이므로)
         accounts: isDup ? [] : (initial.accounts ? [...initial.accounts] : []),
         cards: isDup ? [] : (initial.cards ? [...initial.cards] : []),
-      });
+      };
+      setForm(next);
+      setInitialSnapshot(next);
     } else {
-      setForm((prev) => prev.code ? prev : { ...prev, code: nextCompanyCode(existingCodes) });
+      setForm((prev) => {
+        const seeded = prev.code ? prev : { ...prev, code: nextCompanyCode(existingCodes) };
+        setInitialSnapshot(seeded);
+        return seeded;
+      });
     }
   }, [open, initial, existingCodes, initialMode]);
 
+  // 변경 카운트 — JSON 직렬화 비교라 useMemo 로 비싼 호출 줄임
+  const dirtyCount = useMemo(
+    () => countChanges(initialSnapshot as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>),
+    [initialSnapshot, form],
+  );
+
   function reset() {
     setForm(EMPTY_FORM);
+    setInitialSnapshot(EMPTY_FORM);
     setBusy(false);
     setError('');
     setOcrPreview('');
   }
   function handleClose(o: boolean) {
+    if (!o && currentMode === 'edit' && dirtyCount > 0) {
+      if (!window.confirm('미저장 변경이 있습니다. 닫을까요?')) return;
+    }
     setOpen(o);
     if (!o) setTimeout(reset, 100);
   }
+
+  // 키보드 단축키 — Esc 닫기 / Ctrl+S 저장 (저장 가능 모드에서만)
+  const canSave =
+    (currentMode === 'edit' && dirtyCount > 0) ||
+    currentMode === 'create' ||
+    currentMode === 'duplicate';
+  useDialogShortcuts({
+    open,
+    onClose: () => handleClose(false),
+    onSave: canSave ? submit : undefined,
+  });
 
   async function runOcr(file: File) {
     setError('');
@@ -324,7 +353,18 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
                 취소 (조회로 복귀)
               </button>
               <DialogClose asChild><button className="btn">닫기</button></DialogClose>
-              <button className="btn btn-primary" disabled={busy} onClick={submit}>저장</button>
+              {dirtyCount > 0 && (
+                <span className="text-weak" style={{ fontSize: 12, marginRight: 4 }}>
+                  변경 {dirtyCount}건 미저장
+                </span>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={busy || dirtyCount === 0}
+                onClick={submit}
+              >
+                저장
+              </button>
             </>
           ) : currentMode === 'duplicate' ? (
             <>

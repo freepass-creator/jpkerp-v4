@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { RegistrationForm } from './registration-form';
 import type { Asset } from '@/lib/sample-assets';
+import { useDialogShortcuts } from '@/lib/use-dialog-shortcuts';
 
 export type EditMode = 'view' | 'edit' | 'duplicate';
 
@@ -36,6 +37,13 @@ export function AssetEditDialog({ open, onOpenChange, mode, initial, onSave, onD
 
   // 외부 mode prop 이 바뀌거나 다이얼로그가 새로 열릴 때 동기화
   useEffect(() => { setCurrentMode(mode); }, [mode, open]);
+
+  // Esc 닫기 (Ctrl+S 는 RegistrationForm 내부 submit 흐름이라 미적용)
+  useDialogShortcuts({
+    open,
+    onClose: () => onOpenChange(false),
+    onSave: undefined,
+  });
 
   const data = currentMode === 'duplicate' ? clearUniqueFields(initial) : initial;
 
