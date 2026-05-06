@@ -25,7 +25,7 @@ const CONTRACT_END   = addMonths(TODAY, 4);
 export const SAMPLE_CUSTOMER_CONTRACT: Contract = {
   id: 'sample-contract-1',
   companyCode: 'CP01',
-  contractNo: 'C-2025-0042',
+  contractNo: 'CT2510120042',
   plate: '12가3456',
   customerName: '박영협',
   customerKind: '개인',
@@ -51,7 +51,7 @@ export const SAMPLE_CUSTOMER_CONTRACT: Contract = {
   paymentDay: 5,
   specialTerms: '・ 만기 1개월 전까지 연장 의사 미통보 시 자동 종료\n・ 사고 발생 시 즉시 통보 의무 (24시간 이내)\n・ 차량 외부 광고 부착 시 사전 승인 필요',
   fileDataUrl: 'data:application/pdf;base64,JVBERi0xLjQKJeL=',  // placeholder — 실제로는 업로드된 PDF dataUrl
-  fileName: 'C-2025-0042-계약서.pdf',
+  fileName: 'CT2510120042-계약서.pdf',
   events: Array.from({ length: 12 }, (_, i) => {
     const due = addMonths(CONTRACT_START, i);
     const cycle = i + 1;
@@ -72,7 +72,7 @@ export const SAMPLE_CUSTOMER_CONTRACT: Contract = {
 export const SAMPLE_CUSTOMER_ASSET: Asset = {
   id: 'sample-asset-1',
   companyCode: 'CP01',
-  assetCode: 'AS-CP01-042',
+  assetCode: 'CP01VH0042',
   documentNo: 'DOC-20250115-0042',
   firstRegistDate: '2024-08-21',
   certIssueDate: '2024-08-21',

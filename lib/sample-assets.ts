@@ -13,7 +13,7 @@ export type Asset = {
 
   /* ─── 운영 식별자 ─── */
   companyCode: string;        // 회사코드 (CP01~CP99) — 차량번호와 묶여 unique key
-  assetCode?: string;         // 자산코드 (AS-CP05-001) — 회사 scoped 일련번호. 등록 시 자동 부여, 변경 불가.
+  assetCode?: string;         // 차량코드 (CP01VH0001) — 회사+VH+4자리. 등록 시 자동 부여, 변경 불가.
 
   /* ─── 등록증 헤더 ─── */
   documentNo?: string;        // 문서확인번호

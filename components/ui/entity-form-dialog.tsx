@@ -9,7 +9,7 @@
  *     onOpenChange={setOpen}
  *     title="계약 등록"
  *     fields={[
- *       { key: 'contractNo', label: '계약번호', placeholder: 'C-2026-NNNN' },
+ *       { key: 'contractNo', label: '계약번호', placeholder: 'CT260506NNNN' },
  *       { key: 'plate', label: '차량번호' },
  *       { key: 'startDate', label: '시작일', type: 'date' },
  *       ...

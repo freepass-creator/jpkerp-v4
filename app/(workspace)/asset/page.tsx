@@ -73,7 +73,7 @@ export default function AssetListPage() {
     }
     const companyCode = partial.companyCode;
     const existingCodes = allAssets.map((a) => a.assetCode).filter((c): c is string => !!c);
-    const assetCode = nextCompanyScopedCode('AS', companyCode, existingCodes, { pad: 4 });
+    const assetCode = nextCompanyScopedCode('VH', companyCode, existingCodes, { pad: 4 });
     const next: Asset = {
       id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       companyCode,

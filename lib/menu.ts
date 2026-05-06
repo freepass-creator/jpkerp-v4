@@ -33,7 +33,7 @@ export const MENU: MenuSection[] = [
   {
     label: '데이터',
     items: [
-      { href: '/asset',    label: '자산관리', icon: Car },
+      { href: '/asset',    label: '차량관리', icon: Car },
       { href: '/contract', label: '계약관리', icon: FileText },
       { href: '/finance',  label: '재무관리', icon: Bank },
     ],

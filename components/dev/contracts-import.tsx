@@ -5,7 +5,7 @@ import { CheckCircle, Warning, ArrowCounterClockwise, FileXls } from '@phosphor-
 import { type Contract, type CustomerKind, type AdditionalDriver } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useAuditStamp } from '@/lib/audit-fields';
-import { nextSequenceCode } from '@/lib/code-gen';
+import { nextDateScopedCode } from '@/lib/code-gen';
 import { buildEventsWithOverdue } from '@/lib/contract-events';
 import { todayStr } from '@/lib/date-utils';
 
@@ -203,7 +203,7 @@ export function ContractsImportPanel() {
             const id = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const contractNo = d.contractNo?.trim()
               ? d.contractNo.trim()
-              : nextSequenceCode('C', Array.from(usedContractNos));
+              : nextDateScopedCode('C', Array.from(usedContractNos));
             usedContractNos.add(contractNo);
             const created: Contract = {
               id,

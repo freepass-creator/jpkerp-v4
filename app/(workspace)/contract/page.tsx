@@ -16,7 +16,7 @@ import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/
 import { EmptyState } from '@/components/ui/empty-state';
 import { FileText } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
-import { nextSequenceCode } from '@/lib/code-gen';
+import { nextDateScopedCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { cn } from '@/lib/cn';
@@ -84,7 +84,7 @@ const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = [
     title: '필수 정보',
     fields: CONTRACT_REQUIRED_FIELDS.map((f) =>
       f.key === 'companyCode' ? { ...f, readOnly: false } :
-      f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C-2026-0001)' } : f,
+      f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C2605060001)' } : f,
     ),
   },
   ...CONTRACT_OPTIONAL_SECTIONS,
@@ -125,7 +125,7 @@ export default function ContractListPage() {
   function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>): Contract {
     return {
       id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      contractNo: nextSequenceCode('C', contracts.map((c) => c.contractNo)),
+      contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo)),
       ...draft,
       status: '운행중',
       events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount),
@@ -134,7 +134,7 @@ export default function ContractListPage() {
 
   /** 수정/복사 폼 record → Contract — 등록은 ContractRegisterDialog 가 처리. */
   function fromFormRecord(d: Record<string, string>): Contract {
-    const contractNo = d.contractNo?.trim() || nextSequenceCode('C', contracts.map((c) => c.contractNo));
+    const contractNo = d.contractNo?.trim() || nextDateScopedCode('C', contracts.map((c) => c.contractNo));
     const startDate = d.startDate || new Date().toISOString().slice(0, 10);
     const endDate = d.endDate || '';
     const monthlyAmount = Number(d.monthlyAmount) || 0;

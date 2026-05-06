@@ -8,7 +8,7 @@ import type { Contract } from './sample-contracts';
 
 /**
  * 계약 영구 저장소 — Firebase RTDB. RTDB 노드는 **contractNo 를 키로 하는 객체**:
- *   contracts/C-2026-0001/{...}, contracts/C-2026-0002/{...}
+ *   contracts/CT2605060001/{...}, contracts/CT2605060002/{...}
  * legacy 배열도 read 시 호환 처리. events 중첩 객체→배열 정규화 보존.
  */
 const RTDB_PATH = 'contracts';

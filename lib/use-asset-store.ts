@@ -7,8 +7,8 @@ import { stripUndef } from './store-utils';
 import type { Asset } from './sample-assets';
 
 /**
- * 자산(차량) 영구 저장소 — Firebase RTDB. RTDB 노드는 **assetCode 를 키로 하는 객체**:
- *   assets/AS-CP01-0001/{...}, assets/AS-CP02-0003/{...}
+ * 차량 영구 저장소 — Firebase RTDB. RTDB 노드는 **assetCode 를 키로 하는 객체**:
+ *   assets/CP01VH0001/{...}, assets/CP02VH0003/{...}
  * legacy 배열(0,1,2 인덱스) 도 read 시 호환 처리.
  * assetCode 가 없는 (마이그레이션 중) 데이터는 fallback 으로 id 를 키로 사용.
  */
