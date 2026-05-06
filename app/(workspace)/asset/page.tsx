@@ -25,6 +25,8 @@ import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { nextCompanyScopedCode } from '@/lib/code-gen';
 import { genId } from '@/lib/ids';
+import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
+import { buildKeyIndex, matchAgainstIndex } from '@/lib/dedup';
 import { downloadContractTemplate } from '@/lib/contract-template';
 import Link from 'next/link';
 import { Buildings } from '@phosphor-icons/react';
@@ -72,6 +74,19 @@ export default function AssetListPage() {
       alert('회사코드 누락 — 자산 등록 전 [일반관리 → 회사정보] 에서 회사를 먼저 등록하세요.');
       return;
     }
+    // 중복 검사 — VIN > plate 우선순위 (assetKeyFn). 이미 등록된 자산과 충돌 시 거부.
+    const dupIndex = buildKeyIndex<Partial<Asset>>(allAssets.filter((a) => !a.deletedAt), assetKeyFn);
+    const dup = matchAgainstIndex(partial, dupIndex, assetKeyFn);
+    if (dup) {
+      const reason = describeAssetDuplicate(dup.matchedKey);
+      const dupAsset = dup.matchedExisting as Asset;
+      alert(
+        reason === 'vin'
+          ? `차대번호 중복 — ${partial.vin}\n이미 ${dupAsset.assetCode || dupAsset.plate} 자산에 등록됨.`
+          : `차량번호 중복 — ${partial.plate}\n이미 ${dupAsset.assetCode || dupAsset.companyCode} 자산에 등록됨.`,
+      );
+      return;
+    }
     const companyCode = partial.companyCode;
     // 배치 등록(register-dialog) 은 partial.assetCode 를 미리 발급해서 넘김 — 그대로 사용.
     // 단건/복사 등 코드가 없는 케이스만 새로 발급.
@@ -103,6 +118,18 @@ export default function AssetListPage() {
 
   function handleUpdate(partial: Partial<Asset>) {
     if (!selected) return;
+    // 중복 검사 — 자기 자신 제외 후 plate/VIN 다른 자산과 충돌 검사
+    const newPlate = partial.plate?.trim();
+    const newVin = partial.vin?.trim();
+    const others = allAssets.filter((a) => !a.deletedAt && a.id !== selected.id);
+    if (newPlate && newPlate !== selected.plate && others.some((a) => a.plate === newPlate)) {
+      alert(`차량번호 ${newPlate} — 다른 자산과 중복. 변경 불가.`);
+      return;
+    }
+    if (newVin && newVin !== selected.vin && others.some((a) => a.vin === newVin)) {
+      alert(`차대번호 ${newVin} — 다른 자산과 중복. 변경 불가.`);
+      return;
+    }
     // assetCode 는 변경 불가 — 원본 보존
     const { assetCode: _ignore, ...rest } = partial;
     void _ignore;
