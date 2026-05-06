@@ -132,13 +132,20 @@ export default function DevPage() {
       footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
       footerRight={
         <>
+          {/* 생성 / 시드 — 마이그레이션·시뮬레이션 */}
+          <span className="text-weak text-xs" style={{ marginRight: 4 }}>생성</span>
           <button className="btn" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → 그 계약의 events 재구성 (마이그레이션)">
             <CurrencyKrw size={14} weight="bold" /> 수납생성
           </button>
           <button className="btn" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
             <Truck size={14} weight="bold" /> 출고생성
           </button>
-          <button className="btn" onClick={() => setPurgeOpen(true)}>
+
+          <span className="stat-divider" />
+
+          {/* 삭제 / 초기화 — 운영 안정 후 권한 제한 추가 */}
+          <span className="text-weak text-xs" style={{ marginRight: 4 }}>삭제</span>
+          <button className="btn" onClick={() => setPurgeOpen(true)} title="회사·자산·계약·계좌내역 노드 선택 후 일괄 hard-delete">
             <TrashSimple size={14} weight="bold" /> 데이터 삭제
           </button>
           <button
@@ -148,10 +155,10 @@ export default function DevPage() {
               if (txt !== 'WIPE-ALL') return;
               const NODES = [
                 // v4 자체
-                'companies', 'assets', 'contracts', 'insurances', 'journal_entries',
+                'companies', 'assets', 'contracts', 'customers', 'insurances', 'journal_entries',
                 'ledger', 'audit_logs', 'event_uploads', 'sms_logs',
                 // v3 잔여
-                'partners', 'customers', 'billings', 'events', 'mobile_uploads',
+                'partners', 'billings', 'events', 'mobile_uploads',
                 'vehicle_master', 'contract_templates', 'sequences', 'code_sequences',
                 'uploads', 'alimtalk_queue', 'members',
                 'vendors', 'loans', 'autodebits', 'gps_devices', 'tasks', 'ocr_documents', 'car_models',
@@ -170,7 +177,7 @@ export default function DevPage() {
             style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
             title="알려진 RTDB 노드 일괄 삭제 — 권한 있는 것만 (client SDK)"
           >
-            <TrashSimple size={14} weight="bold" /> 노드 일괄 삭제
+            <TrashSimple size={14} weight="bold" /> RTDB 초기화
           </button>
         </>
       }

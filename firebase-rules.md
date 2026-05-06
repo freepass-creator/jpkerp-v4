@@ -2,15 +2,15 @@
 
 이 문서의 JSON 을 Firebase Console → Realtime Database → Rules 에 그대로 붙여넣기.
 
-## 정책 요약
+## 정책
 
-- **모든 데이터는 인증된 사용자만 read/write** (직원 ERP 사용)
-- **손님 페이지** 는 `/api/customer/lookup` 서버 라우트 통해서만 조회 (Firebase Admin SDK 가 Rules 우회)
-- **audit_logs** 는 append-only — 클라이언트는 push 만 가능, update/delete 불가
-- **인덱스** 는 audit_logs 시계열 조회 최적화
+**Rules 는 외부 보안만 — 인증 여부만 체크. 권한 (직원/관리자/대표) 은 ERP 코드(role) 에서 관리.**
 
-회사(companyCode) 격리는 미적용 — 한 사장의 다회사 가정.
-한 사장 외 다른 사장이 같은 인스턴스에 들어오면 그때 도입.
+- 인증된 사용자 = 모든 read/write (entity 단순 분리 안 함)
+- audit_logs / event_uploads / sms_logs = append-only (무결성, role 무관 보장)
+- 직원 권한 분리는 클라이언트 + 서버 코드의 `users/{uid}/role` 체크로 처리 (admin / superadmin / staff)
+
+회사(companyCode) 격리도 안 함 — 한 사장의 다회사 가정.
 
 ## Rules JSON
 
@@ -18,31 +18,15 @@
 {
   "rules": {
     ".read": "auth != null",
-    ".write": "auth != null",
 
     "audit_logs": {
-      ".read": "auth != null",
       ".indexOn": ["at", "entityType", "entityId"],
       "$logId": {
-        ".write": "auth != null && !data.exists()",
-        ".validate": "newData.hasChildren(['at', 'actor', 'action', 'entityType', 'entityId'])"
+        ".write": "auth != null && !data.exists()"
       }
     },
 
-    "contracts":  { ".read": "auth != null", ".write": "auth != null" },
-    "customers": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      ".indexOn": ["code", "companyCode", "phone", "ident"]
-    },
-    "assets":     { ".read": "auth != null", ".write": "auth != null" },
-    "companies":  { ".read": "auth != null", ".write": "auth != null" },
-    "insurances": { ".read": "auth != null", ".write": "auth != null" },
-    "journal_entries": { ".read": "auth != null", ".write": "auth != null" },
-    "ledger":     { ".read": "auth != null", ".write": "auth != null" },
-
     "event_uploads": {
-      ".read": "auth != null",
       ".indexOn": ["at", "plate", "kind"],
       "$id": {
         ".write": "auth != null && !data.exists()"
@@ -50,46 +34,67 @@
     },
 
     "sms_logs": {
-      ".read": "auth != null",
       ".indexOn": ["at"],
       "$id": {
         ".write": "auth != null && !data.exists()"
       }
-    }
+    },
+
+    "companies":  { ".write": "auth != null", ".indexOn": ["code", "bizNo", "name"] },
+    "assets":     { ".write": "auth != null", ".indexOn": ["plate", "companyCode", "vin", "status", "assetCode"] },
+    "contracts":  { ".write": "auth != null", ".indexOn": ["contractNo", "plate", "companyCode", "customerName", "status", "startDate", "endDate", "customerCode"] },
+    "customers":  { ".write": "auth != null", ".indexOn": ["code", "companyCode", "phone", "ident"] },
+    "insurances": { ".write": "auth != null", ".indexOn": ["carNumber", "companyCode", "policyNo", "endDate"] },
+    "journal_entries": { ".write": "auth != null", ".indexOn": ["companyCode", "kind", "at", "staff"] },
+    "ledger":     { ".write": "auth != null", ".indexOn": ["companyCode", "txDate", "uploadedAt", "txKey"] },
+    "settings":   { ".write": "auth != null" },
+    "users":      { ".write": "auth != null" }
   }
 }
 ```
 
+## 핵심 포인트
+
+**왜 root `.write` 안 박는가:**
+- root 에 `.write: "auth != null"` 두면 audit_logs append-only 가 부모 cascade 로 무력화됨 (Firebase Rules: 부모 grant 는 자식에서 deny 못 함)
+- 그래서 root 는 `.read` 만 두고, write 는 entity 마다 `.write: "auth != null"` 명시
+- audit_logs / event_uploads / sms_logs 는 부모 .write 없이 `$id` 레벨에서만 `!data.exists()` 조건으로 write — 새 항목만 push, 기존 항목 수정·삭제 불가
+
+**append-only 가 어떻게 보장되나:**
+- 부모 `audit_logs.".write"` 없음 → admin 도 `set('audit_logs', null)` 같은 통째 삭제 불가
+- 자식 `$logId.".write": "auth != null && !data.exists()"` → 새 push 만 OK, 기존 update/delete 불가
+- 결과: 운영중 누구도 (대표 포함) 감사 로그 변조 불가
+
 ## 적용 방법
 
-1. Firebase Console → 프로젝트 → Realtime Database → Rules 탭
-2. 위 JSON 통째로 붙여넣기 → "게시" 버튼
-3. 적용 후 손님 페이지가 정상 동작하는지 검증:
-   - 직원 ERP 로그인 → contracts/* 정상 read/write
-   - 로그아웃 상태에서 `/customer` 입력 → API 통해 정상 매칭
-   - 비인증 client SDK 로 contracts read 시도 → 거부
+1. Firebase Console → 프로젝트 → Realtime Database → 규칙 탭
+2. 위 JSON 통째로 붙여넣기 → **게시**
+3. 검증:
+   - 직원 ERP 로그인 → 회사/자산/계약/고객 read/write 정상
+   - 로그아웃 상태 직접 RTDB read → 거부
+   - audit_logs 의 기존 항목 update/delete 시도 → 거부
 
-## 서버 사이드 인증 (Firebase Admin SDK)
+## 권한 분리 (ERP 코드 레벨)
 
-`/api/customer/lookup` 은 Admin SDK 사용 — Rules 우회.
-환경변수 필요 (둘 중 하나):
+Rules 가 아니라 **app 코드** 에서 role 체크:
 
-- **FIREBASE_ADMIN_KEY** : 서비스계정 JSON 키 통째로 (Vercel 환경변수)
-- **GOOGLE_APPLICATION_CREDENTIALS** : 서비스계정 키 파일 경로 (로컬 개발)
+```ts
+// users/{uid}/role 값:
+//   'superadmin' — 전권 (대표)
+//   'admin'      — 운영 관리 (회사·자산·계약 CRUD, 일부 직원 관리)
+//   'staff'      — 일반 직원 (계약 조회·등록, 자기 일지)
+//   undefined    — 신규 가입 (admin 승인 대기)
 
-서비스계정 키 발급:
-1. Firebase Console → 프로젝트 설정 → 서비스 계정
-2. "새 비공개 키 생성" → JSON 다운로드
-3. JSON 파일 통째 내용을 `FIREBASE_ADMIN_KEY` 환경변수에 박음
-   - Vercel: 프로젝트 Settings → Environment Variables → 변수명 `FIREBASE_ADMIN_KEY`
-     값 = JSON 파일 내용 그대로 (개행 포함). Vercel 이 알아서 처리.
-   - 로컬: `.env.local` 에 `FIREBASE_ADMIN_KEY='{"type":"service_account",...}'` (한 줄로 escape)
-     또는 GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json 으로 대체 가능
+const { user } = useAuth();
+const profile = useUserProfile(user?.uid);
+if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
+  return <AccessDenied />;
+}
+```
 
-⚠️ 서비스계정 키는 **절대 git 커밋 금지**. `.gitignore` 에 `.env.local` 포함됨 (확인 권장).
+UI 에서 role 별 메뉴 노출 / 등록·삭제 버튼 disable / `/dev` 페이지 superadmin 전용 등.
 
-## 향후 강화
+## 서버 사이드 (Firebase Admin SDK — Rules 우회)
 
-- audit_logs 행 단위 ".validate" 보강 (action 값 enum 등)
-- 회사(companyCode) 격리 규칙 (다른 사장 합류 시)
-- rate limit (현재는 RTDB Rules 레벨에서 미적용 — Cloudflare/Vercel Edge Middleware 권장)
+`/api/customer/lookup` 등은 Admin SDK 사용 — Rules 무관하게 동작.
+환경변수: `FIREBASE_ADMIN_KEY` (Vercel) 또는 `GOOGLE_APPLICATION_CREDENTIALS` (로컬).
