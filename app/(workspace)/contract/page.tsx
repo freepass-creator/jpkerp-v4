@@ -13,7 +13,7 @@ import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { activeContracts, type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { activeAssets } from '@/lib/sample-assets';
-import { EntityFormDialog, type FieldDef, type FieldSection } from '@/components/ui/entity-form-dialog';
+import { EntityFormDialog, type FieldDef, type FieldSection, type EntityDialogMode } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -154,6 +154,7 @@ export default function ContractListPage() {
   const { search } = useTopbarSearch();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [editMode, setEditMode] = useState<EntityDialogMode>('view');
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
@@ -500,9 +501,15 @@ export default function ContractListPage() {
     plate: '',
   } : {};
 
+  function openEdit(mode: EntityDialogMode) {
+    if (!selected) return;
+    setEditMode(mode);
+    setEditOpen(true);
+  }
+
   function buildCtxItems(): ContextMenuItem[] {
     return [
-      { label: '수정',     icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
+      { label: '수정',     icon: <PencilSimple size={12} weight="bold" />, onClick: () => openEdit('edit') },
       { label: '복사',     icon: <Copy size={12} weight="bold" />,         onClick: () => setDuplicateOpen(true) },
       { label: '문자 발송', icon: <PaperPlaneTilt size={12} weight="bold" />, onClick: () => setSmsOpen(true) },
       { label: '삭제',     icon: <Trash size={12} weight="bold" />,        onClick: handleDelete, danger: true },
@@ -532,7 +539,7 @@ export default function ContractListPage() {
         footerRight={
           <>
             <button className="btn">엑셀</button>
-            <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}>
+            <button className="btn" disabled={!selected} onClick={() => openEdit('edit')}>
               <PencilSimple size={14} weight="bold" /> 수정
             </button>
             <button className="btn" disabled={!selected} onClick={() => setDuplicateOpen(true)}>
@@ -557,6 +564,7 @@ export default function ContractListPage() {
             contracts={visibleContracts}
             selectedId={selected?.id}
             onRowClick={setSelected}
+            onRowDoubleClick={(c) => { setSelected(c); setEditMode('view'); setEditOpen(true); }}
             onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
             globalSearch={search}
           />
@@ -568,10 +576,13 @@ export default function ContractListPage() {
         items={selected ? buildCtxItems() : []} />
 
       <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
-        title="계약 수정" sections={CONTRACT_EDIT_SECTIONS} initial={editInitial}
-        submitLabel="수정" onSubmit={handleUpdate} />
+        title={editMode === 'view' ? `계약 상세 — ${selected?.contractNo ?? ''}` : `계약 수정 — ${selected?.contractNo ?? ''}`}
+        mode={editMode}
+        sections={CONTRACT_EDIT_SECTIONS} initial={editInitial}
+        submitLabel="저장" onSubmit={handleUpdate} />
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
-        title="계약 복사 (스펙 복제)" sections={CONTRACT_DUPLICATE_SECTIONS} initial={dupInitial}
+        title="계약 복사 (스펙 복제)" mode="duplicate"
+        sections={CONTRACT_DUPLICATE_SECTIONS} initial={dupInitial}
         onSubmit={handleDuplicate} />
       <SmsSendDialog open={smsOpen} onOpenChange={setSmsOpen}
         contract={selected} company={selectedCompany} />
@@ -616,11 +627,12 @@ function ExtendedInfoCell({ contract }: { contract: Contract }) {
 
 /** 계약현황 그리드 — JpkTable 기반. 컬럼 헤더 set/range/date 필터. */
 function ContractGrid({
-  contracts, selectedId, onRowClick, onRowContextMenu, globalSearch,
+  contracts, selectedId, onRowClick, onRowDoubleClick, onRowContextMenu, globalSearch,
 }: {
   contracts: Contract[];
   selectedId?: string;
   onRowClick: (c: Contract) => void;
+  onRowDoubleClick?: (c: Contract) => void;
   onRowContextMenu: (c: Contract, x: number, y: number) => void;
   globalSearch?: string;
 }) {
@@ -673,6 +685,7 @@ function ContractGrid({
       selectedKey={selectedId}
       storageKey="contract.list"
       onRowClick={onRowClick}
+      onRowDoubleClick={onRowDoubleClick ? (c) => onRowDoubleClick(c) : undefined}
       onRowContextMenu={handleRowContextMenu}
       globalSearch={globalSearch}
     />

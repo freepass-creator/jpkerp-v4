@@ -8,13 +8,25 @@ import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import type { Company, CompanyAccount, CompanyCard } from '@/lib/sample-companies';
 import { nextCompanyCode } from '@/lib/code-gen';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
+import { cn } from '@/lib/cn';
 
 /**
- * 회사 등록 — 자산등록 다이얼로그와 동일 패턴 (Tabs):
- *  1) 사업자등록증 OCR — Gemini /api/ocr/extract type=business_reg → 폼 자동 채움 → 계좌·카드 추가 → 등록
- *  2) 개별 입력 — 빈 폼
- *  3) 시트 (다건) — 추후 (현재 미구현, 계좌/카드는 시트엔 부적합)
+ * 회사 등록·조회·수정·복사 — 자산 다이얼로그 패턴(4-mode + 색상) 적용.
+ *
+ *  - view      : readonly + 회색 dot. 행 더블클릭 / 코드 클릭 진입.
+ *  - edit      : view 의 [수정] → editable + 황색 dot
+ *  - create    : 신규(OCR 탭 또는 manual 탭) — 흰색
+ *  - duplicate : 우클릭 → 복사 — editable + 녹색 dot, unique 비움
  */
+
+export type CompanyDialogMode = 'view' | 'edit' | 'create' | 'duplicate';
+
+const MODE_DOT: Record<CompanyDialogMode, string> = {
+  view: '#9ca3af',       // 회색
+  edit: '#f59e0b',       // 황색
+  create: '#3b82f6',     // 파랑 (기본)
+  duplicate: '#22c55e',  // 녹색
+};
 
 type FormState = {
   code: string;
@@ -50,10 +62,12 @@ const EMPTY_FORM: FormState = {
 type Props = {
   /** 신규 등록 콜백. edit 모드에선 사용 안 함 */
   onCreate?: (company: Company) => void;
-  /** 수정 콜백. initial 제공 시 사용 */
+  /** 수정 콜백. view/edit 모드에서 사용 */
   onUpdate?: (company: Company) => void;
-  /** 수정 모드 초기값. 제공 시 OCR 탭 숨기고 폼만 노출 */
+  /** 초기값 — 제공되면 view 모드 기본 (mode 미지정 시) */
   initial?: Company;
+  /** 명시적 모드 지정. 미지정 시 initial 유무로 결정 (view / create) */
+  mode?: CompanyDialogMode;
   /** 기존 회사코드 — 회사코드 자동 추천 + 중복 검사용 (수정 모드에선 자기 자신 코드 제외) */
   existingCodes?: string[];
   open?: boolean;
@@ -61,8 +75,11 @@ type Props = {
   showTrigger?: boolean;
 };
 
-export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCodes = [], open: openProp, onOpenChange, showTrigger = true }: Props) {
-  const isEdit = Boolean(initial);
+export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, existingCodes = [], open: openProp, onOpenChange, showTrigger = true }: Props) {
+  // 모드 결정: 명시 mode 우선, 없으면 initial 유무 (view / create)
+  const initialMode: CompanyDialogMode = mode ?? (initial ? 'view' : 'create');
+  const [currentMode, setCurrentMode] = useState<CompanyDialogMode>(initialMode);
+
   const [openInner, setOpenInner] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openInner;
@@ -77,36 +94,43 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
   const [error, setError] = useState('');
   const [ocrPreview, setOcrPreview] = useState<string>('');
 
-  // 다이얼로그 열릴 때 폼 초기화: edit 모드는 initial 채움, 신규는 회사코드 자동 추천
+  const isReadonly = currentMode === 'view';
+  const showTabs = currentMode === 'create';  // view/edit/duplicate 는 폼만
+
+  // 다이얼로그 열릴 때 폼 초기화 + 모드 동기화
   useEffect(() => {
     if (!open) return;
+    setCurrentMode(initialMode);
     if (initial) {
+      const isDup = initialMode === 'duplicate';
       setForm({
-        code: initial.code,
-        name: initial.name,
+        // duplicate 시 회사코드/사업자번호/법인번호는 unique — 비움
+        code: isDup ? nextCompanyCode(existingCodes) : initial.code,
+        name: isDup ? '' : initial.name,
         ceo: initial.ceo ?? '',
         ceoType: initial.ceoType ?? '',
-        bizNo: initial.bizNo ?? '',
-        corpNo: initial.corpNo ?? '',
+        bizNo: isDup ? '' : (initial.bizNo ?? ''),
+        corpNo: isDup ? '' : (initial.corpNo ?? ''),
         openDate: initial.openDate ?? '',
         hqAddress: initial.hqAddress ?? '',
         bizAddress: initial.bizAddress ?? '',
         bizType: initial.bizType ?? '',
         bizCategory: initial.bizCategory ?? '',
-        phone: initial.phone ?? '',
+        phone: isDup ? '' : (initial.phone ?? ''),
         email: initial.email ?? '',
         entityType: initial.entityType ?? '',
         taxIssueDate: initial.taxIssueDate ?? '',
         taxOffice: initial.taxOffice ?? '',
         issueReason: initial.issueReason ?? '',
         singleTaxFlag: initial.singleTaxFlag === true ? 'yes' : initial.singleTaxFlag === false ? 'no' : '',
-        accounts: initial.accounts ? [...initial.accounts] : [],
-        cards: initial.cards ? [...initial.cards] : [],
+        // duplicate 시 계좌/카드도 비움 (다른 회사 명의이므로)
+        accounts: isDup ? [] : (initial.accounts ? [...initial.accounts] : []),
+        cards: isDup ? [] : (initial.cards ? [...initial.cards] : []),
       });
     } else {
       setForm((prev) => prev.code ? prev : { ...prev, code: nextCompanyCode(existingCodes) });
     }
-  }, [open, initial, existingCodes]);
+  }, [open, initial, existingCodes, initialMode]);
 
   function reset() {
     setForm(EMPTY_FORM);
@@ -173,8 +197,10 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
       return;
     }
     const code = form.code.trim();
-    // 수정 모드는 자기 자신 코드 제외하고 중복 검사
-    const otherCodes = isEdit ? existingCodes.filter((c) => c !== initial?.code) : existingCodes;
+    // 수정 모드는 자기 자신 코드 제외하고 중복 검사 (duplicate/create 는 모두 검사)
+    const otherCodes = currentMode === 'edit'
+      ? existingCodes.filter((c) => c !== initial?.code)
+      : existingCodes;
     if (otherCodes.includes(code)) {
       const msg = `회사코드 ${code} 이미 존재합니다. 다른 코드를 입력하세요.`;
       setError(msg);
@@ -203,25 +229,49 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
       accounts: form.accounts.filter((a) => a.bank.trim() && a.accountNo.trim()),
       cards: form.cards.filter((c) => c.cardName.trim() && c.cardNo.trim()),
     };
-    if (isEdit) {
+    if (currentMode === 'edit') {
       onUpdate?.(company);
     } else {
+      // create / duplicate 모두 신규 회사 발급
       onCreate?.(company);
     }
     handleClose(false);
   }
 
+  // 모드별 타이틀 + 색깔 dot
+  const titleText =
+    currentMode === 'view'      ? `회사 상세 — ${initial?.code ?? ''} ${initial?.name ?? ''}` :
+    currentMode === 'edit'      ? `회사 수정 — ${initial?.code ?? ''} ${initial?.name ?? ''}` :
+    currentMode === 'duplicate' ? '회사 복사 (정보 복제)' :
+    '회사 등록 (사업자등록증 기준)';
+
+  const titleNode = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span aria-hidden style={{
+        display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+        background: MODE_DOT[currentMode], flexShrink: 0,
+      }} />
+      <span>{titleText}</span>
+    </span>
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      {showTrigger && !isEdit && (
+      {showTrigger && currentMode === 'create' && (
         <DialogTrigger asChild>
           <button className="btn btn-primary">
             <Plus size={14} weight="bold" /> 회사 등록
           </button>
         </DialogTrigger>
       )}
-      <DialogContent title={isEdit ? '회사 수정' : '회사 등록 (사업자등록증 기준)'} size="xl">
-        {!isEdit && (
+      <DialogContent title={titleNode} size="xl">
+        {currentMode === 'duplicate' && (
+          <div className="alert alert-info mb-3">
+            정보를 복제했습니다. <strong>회사코드 · 사업자번호 · 법인번호 · 대표전화 · 계좌 · 카드</strong>는 비워졌습니다. 새 회사 정보로 채워주세요.
+          </div>
+        )}
+
+        {showTabs && (
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'ocr' | 'manual')}>
             <TabsList>
               <TabsTrigger value="ocr">
@@ -245,26 +295,57 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
           </Tabs>
         )}
 
-        {/* 폼 — 신규/수정 공용 */}
-        <CompanyForm form={form} setForm={setForm} />
+        {/* 폼 — fieldset 으로 readonly + 모드별 색상. 회사코드는 view/edit 에선 항상 readOnly. */}
+        <fieldset
+          disabled={isReadonly}
+          className={cn('form-stack', `form-mode-${currentMode}`)}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
+          <CompanyForm form={form} setForm={setForm} codeReadOnly={currentMode === 'view' || currentMode === 'edit'} />
+        </fieldset>
 
         {error && <div className="alert alert-warn" style={{ marginTop: 8 }}><Warning size={14} /> <span>{error}</span></div>}
 
         <DialogFooter>
-          {!isEdit && (
-            <button
-              className="btn"
-              style={{ marginRight: 'auto' }}
-              disabled={busy}
-              onClick={reset}
-            >
-              <ArrowCounterClockwise size={14} weight="bold" /> 초기화
-            </button>
+          {currentMode === 'view' ? (
+            <>
+              <DialogClose asChild><button className="btn">닫기</button></DialogClose>
+              <button className="btn btn-primary" onClick={() => setCurrentMode('edit')}>
+                <Pencil size={14} weight="bold" /> 수정
+              </button>
+            </>
+          ) : currentMode === 'edit' ? (
+            <>
+              <button
+                className="btn"
+                style={{ marginRight: 'auto' }}
+                onClick={() => { setError(''); setCurrentMode('view'); }}
+              >
+                취소 (조회로 복귀)
+              </button>
+              <DialogClose asChild><button className="btn">닫기</button></DialogClose>
+              <button className="btn btn-primary" disabled={busy} onClick={submit}>저장</button>
+            </>
+          ) : currentMode === 'duplicate' ? (
+            <>
+              <DialogClose asChild><button className="btn">취소</button></DialogClose>
+              <button className="btn btn-primary" disabled={busy} onClick={submit}>등록</button>
+            </>
+          ) : (
+            // create
+            <>
+              <button
+                className="btn"
+                style={{ marginRight: 'auto' }}
+                disabled={busy}
+                onClick={reset}
+              >
+                <ArrowCounterClockwise size={14} weight="bold" /> 초기화
+              </button>
+              <DialogClose asChild><button className="btn">취소</button></DialogClose>
+              <button className="btn btn-primary" disabled={busy} onClick={submit}>등록</button>
+            </>
           )}
-          <DialogClose asChild><button className="btn">취소</button></DialogClose>
-          <button className="btn btn-primary" disabled={busy} onClick={submit}>
-            {isEdit ? '수정' : '등록'}
-          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -322,13 +403,20 @@ function OcrStage({ busy, onPick, preview }: { busy: boolean; onPick: (f: File) 
 }
 
 /* ─── 회사 폼 (OCR + 수동 공용) ─────────────────────── */
-function CompanyForm({ form, setForm }: { form: FormState; setForm: (f: (prev: FormState) => FormState) => void }) {
+function CompanyForm({
+  form, setForm, codeReadOnly = true,
+}: {
+  form: FormState;
+  setForm: (f: (prev: FormState) => FormState) => void;
+  /** 회사코드 입력 잠금 — view/edit 은 잠금, create/duplicate 은 자동 추천값 편집 가능 */
+  codeReadOnly?: boolean;
+}) {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
     <div className="space-y-3" style={{ marginTop: 12 }}>
       <div className="form-grid">
-        <Input label="회사코드 (자동 부여 · 변경 불가)" value={form.code} onChange={(v) => set('code', v)} placeholder="CP01" colSpan={1} readOnly />
+        <Input label={codeReadOnly ? '회사코드 (변경 불가)' : '회사코드 (자동 부여 · 편집 가능)'} value={form.code} onChange={(v) => set('code', v)} placeholder="CP01" colSpan={1} readOnly={codeReadOnly} />
         <Input label="법인명 / 상호 *" value={form.name} onChange={(v) => set('name', v)} colSpan={3} />
         <Input label="대표자" value={form.ceo} onChange={(v) => set('ceo', v)} colSpan={1} />
         <Input label="사업자등록번호 *" value={form.bizNo} onChange={(v) => set('bizNo', v)} placeholder="000-00-00000" colSpan={1} />

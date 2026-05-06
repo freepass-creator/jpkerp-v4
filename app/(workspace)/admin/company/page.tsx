@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilSimple, Buildings } from '@phosphor-icons/react';
+import { PencilSimple, Buildings, Copy } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ADMIN_SUBTABS } from '@/lib/admin-subtabs';
@@ -9,6 +9,7 @@ import { type Company } from '@/lib/sample-companies';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import dynamic from 'next/dynamic';
+import type { CompanyDialogMode } from '@/components/admin/company-register-dialog';
 const CompanyRegisterDialog = dynamic(
   () => import('@/components/admin/company-register-dialog').then((m) => m.CompanyRegisterDialog),
   { ssr: false },
@@ -21,6 +22,7 @@ export default function AdminCompanyPage() {
   const [selected, setSelected] = useState<Company | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [editMode, setEditMode] = useState<CompanyDialogMode>('view');
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
   const audit = useAuditStamp();
 
@@ -42,11 +44,18 @@ export default function AdminCompanyPage() {
     audit.log({ action: 'update', entityType: 'company', entityId: stamped.code, label: stamped.name, before: selected, after: stamped });
   };
 
+  function openEdit(mode: CompanyDialogMode) {
+    if (!selected) return;
+    setEditMode(mode);
+    setEditOpen(true);
+  }
+
   // 삭제는 개발도구(/dev) 에서 최고관리자만.
   const existingCodes = companies.map((c) => c.code);
 
   const ctxItems: ContextMenuItem[] = [
-    { label: '수정', icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
+    { label: '수정', icon: <PencilSimple size={12} weight="bold" />, onClick: () => openEdit('edit') },
+    { label: '복사', icon: <Copy size={12} weight="bold" />,         onClick: () => openEdit('duplicate') },
   ];
 
   return (
@@ -56,8 +65,11 @@ export default function AdminCompanyPage() {
         footerLeft={<span className="stat-item">회사 <strong>{companies.length}</strong></span>}
         footerRight={
           <>
-            <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}>
+            <button className="btn" disabled={!selected} onClick={() => openEdit('edit')}>
               <PencilSimple size={14} weight="bold" /> 수정
+            </button>
+            <button className="btn" disabled={!selected} onClick={() => openEdit('duplicate')}>
+              <Copy size={14} weight="bold" /> 복사
             </button>
             <CompanyRegisterDialog
               open={registerOpen}
@@ -97,6 +109,7 @@ export default function AdminCompanyPage() {
               {companies.map((c, i) => (
                 <tr key={c.code || `__${i}__`} className={cn(selected?.code === c.code && 'selected')}
                     onClick={() => setSelected(c)}
+                    onDoubleClick={() => { setSelected(c); setEditMode('view'); setEditOpen(true); }}
                     onContextMenu={(ev) => { ev.preventDefault(); setSelected(c); setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY }); }}>
                   <td className="plate text-medium">{c.code}</td>
                   <td>{c.name}</td>
@@ -123,7 +136,9 @@ export default function AdminCompanyPage() {
         open={editOpen}
         onOpenChange={setEditOpen}
         initial={selected ?? undefined}
+        mode={editMode}
         onUpdate={handleUpdate}
+        onCreate={handleCreate}
         existingCodes={existingCodes}
         showTrigger={false}
       />

@@ -1,25 +1,25 @@
 'use client';
 
 /**
- * EntityFormDialog — 도메인 무관 schema-driven 등록·수정 다이얼로그.
+ * EntityFormDialog — 도메인 무관 schema-driven 등록·조회·수정·복사 다이얼로그.
+ *
+ * 4-mode (자산 다이얼로그 패턴):
+ *  - view      : readonly + 회색 dot. [닫기] [수정→edit]
+ *  - edit      : editable + 황색 dot.  [취소→view] [저장]
+ *  - create    : editable + 기본 색.   [취소] [등록]
+ *  - duplicate : editable + 녹색 dot.  [취소] [등록]
  *
  * 사용:
  *   <EntityFormDialog
- *     open={open}
- *     onOpenChange={setOpen}
- *     title="계약 등록"
- *     fields={[
- *       { key: 'contractNo', label: '계약번호', placeholder: 'CT260506NNNN' },
- *       { key: 'plate', label: '차량번호' },
- *       { key: 'startDate', label: '시작일', type: 'date' },
- *       ...
- *     ]}
- *     onSubmit={(data) => { onCreate(data); setOpen(false); }}
+ *     open={open} onOpenChange={setOpen}
+ *     title="계약" mode="view" sections={...} initial={...}
+ *     onSubmit={(data) => { onUpdate(data); setOpen(false); }}
  *   />
  */
 
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from './dialog';
+import { cn } from '@/lib/cn';
 
 export type FieldDef = {
   key: string;
@@ -38,10 +38,21 @@ export type FieldSection = {
   fields: FieldDef[];
 };
 
+export type EntityDialogMode = 'view' | 'edit' | 'create' | 'duplicate';
+
+const MODE_DOT: Record<EntityDialogMode, string> = {
+  view: '#9ca3af',       // 회색
+  edit: '#f59e0b',       // 황색
+  create: '#3b82f6',     // 파랑 (기본)
+  duplicate: '#22c55e',  // 녹색
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  /** 모드 — 미지정 시 'create' (구버전 호환) */
+  mode?: EntityDialogMode;
   /** 단순 평면 필드 목록 또는 섹션 단위 */
   fields?: FieldDef[];
   sections?: FieldSection[];
@@ -55,30 +66,56 @@ export function EntityFormDialog({
   open,
   onOpenChange,
   title,
+  mode = 'create',
   fields,
   sections,
   initial = {},
   size = 'lg',
-  submitLabel = '등록',
+  submitLabel,
   onSubmit,
 }: Props) {
   const [data, setData] = useState<Record<string, string>>(initial);
+  const [currentMode, setCurrentMode] = useState<EntityDialogMode>(mode);
 
   useEffect(() => {
-    if (open) setData(initial);
+    if (open) {
+      setData(initial);
+      setCurrentMode(mode);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, mode]);
 
   function setField(key: string, value: string) {
     setData((d) => ({ ...d, [key]: value }));
   }
 
   const allSections: FieldSection[] = sections ?? (fields ? [{ title: '', fields }] : []);
+  const isReadonly = currentMode === 'view';
+
+  // 모드별 색깔 dot 헤더
+  const titleNode = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span aria-hidden style={{
+        display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+        background: MODE_DOT[currentMode], flexShrink: 0,
+      }} />
+      <span>{title}</span>
+    </span>
+  );
+
+  const defaultSubmitLabel =
+    currentMode === 'edit' ? '저장' :
+    currentMode === 'duplicate' ? '등록' :
+    submitLabel ?? '등록';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={title} size={size}>
-        <div className="form-stack">
+      <DialogContent title={titleNode} size={size}>
+        <fieldset
+          disabled={isReadonly}
+          className={cn('form-stack', `form-mode-${currentMode}`)}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
           {allSections.map((section, i) => (
             <div key={i} className="form-section">
               {section.title && <div className="form-section-title">{section.title}</div>}
@@ -89,18 +126,35 @@ export function EntityFormDialog({
               </div>
             </div>
           ))}
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <DialogClose asChild>
-            <button className="btn">취소</button>
-          </DialogClose>
-          <button
-            className="btn btn-primary"
-            onClick={() => onSubmit(data)}
-          >
-            {submitLabel}
-          </button>
+          {currentMode === 'view' ? (
+            <>
+              <DialogClose asChild><button className="btn">닫기</button></DialogClose>
+              <button className="btn btn-primary" onClick={() => setCurrentMode('edit')}>수정</button>
+            </>
+          ) : currentMode === 'edit' ? (
+            <>
+              <button
+                className="btn"
+                style={{ marginRight: 'auto' }}
+                onClick={() => { setData(initial); setCurrentMode('view'); }}
+              >
+                취소 (조회로 복귀)
+              </button>
+              <DialogClose asChild><button className="btn">닫기</button></DialogClose>
+              <button className="btn btn-primary" onClick={() => onSubmit(data)}>저장</button>
+            </>
+          ) : (
+            // create / duplicate
+            <>
+              <DialogClose asChild><button className="btn">취소</button></DialogClose>
+              <button className="btn btn-primary" onClick={() => onSubmit(data)}>
+                {defaultSubmitLabel}
+              </button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
