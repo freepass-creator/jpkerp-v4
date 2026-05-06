@@ -23,16 +23,22 @@ export type Company = {
   code: string;                                    // CP01 — 사용자 부여
   name: string;                                    // 법인명/상호
   ceo: string;                                     // 대표자
+  ceoType?: string;                                // 대표유형 (등록증 "(대표유형)" 칸 — 대부분 비어있음)
   bizNo: string;                                   // 사업자등록번호
   corpNo?: string;                                 // 법인등록번호 (법인만)
   hqAddress: string;                               // 본점주소
   bizAddress?: string;                             // 사업장주소 (본점과 다를 때)
-  bizType: string;                                 // 업태
-  bizCategory: string;                             // 업종
+  bizType: string;                                 // 업태 — 멀티값은 ", " join (예: "서비스, 부동산업")
+  bizCategory: string;                             // 종목 — 멀티값은 ", " join (예: "렌터카, 매매업")
   phone: string;                                   // 대표전화
   openDate?: string;                               // 개업연월일 YYYY-MM-DD
   email?: string;
   entityType?: 'corporate' | 'individual';         // 법인/개인
+  // 등록증 하단부 — 발급 정보
+  taxIssueDate?: string;                           // 등록증 발급일자 YYYY-MM-DD
+  taxOffice?: string;                              // 발급 세무서 (예: "강서세무서")
+  issueReason?: string;                            // 발급사유 (대부분 비어있음)
+  singleTaxFlag?: boolean;                         // 사업자단위 과세 적용사업자 여부 (여=true, 부=false)
   accounts?: CompanyAccount[];
   cards?: CompanyCard[];
   /** 소프트 삭제 — 코드 영구 보존 (회사코드 재발급 금지, 자산·계약 역참조 무결성 유지). */

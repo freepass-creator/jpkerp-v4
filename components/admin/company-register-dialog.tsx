@@ -19,6 +19,7 @@ type FormState = {
   code: string;
   name: string;
   ceo: string;
+  ceoType: string;
   bizNo: string;
   corpNo: string;
   openDate: string;
@@ -29,14 +30,19 @@ type FormState = {
   phone: string;
   email: string;
   entityType: 'corporate' | 'individual' | '';
+  taxIssueDate: string;
+  taxOffice: string;
+  issueReason: string;
+  singleTaxFlag: 'yes' | 'no' | '';
   accounts: CompanyAccount[];
   cards: CompanyCard[];
 };
 
 const EMPTY_FORM: FormState = {
-  code: '', name: '', ceo: '', bizNo: '', corpNo: '', openDate: '',
+  code: '', name: '', ceo: '', ceoType: '', bizNo: '', corpNo: '', openDate: '',
   hqAddress: '', bizAddress: '', bizType: '', bizCategory: '',
   phone: '', email: '', entityType: '',
+  taxIssueDate: '', taxOffice: '', issueReason: '', singleTaxFlag: '',
   accounts: [], cards: [],
 };
 
@@ -78,6 +84,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         code: initial.code,
         name: initial.name,
         ceo: initial.ceo ?? '',
+        ceoType: initial.ceoType ?? '',
         bizNo: initial.bizNo ?? '',
         corpNo: initial.corpNo ?? '',
         openDate: initial.openDate ?? '',
@@ -88,6 +95,10 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         phone: initial.phone ?? '',
         email: initial.email ?? '',
         entityType: initial.entityType ?? '',
+        taxIssueDate: initial.taxIssueDate ?? '',
+        taxOffice: initial.taxOffice ?? '',
+        issueReason: initial.issueReason ?? '',
+        singleTaxFlag: initial.singleTaxFlag === true ? 'yes' : initial.singleTaxFlag === false ? 'no' : '',
         accounts: initial.accounts ? [...initial.accounts] : [],
         cards: initial.cards ? [...initial.cards] : [],
       });
@@ -122,10 +133,12 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
       if (!json.ok) throw new Error(json.error || 'OCR 실패');
       const ex = json.extracted as Record<string, string | null>;
 
+      const single = (ex as Record<string, unknown>).single_tax_flag;
       setForm((prev) => ({
         ...prev,
         name: ex.partner_name ?? '',
         ceo: ex.ceo ?? '',
+        ceoType: ex.ceo_type ?? '',
         bizNo: ex.biz_no ?? '',
         corpNo: ex.corp_no ?? '',
         openDate: normalizeKoreanDate(ex.open_date) ?? '',
@@ -135,6 +148,10 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         bizCategory: ex.category ?? '',
         email: ex.email ?? '',
         entityType: (ex.entity_type === 'individual' ? 'individual' : 'corporate'),
+        taxIssueDate: normalizeKoreanDate(ex.issue_date) ?? '',
+        taxOffice: ex.tax_office ?? '',
+        issueReason: ex.issue_reason ?? '',
+        singleTaxFlag: single === true ? 'yes' : single === false ? 'no' : '',
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -167,6 +184,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
       code,
       name: form.name.trim(),
       ceo: form.ceo.trim(),
+      ceoType: form.ceoType.trim() || undefined,
       bizNo: form.bizNo.trim(),
       corpNo: form.corpNo.trim() || undefined,
       hqAddress: form.hqAddress.trim(),
@@ -177,6 +195,10 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
       openDate: form.openDate.trim() || undefined,
       email: form.email.trim() || undefined,
       entityType: form.entityType || undefined,
+      taxIssueDate: form.taxIssueDate.trim() || undefined,
+      taxOffice: form.taxOffice.trim() || undefined,
+      issueReason: form.issueReason.trim() || undefined,
+      singleTaxFlag: form.singleTaxFlag === 'yes' ? true : form.singleTaxFlag === 'no' ? false : undefined,
       accounts: form.accounts.filter((a) => a.bank.trim() && a.accountNo.trim()),
       cards: form.cards.filter((c) => c.cardName.trim() && c.cardNo.trim()),
     };
@@ -223,7 +245,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, existingCod
         )}
 
         {/* 폼 — 신규/수정 공용 */}
-        <CompanyForm form={form} setForm={setForm} isEdit={isEdit} />
+        <CompanyForm form={form} setForm={setForm} />
 
         {error && <div className="alert alert-warn" style={{ marginTop: 8 }}><Warning size={14} /> <span>{error}</span></div>}
 
@@ -299,13 +321,13 @@ function OcrStage({ busy, onPick, preview }: { busy: boolean; onPick: (f: File) 
 }
 
 /* ─── 회사 폼 (OCR + 수동 공용) ─────────────────────── */
-function CompanyForm({ form, setForm, isEdit }: { form: FormState; setForm: (f: (prev: FormState) => FormState) => void; isEdit?: boolean }) {
+function CompanyForm({ form, setForm }: { form: FormState; setForm: (f: (prev: FormState) => FormState) => void }) {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
     <div className="space-y-3" style={{ marginTop: 12 }}>
       <div className="form-grid">
-        <Input label={isEdit ? '회사코드 (변경 불가)' : '회사코드 *'} value={form.code} onChange={(v) => set('code', v)} placeholder="CP03" colSpan={1} readOnly={isEdit} />
+        <Input label="회사코드 (자동 부여 · 변경 불가)" value={form.code} onChange={(v) => set('code', v)} placeholder="CP01" colSpan={1} readOnly />
         <Input label="법인명 / 상호 *" value={form.name} onChange={(v) => set('name', v)} colSpan={3} />
         <Input label="대표자" value={form.ceo} onChange={(v) => set('ceo', v)} colSpan={1} />
         <Input label="사업자등록번호 *" value={form.bizNo} onChange={(v) => set('bizNo', v)} placeholder="000-00-00000" colSpan={1} />
@@ -318,8 +340,15 @@ function CompanyForm({ form, setForm, isEdit }: { form: FormState; setForm: (f: 
         <Input label="이메일" value={form.email} onChange={(v) => set('email', v)} colSpan={2} />
         <Input label="본점주소" value={form.hqAddress} onChange={(v) => set('hqAddress', v)} colSpan={4} />
         <Input label="사업장주소 (본점과 다를 때만)" value={form.bizAddress} onChange={(v) => set('bizAddress', v)} colSpan={4} />
-        <Input label="업태" value={form.bizType} onChange={(v) => set('bizType', v)} colSpan={2} />
-        <Input label="업종" value={form.bizCategory} onChange={(v) => set('bizCategory', v)} colSpan={2} />
+        <Input label="업태 (멀티값은 콤마 구분)" value={form.bizType} onChange={(v) => set('bizType', v)} placeholder="서비스, 부동산업" colSpan={2} />
+        <Input label="종목 (멀티값은 콤마 구분)" value={form.bizCategory} onChange={(v) => set('bizCategory', v)} placeholder="렌터카, 매매업" colSpan={2} />
+        <Input label="대표유형" value={form.ceoType} onChange={(v) => set('ceoType', v)} placeholder="(보통 비어있음)" colSpan={1} />
+        <Input label="발급일자" value={form.taxIssueDate} onChange={(v) => set('taxIssueDate', v)} placeholder="YYYY-MM-DD" type="date" colSpan={1} />
+        <Input label="발급 세무서" value={form.taxOffice} onChange={(v) => set('taxOffice', v)} placeholder="강서세무서" colSpan={1} />
+        <Select label="사업자단위 과세" value={form.singleTaxFlag}
+                options={[['', '- 미선택 -'], ['yes', '여'], ['no', '부']]}
+                onChange={(v) => set('singleTaxFlag', v as FormState['singleTaxFlag'])} colSpan={1} />
+        <Input label="발급사유" value={form.issueReason} onChange={(v) => set('issueReason', v)} placeholder="(보통 비어있음)" colSpan={4} />
       </div>
 
       {/* 계좌 */}

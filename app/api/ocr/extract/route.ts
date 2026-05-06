@@ -76,21 +76,28 @@ const VEHICLE_REG_SCHEMA = {
 const BUSINESS_REG_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    biz_no: { type: Type.STRING, nullable: true },
-    corp_no: { type: Type.STRING, nullable: true },
-    partner_name: { type: Type.STRING, nullable: true },
-    ceo: { type: Type.STRING, nullable: true },
-    open_date: { type: Type.STRING, nullable: true },
-    address: { type: Type.STRING, nullable: true },
-    hq_address: { type: Type.STRING, nullable: true },
-    industry: { type: Type.STRING, nullable: true },
-    category: { type: Type.STRING, nullable: true },
-    email: { type: Type.STRING, nullable: true },
+    biz_no: { type: Type.STRING, nullable: true, description: '등록번호 XXX-XX-XXXXX' },
+    corp_no: { type: Type.STRING, nullable: true, description: '법인등록번호 XXXXXX-XXXXXXX (법인만)' },
+    partner_name: { type: Type.STRING, nullable: true, description: '법인명(단체명) — 주식회사 포함 그대로' },
+    ceo: { type: Type.STRING, nullable: true, description: '대표자 이름' },
+    ceo_type: { type: Type.STRING, nullable: true, description: '대표유형 — 비어있을 수 있음. 있으면 그대로 (예: "대표")' },
+    open_date: { type: Type.STRING, nullable: true, description: '개업연월일 YYYY-MM-DD' },
+    address: { type: Type.STRING, nullable: true, description: '사업장 소재지' },
+    hq_address: { type: Type.STRING, nullable: true, description: '본점 소재지 (사업장과 같으면 같은 값)' },
+    industry: { type: Type.STRING, nullable: true, description: '업태 — 여러 개면 콤마 join (예: "서비스, 부동산업")' },
+    category: { type: Type.STRING, nullable: true, description: '종목 — 여러 개면 콤마 join (예: "렌터카, 매매업")' },
+    email: { type: Type.STRING, nullable: true, description: '전자세금계산서 전용 전자우편주소' },
     entity_type: { type: Type.STRING, enum: ['corporate', 'individual'] },
+    // 추가 — 등록증 하단부
+    issue_date: { type: Type.STRING, nullable: true, description: '발급일자 YYYY-MM-DD (등록증 하단)' },
+    tax_office: { type: Type.STRING, nullable: true, description: '발급 세무서 (예: "강서세무서")' },
+    issue_reason: { type: Type.STRING, nullable: true, description: '발급사유 — 비어있을 수 있음 (신규/정정/재발급 등)' },
+    single_tax_flag: { type: Type.BOOLEAN, nullable: true, description: '사업자단위 과세 적용사업자 여부 — 여(✓) true / 부(✓) false' },
   },
   required: [
-    'biz_no', 'corp_no', 'partner_name', 'ceo', 'open_date', 'address',
+    'biz_no', 'corp_no', 'partner_name', 'ceo', 'ceo_type', 'open_date', 'address',
     'hq_address', 'industry', 'category', 'email', 'entity_type',
+    'issue_date', 'tax_office', 'issue_reason', 'single_tax_flag',
   ],
 };
 
@@ -284,7 +291,24 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
   },
   business_reg: {
     label: '사업자등록증',
-    prompt: `이 문서는 한국 사업자등록증입니다. 사업자등록번호 XXX-XX-XXXXX, 법인등록번호 XXXXXX-XXXXXXX. 개인사업자는 corp_no=null. 값 없으면 null.`,
+    prompt: `이 문서는 한국 사업자등록증 (법인 또는 개인) 입니다.
+
+핵심 추출 규칙:
+- biz_no: 등록번호 XXX-XX-XXXXX
+- corp_no: 법인등록번호 XXXXXX-XXXXXXX (개인사업자면 null)
+- partner_name: 법인명(단체명) — "주식회사 OOO" 그대로
+- ceo: 대표자 이름. (대표유형) 표기는 ceo_type 으로 분리
+- open_date / issue_date: "2017 년 01 월 01 일" 같은 한글 표기도 YYYY-MM-DD 로 변환
+- address: 사업장 소재지
+- hq_address: 본점 소재지 (사업장과 동일하면 같은 값 그대로)
+- industry: 업태 — **여러 개일 수 있음**. 등록증 표 안에 줄 바꿔 여러 항목이면 콤마+공백 join. 예: "서비스" + "부동산업" → "서비스, 부동산업"
+- category: 종목 — 동일 규칙. 예: "렌터카, 매매업"
+- tax_office: 세무서장 위 표기 (예: "강서세무서")
+- single_tax_flag: 사업자단위 과세 적용사업자 여부. 여(✓) → true, 부(✓) → false. 둘 다 비면 null
+- issue_reason: 발급사유 칸 — 보통 비어있음. 비었으면 null
+- entity_type: "법인사업자" → corporate, 개인 → individual
+
+값 없으면 null. 한글 그대로 보존 (정규화 X).`,
     schema: BUSINESS_REG_SCHEMA,
   },
   insurance_policy: {
