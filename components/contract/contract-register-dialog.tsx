@@ -12,7 +12,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import type { Asset } from '@/lib/sample-assets';
 import type { Contract, CustomerKind, AdditionalDriver } from '@/lib/sample-contracts';
-import { activeCompanies } from '@/lib/sample-companies';
+import { activeCompanies, type Company } from '@/lib/sample-companies';
 import { fileToDataUrl } from '@/lib/image-compress';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
 
@@ -59,10 +59,15 @@ const SHEET_HEADERS: Array<[keyof ContractDraft, string]> = [
 ];
 
 /* ─── OCR (rental_contract) → ContractDraft 매핑 ───
-   plate 가 등록 자산과 매칭되면 그 자산의 companyCode 자동 채움. */
+   companyCode 결정 우선순위:
+     1. plate 매칭 자산이 있으면 그 자산의 companyCode (운영 데이터 일관성)
+     2. OCR 추출 company_biz_no 가 등록된 회사와 매칭 (정규화: 하이픈/공백 제거)
+     3. company_name 정확 일치 매칭
+     4. 위 모두 실패 — 빈 값, 사용자가 수동 선택 */
 function mapContractOcr(
   raw: Record<string, unknown>,
   assets: readonly Asset[],
+  companies: readonly Company[],
 ): Partial<ContractDraft> {
   const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -81,8 +86,24 @@ function mapContractOcr(
     : '개인';
   const plate = str(raw.car_number);
   const matchedAsset = plate ? assets.find((a) => a.plate === plate) : undefined;
+
+  // 회사 매칭 — 1) 자산 fallback 2) biz_no 정규화 비교 3) name 정확일치
+  const companyBizNoNorm = str(raw.company_biz_no).replace(/[\s\-]/g, '');
+  const companyName = str(raw.company_name);
+  const matchedByBizNo = companyBizNoNorm
+    ? companies.find((c) => !c.deletedAt && c.bizNo.replace(/[\s\-]/g, '') === companyBizNoNorm)
+    : undefined;
+  const matchedByName = !matchedByBizNo && companyName
+    ? companies.find((c) => !c.deletedAt && c.name === companyName)
+    : undefined;
+  const resolvedCompanyCode =
+    matchedAsset?.companyCode
+    ?? matchedByBizNo?.code
+    ?? matchedByName?.code
+    ?? '';
+
   return {
-    companyCode: matchedAsset?.companyCode ?? '',       // 자산 매칭 시 자동 / 아니면 사용자 선택
+    companyCode: resolvedCompanyCode,
     plate,
     customerName: str(raw.contractor_name),
     customerKind,
@@ -222,7 +243,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
       id, fileName: file.name, _status: 'pending',
       data: { ...EMPTY_DRAFT },
     }),
-    applyResult: (prev, raw) => ({ ...prev, data: { ...prev.data, ...mapContractOcr(raw, assets) } }),
+    applyResult: (prev, raw) => ({ ...prev, data: { ...prev.data, ...mapContractOcr(raw, assets, companies) } }),
   });
   const ocrOk = ocr.items.filter((i) => i._status === 'done' && validateDraft(i.data).length === 0);
 
