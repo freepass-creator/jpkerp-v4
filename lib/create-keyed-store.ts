@@ -66,12 +66,16 @@ export function createKeyedStore<T>(opts: Options<T>) {
     return out;
   }
 
+  /** 첫 onValue fire 후 true. 그 전엔 setItems 가 RTDB write 거부 (레이스 컨디션 데이터 손실 방지). */
+  let initialized = false;
+
   function ensureSubscription() {
     if (subscribed || typeof window === 'undefined') return;
     subscribed = true;
     onValue(ref(getRtdb(), path), (snap) => {
       const v = fromRtdb(snap.val());
       cache = v;
+      initialized = true;
       listeners.forEach((l) => l(v));
     });
   }
@@ -88,6 +92,14 @@ export function createKeyedStore<T>(opts: Options<T>) {
     }, []);
 
     const setItems = useCallback((updater: T[] | ((prev: T[]) => T[])) => {
+      // 초기 로드 전 write 거부 — RTDB 가 비어있다고 오해해서 통째 덮어쓰는 사고 방지
+      if (!initialized) {
+        console.warn(`[${storeName}] write rejected — RTDB initial load 미완료. 사용자 액션 재시도 필요`);
+        if (typeof window !== 'undefined') {
+          alert(`${alertLabel ?? path} 저장 보류 — 데이터 로딩 중입니다. 1초 후 다시 시도해주세요.`);
+        }
+        return;
+      }
       const prev = cache;
       const next = typeof updater === 'function' ? (updater as (p: T[]) => T[])(prev) : updater;
       cache = next;
