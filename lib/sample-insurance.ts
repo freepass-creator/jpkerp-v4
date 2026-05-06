@@ -86,3 +86,8 @@ export function installmentSum(p: InsurancePolicy): number {
 }
 
 export const SAMPLE_INSURANCE: InsurancePolicy[] = [];
+
+/** active 보험증권만 (UI 드롭다운·신규 매칭용). */
+export function activeInsurances(policies: readonly InsurancePolicy[]): InsurancePolicy[] {
+  return policies.filter((p) => !p.deletedAt);
+}

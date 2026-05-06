@@ -12,6 +12,7 @@ import type { PenaltyWorkItem } from '@/lib/penalty-pdf';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
+import { normalizeKoreanDate } from '@/lib/parsers/date';
 
 type WorkItem = PenaltyWorkItem & OcrBatchItem;
 
@@ -66,14 +67,14 @@ export function PenaltyRegisterDialog({ onCreate, open: openProp, onOpenChange, 
         doc_type: (raw.doc_type as string) ?? '',
         notice_no: (raw.notice_no as string) ?? '',
         issuer: (raw.issuer as string) ?? '',
-        issue_date: (raw.issue_date as string) ?? '',
+        issue_date: normalizeKoreanDate(raw.issue_date as string | null | undefined),
         car_number: carNumber,
-        date: (raw.date as string) ?? '',
+        date: normalizeKoreanDate(raw.date as string | null | undefined),
         location: (raw.location as string) ?? '',
         description: (raw.description as string) ?? '',
         law_article: (raw.law_article as string) ?? '',
         amount: typeof raw.amount === 'number' ? raw.amount : 0,
-        due_date: (raw.due_date as string) ?? '',
+        due_date: normalizeKoreanDate(raw.due_date as string | null | undefined),
         pay_account: (raw.pay_account as string) ?? '',
         _contract: matched ? {
           contractor_name: matched.customerName,

@@ -10,7 +10,7 @@ const InsuranceRegisterDialog = dynamic(
   () => import('@/components/insurance/insurance-register-dialog').then((m) => m.InsuranceRegisterDialog),
   { ssr: false },
 );
-import { type InsurancePolicy, daysToExpiry } from '@/lib/sample-insurance';
+import { activeInsurances, type InsurancePolicy, daysToExpiry } from '@/lib/sample-insurance';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { exportToExcel } from '@/lib/excel-export';
@@ -22,7 +22,7 @@ const MAX_CYCLES = 6;  // 표준 자동차보험 6회 분납
 export default function AssetInsurancePage() {
   const [allPolicies, setPolicies] = useInsuranceStore();
   // active 만 — 소프트 삭제는 목록·집계에서 제외 (증권번호 등 영구 보존)
-  const policies = useMemo(() => allPolicies.filter((p) => !p.deletedAt), [allPolicies]);
+  const policies = useMemo(() => activeInsurances(allPolicies), [allPolicies]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const subTabPending = useAssetSubtabPending();
   const audit = useAuditStamp();
@@ -46,7 +46,7 @@ export default function AssetInsurancePage() {
 
   function clearAll() {
     if (!confirm(`전체 ${policies.length}건 보험증권을 삭제할까요? (증권번호 영구 보존 — 재발급 안 됨)`)) return;
-    const targets = policies.filter((p) => !p.deletedAt);
+    const targets = activeInsurances(policies);
     setPolicies((p) => p.map((i) => i.deletedAt ? i : { ...i, ...audit.delete() }));
     targets.forEach((p) => audit.log({
       action: 'delete', entityType: 'insurance', entityId: p.id, label: `${p.carNumber ?? ''} ${p.policyNo ?? ''}`.trim(), before: p,

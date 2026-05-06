@@ -14,6 +14,7 @@ import type { Asset } from '@/lib/sample-assets';
 import type { Contract, CustomerKind, AdditionalDriver } from '@/lib/sample-contracts';
 import { activeCompanies } from '@/lib/sample-companies';
 import { fileToDataUrl } from '@/lib/image-compress';
+import { normalizeKoreanDate } from '@/lib/parsers/date';
 
 /**
  * 계약 등록 통합 다이얼로그 — 3 모드:
@@ -79,8 +80,8 @@ function mapContractOcr(
     customerKind,
     customerIdent: str(raw.contractor_ident),
     customerPhone: str(raw.contractor_phone),
-    startDate: str(raw.start_date),
-    endDate: str(raw.end_date),
+    startDate: normalizeKoreanDate(str(raw.start_date)),
+    endDate: normalizeKoreanDate(str(raw.end_date)),
     monthlyAmount: num(raw.monthly_amount),
     deposit: num(raw.deposit_total),
   };

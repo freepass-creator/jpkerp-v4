@@ -6,6 +6,7 @@ import { UserList } from '@phosphor-icons/react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
+import { activeContracts } from '@/lib/sample-contracts';
 import { cn } from '@/lib/cn';
 
 /**
@@ -37,7 +38,7 @@ const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10, 
 export default function ContractCustomerPage() {
   const [allContracts] = useContractStore();
   // 소프트 삭제 계약 제외 — 임차인 마스터는 active 계약 기반.
-  const contracts = useMemo(() => allContracts.filter((c) => !c.deletedAt), [allContracts]);
+  const contracts = useMemo(() => activeContracts(allContracts), [allContracts]);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

@@ -9,7 +9,8 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
-import { type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
+import { activeContracts, type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
+import { activeAssets } from '@/lib/sample-assets';
 import { EntityFormDialog, type FieldDef, type FieldSection } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
@@ -19,6 +20,7 @@ import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextDateScopedCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { genId } from '@/lib/ids';
 import { cn } from '@/lib/cn';
 
 /** 수정·복사용 폼 — 섹션 단위. 등록은 ContractRegisterDialog 사용. */
@@ -94,8 +96,8 @@ export default function ContractListPage() {
   const [allContracts, setContracts] = useContractStore();
   const [allAssets, setAssets] = useAssetStore();
   // active 만 — 소프트 삭제는 목록·집계에서 제외 (코드는 영구 보존)
-  const contracts = useMemo(() => allContracts.filter((c) => !c.deletedAt), [allContracts]);
-  const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
+  const contracts = useMemo(() => activeContracts(allContracts), [allContracts]);
+  const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
   const { search } = useTopbarSearch();
   const [selected, setSelected] = useState<Contract | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -124,7 +126,7 @@ export default function ContractListPage() {
   /** ContractDraft (필수 10필드) → Contract 완성 + 수납 스케줄 자동 생성 */
   function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>): Contract {
     return {
-      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('c'),
       contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo)),
       ...draft,
       status: '운행중',
@@ -141,7 +143,7 @@ export default function ContractListPage() {
     const mileageRaw = Number(d.mileageLimitKm);
     const paymentDayRaw = Number(d.paymentDay);
     return {
-      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('c'),
       companyCode: d.companyCode || '',
       contractNo,
       plate: d.plate || '',

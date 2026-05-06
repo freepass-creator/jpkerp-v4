@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/use-auth';
 import { compressImage } from '@/lib/image-compress';
 import { uploadFiles } from '@/lib/firebase/storage';
 import { pushEventUpload, type EventUploadKind, type EventUploadFile } from '@/lib/use-event-uploads-store';
+import { genId } from '@/lib/ids';
 
 /**
  * 모바일 업로드 — 4 카테고리 (출고/반납/상품화/기타) + 차량 + 사진/파일.
@@ -93,7 +94,7 @@ export default function MobileUploadPage() {
     if (room <= 0) { setError(`최대 ${MAX_FILES}개까지 가능`); return; }
     const list = Array.from(picked).slice(0, room);
     const newItems: FileItem[] = list.map((f) => ({
-      id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('f'),
       source: f,
       prepared: null,
     }));

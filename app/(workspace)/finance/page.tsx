@@ -17,6 +17,7 @@ import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { dedupAgainst } from '@/lib/ledger-dedup';
 import { exportToExcel } from '@/lib/excel-export';
+import { genId } from '@/lib/ids';
 
 const LEDGER_FIELDS: FieldDef[] = [
   { key: 'companyCode',     label: '회사코드',  placeholder: 'CP01', required: true },
@@ -47,7 +48,7 @@ export default function FinanceLedgerPage() {
 
   function fromForm(d: Record<string, string>): Omit<LedgerEntry, 'subject' | 'matchedContract'> {
     return {
-      id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('l'),
       companyCode: d.companyCode || 'CP01',
       account: d.account || undefined,
       txDate: d.txDate || new Date().toISOString().slice(0, 16).replace('T', ' '),

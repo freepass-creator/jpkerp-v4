@@ -19,11 +19,12 @@ const AssetEditDialog = dynamic(
 );
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
-import { type Asset, type AssetStatus } from '@/lib/sample-assets';
+import { activeAssets, type Asset, type AssetStatus } from '@/lib/sample-assets';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { nextCompanyScopedCode } from '@/lib/code-gen';
+import { genId } from '@/lib/ids';
 import { downloadContractTemplate } from '@/lib/contract-template';
 import Link from 'next/link';
 import { Buildings } from '@phosphor-icons/react';
@@ -32,7 +33,7 @@ export default function AssetListPage() {
   const [allAssets, setAssets] = useAssetStore();
   const [allCompanies] = useCompanyStore();
   // active 자산만 — 소프트 삭제된 자산은 목록·집계에서 제외 (자산코드는 영구 보존)
-  const assets = useMemo(() => allAssets.filter((a) => !a.deletedAt), [allAssets]);
+  const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
   const hasCompany = useMemo(() => allCompanies.some((c) => !c.deletedAt), [allCompanies]);
   const [selected, setSelected] = useState<Asset | null>(null);
   const { search } = useTopbarSearch();
@@ -75,7 +76,7 @@ export default function AssetListPage() {
     const existingCodes = allAssets.map((a) => a.assetCode).filter((c): c is string => !!c);
     const assetCode = nextCompanyScopedCode('VH', companyCode, existingCodes, { pad: 4 });
     const next: Asset = {
-      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('a'),
       companyCode,
       plate: partial.plate ?? '',
       firstRegistDate: partial.firstRegistDate ?? '',

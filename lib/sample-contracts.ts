@@ -227,3 +227,8 @@ export function summarizeContract(c: Contract): ContractSummary {
     nextEvent,
   };
 }
+
+/** active 계약만 (UI 드롭다운·신규 매칭용). */
+export function activeContracts(contracts: readonly Contract[]): Contract[] {
+  return contracts.filter((c) => !c.deletedAt);
+}

@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseBankExcel, parseBankSheet, type BankImportResult } from '@/lib/bank-import';
 import type { LedgerEntry, LedgerMethod } from '@/lib/sample-finance';
 import { activeCompanies, type Company, type CompanyAccount } from '@/lib/sample-companies';
+import { genId } from '@/lib/ids';
 
 /**
  * 계좌내역 등록 — 자산등록 다이얼로그와 동일 패턴 (Tabs):
@@ -321,7 +322,7 @@ function ManualForm({
   function submit() {
     if (!canSubmit) return;
     onSubmit({
-      id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: genId('l'),
       companyCode,
       account: account || undefined,
       txDate,

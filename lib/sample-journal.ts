@@ -62,3 +62,8 @@ export type JournalEntry = {
 } & AuditFields;
 
 export const SAMPLE_JOURNAL: JournalEntry[] = [];
+
+/** active 업무일지만 (UI 표시용). */
+export function activeJournalEntries(entries: readonly JournalEntry[]): JournalEntry[] {
+  return entries.filter((e) => !e.deletedAt);
+}

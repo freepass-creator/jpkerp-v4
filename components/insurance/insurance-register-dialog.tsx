@@ -11,6 +11,7 @@ import { splitPdfPages } from '@/lib/pdf-split';
 import { pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
 import { runWithConcurrency } from '@/lib/parallel';
 import { fileToDataUrl } from '@/lib/image-compress';
+import { normalizeKoreanDate } from '@/lib/parsers/date';
 
 // Gemini Tier 1 (1,000 RPM, 약 16.7 RPS). 호출당 ~3초 → 동시 30 = ~10 RPS = 600 RPM, 안전 마진.
 // 100건 PDF가 ~10초에 처리됨. 무료 티어면 2~3으로, Tier 2/3면 50+로 조정.
@@ -117,8 +118,8 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
             contractor: (ex.contractor as string) ?? '',
             insured: (ex.insured as string) ?? '',
             bizNo: (ex.biz_no as string) ?? '',
-            startDate: (ex.start_date as string) ?? '',
-            endDate: (ex.end_date as string) ?? '',
+            startDate: normalizeKoreanDate(ex.start_date as string | null | undefined),
+            endDate: normalizeKoreanDate(ex.end_date as string | null | undefined),
             carNumber,
             carName: (ex.car_name as string) ?? '',
             carYear: typeof ex.car_year === 'number' ? ex.car_year : undefined,

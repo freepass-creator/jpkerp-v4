@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import type { Company, CompanyAccount, CompanyCard } from '@/lib/sample-companies';
 import { nextCompanyCode } from '@/lib/code-gen';
+import { normalizeKoreanDate } from '@/lib/parsers/date';
 
 /**
  * 회사 등록 — 자산등록 다이얼로그와 동일 패턴 (Tabs):
@@ -390,18 +391,6 @@ function updateAt<T>(arr: T[], i: number, v: T): T[] {
   const next = arr.slice();
   next[i] = v;
   return next;
-}
-
-/** OCR 추출한 날짜 문자열 → ISO (yyyy-MM-dd). "2017년 01월 01일", "2017.01.01", "2017/01/01" 등 모두 처리.
- *  이미 yyyy-MM-dd 면 그대로. 변환 실패면 빈 문자열 (date input 거부 회피). */
-function normalizeKoreanDate(s: string | null | undefined): string {
-  if (!s) return '';
-  const t = String(s).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  const m = t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-  if (!m) return '';
-  const [, y, mo, d] = m;
-  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
 /* ─── 작은 폼 컴포넌트 ─────────────────────────────── */

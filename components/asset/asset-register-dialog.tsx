@@ -15,6 +15,7 @@ import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
 import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
 import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
 import { fileToImageDataUrl, pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
+import { normalizeKoreanDate } from '@/lib/parsers/date';
 
 type DuplicateReason = 'plate' | 'vin' | null;
 type AssetWorkItem = OcrBatchItem & {
@@ -35,8 +36,8 @@ function mapVehicleRegToAsset(
   return {
     companyCode: matched?.code ?? '',
     documentNo: str(ex.document_no),
-    firstRegistDate: str(ex.first_registration_date) ?? '',
-    certIssueDate: str(ex.cert_issue_date),
+    firstRegistDate: normalizeKoreanDate(str(ex.first_registration_date)),
+    certIssueDate: normalizeKoreanDate(str(ex.cert_issue_date)) || undefined,
     plate: str(ex.car_number) ?? '',
     vehicleClass: str(ex.category_hint) ?? '',
     usage: str(ex.usage_type) ?? '',
@@ -60,8 +61,8 @@ function mapVehicleRegToAsset(
     cylinders: str(ex.cylinders),
     fuelType: str(ex.fuel_type),
     fuelEfficiency: num(ex.fuel_efficiency),
-    inspectionFrom: str(ex.inspection_from),
-    inspectionTo: str(ex.inspection_to),
+    inspectionFrom: normalizeKoreanDate(str(ex.inspection_from)) || undefined,
+    inspectionTo: normalizeKoreanDate(str(ex.inspection_to)) || undefined,
     mileage: num(ex.mileage),
     inspectionType: str(ex.inspection_type),
     acquisitionPrice: num(ex.acquisition_price),

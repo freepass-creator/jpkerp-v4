@@ -94,3 +94,8 @@ export type Asset = {
 
 /** 실데이터는 사용자가 OCR 또는 개별 입력으로 채움. 샘플 없음. */
 export const SAMPLE_ASSETS: Asset[] = [];
+
+/** active 차량만 (UI 드롭다운·신규 매칭용). */
+export function activeAssets(assets: readonly Asset[]): Asset[] {
+  return assets.filter((a) => !a.deletedAt);
+}
