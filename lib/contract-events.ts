@@ -50,8 +50,9 @@ export function buildEventsWithOverdue(
   endDate: string,
   monthlyAmount: number,
   overdueCyclesRaw: string | undefined,
+  opts: { autopayDay?: number; engineOilService?: boolean } = {},
 ): Contract['events'] {
-  const events = generateContractSchedule(startDate, endDate, monthlyAmount);
+  const events = generateContractSchedule(startDate, endDate, monthlyAmount, opts);
   if (events.length === 0) return [];
   const today = todayStr();
   const policy = parseOverduePolicy(overdueCyclesRaw);

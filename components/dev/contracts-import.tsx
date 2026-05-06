@@ -166,7 +166,10 @@ export function ContractsImportPanel() {
           const startDate = d.startDate ?? '';
           const endDate = d.endDate ?? '';
           const monthlyAmount = d.monthlyAmount ?? 0;
-          const events = buildEventsWithOverdue(startDate, endDate, monthlyAmount, d.overdueCyclesRaw ?? '');
+          const events = buildEventsWithOverdue(startDate, endDate, monthlyAmount, d.overdueCyclesRaw ?? '', {
+            autopayDay: d.paymentDay,
+            engineOilService: d.engineOilService,
+          });
           const computedStatus: Contract['status'] = endDate && endDate < todayStr() ? '만기' : '운행중';
 
           if (r.isUpdate && r.matchedId) {

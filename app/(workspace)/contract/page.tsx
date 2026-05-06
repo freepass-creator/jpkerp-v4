@@ -40,20 +40,27 @@ const CONTRACT_REQUIRED_FIELDS: FieldDef[] = [
   { key: 'deposit',        label: '보증금',    type: 'number' },
 ];
 
+const BOOLEAN_TRISTATE_OPTIONS = ['가입', '미가입'];
+
 const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   {
     title: '임차인 추가 정보',
     fields: [
       { key: 'customerLicenseNo', label: '운전면허번호', placeholder: '00-00-000000-00' },
       { key: 'customerEmail',     label: '이메일',       placeholder: 'name@example.com' },
+      { key: 'customerAddress',   label: '실거주지',     colSpan: 2 },
+      { key: 'emergencyPhone',    label: '비상연락처',   placeholder: '010-0000-0000' },
+      { key: 'emergencyRelation', label: '비상연락처 관계', placeholder: '부/모/배우자/자녀' },
     ],
   },
   {
     title: '운전 조건',
     fields: [
-      { key: 'driverScope',     label: '운전자 범위',  type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
-      { key: 'driverAgeLimit',  label: '연령 제한',    placeholder: '예: 만 26세 이상' },
-      { key: 'mileageLimitKm',  label: '연간 주행거리 한도 (km)', type: 'number', placeholder: '0=무제한' },
+      { key: 'driverScope',              label: '운전자 범위',  type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
+      { key: 'driverAgeLimit',           label: '연령 제한',    placeholder: '예: 만 26세 이상' },
+      { key: 'mileageLimitKm',           label: '연간 주행거리 한도 (km)', type: 'number', placeholder: '0=무제한' },
+      { key: 'excessMileageFeeKr',       label: '초과 km당 (국산, 원)', type: 'number' },
+      { key: 'excessMileageFeeForeign',  label: '초과 km당 (수입, 원)', type: 'number' },
     ],
   },
   {
@@ -68,6 +75,49 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     fields: [
       { key: 'paymentMethod', label: '결제 방법', placeholder: '자동이체 / 계좌이체 / 카드' },
       { key: 'paymentDay',    label: '결제일 (1-31)', type: 'number' },
+      { key: 'paymentBank',    label: '입금 은행' },
+      { key: 'paymentAccount', label: '입금 계좌번호' },
+      { key: 'paymentHolder',  label: '입금 예금주', colSpan: 2 },
+    ],
+  },
+  {
+    title: '자동이체 (CMS)',
+    fields: [
+      { key: 'autoDebitBank',    label: '출금 은행' },
+      { key: 'autoDebitAccount', label: '출금 계좌번호' },
+      { key: 'autoDebitHolder',  label: '예금주', colSpan: 2 },
+    ],
+  },
+  {
+    title: '정비 · 서비스',
+    fields: [
+      { key: 'maintenanceProduct', label: '정비상품', placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 2 },
+      { key: 'engineOilService',   label: '엔진오일 서비스', type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
+      { key: 'inspectionService',  label: '검사대행',         type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
+    ],
+  },
+  {
+    title: '보험',
+    fields: [
+      { key: 'insurer',          label: '보험사', placeholder: '예: DB손해보험', colSpan: 2 },
+      { key: 'deductibleMin',    label: '자차 면책금 최소 (만원)', type: 'number' },
+      { key: 'deductibleMax',    label: '자차 면책금 최대 (만원)', type: 'number' },
+      { key: 'deductibleRate',   label: '자차 면책 비율 (0.2 = 20%)', type: 'number' },
+      { key: 'initialMileageKm', label: '인수 시점 주행거리 (km)', type: 'number' },
+    ],
+  },
+  {
+    title: '승계 (양도/양수)',
+    fields: [
+      { key: 'predecessorName',  label: '양도인 이름' },
+      { key: 'predecessorPhone', label: '양도인 연락처' },
+      { key: 'succeededAt',      label: '승계일자', type: 'date' },
+    ],
+  },
+  {
+    title: '인수 옵션',
+    fields: [
+      { key: 'purchaseOptionAmount', label: '만기 인수가격', placeholder: '만기협의 / 숫자', colSpan: 2 },
     ],
   },
   {
@@ -133,7 +183,10 @@ export default function ContractListPage() {
       contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo)),
       ...draft,
       status: '운행중',
-      events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount),
+      events: generateContractSchedule(draft.startDate, draft.endDate, draft.monthlyAmount, {
+        autopayDay: draft.paymentDay,
+        engineOilService: draft.engineOilService,
+      }),
     };
   }
 
@@ -201,6 +254,19 @@ export default function ContractListPage() {
     const monthlyAmount = Number(d.monthlyAmount) || 0;
     const mileageRaw = Number(d.mileageLimitKm);
     const paymentDayRaw = Number(d.paymentDay);
+    const numOpt = (s: string | undefined): number | undefined => {
+      if (!s || !s.trim()) return undefined;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const boolOpt = (s: string | undefined): boolean | undefined =>
+      s === '가입' || s === 'true' ? true
+      : s === '미가입' || s === 'false' ? false
+      : undefined;
+    const paymentDay = Number.isFinite(paymentDayRaw) && paymentDayRaw >= 1 && paymentDayRaw <= 31
+      ? paymentDayRaw
+      : undefined;
+    const engineOilService = boolOpt(d.engineOilService);
     return {
       id: genId('c'),
       companyCode: d.companyCode || '',
@@ -212,6 +278,9 @@ export default function ContractListPage() {
       customerPhone: d.customerPhone || '',
       customerLicenseNo: d.customerLicenseNo?.trim() || undefined,
       customerEmail:     d.customerEmail?.trim() || undefined,
+      customerAddress:   d.customerAddress?.trim() || undefined,
+      emergencyPhone:    d.emergencyPhone?.trim() || undefined,
+      emergencyRelation: d.emergencyRelation?.trim() || undefined,
       startDate,
       endDate,
       monthlyAmount,
@@ -220,12 +289,35 @@ export default function ContractListPage() {
       driverScope:    d.driverScope?.trim() || undefined,
       driverAgeLimit: d.driverAgeLimit?.trim() || undefined,
       mileageLimitKm: Number.isFinite(mileageRaw) && mileageRaw > 0 ? mileageRaw : undefined,
+      excessMileageFeeKr:      numOpt(d.excessMileageFeeKr),
+      excessMileageFeeForeign: numOpt(d.excessMileageFeeForeign),
+      initialMileageKm:        numOpt(d.initialMileageKm),
       deliveryAddress: d.deliveryAddress?.trim() || undefined,
       returnAddress:   d.returnAddress?.trim() || undefined,
       paymentMethod:   d.paymentMethod?.trim() || undefined,
-      paymentDay: Number.isFinite(paymentDayRaw) && paymentDayRaw >= 1 && paymentDayRaw <= 31 ? paymentDayRaw : undefined,
+      paymentDay,
+      paymentBank:     d.paymentBank?.trim() || undefined,
+      paymentAccount:  d.paymentAccount?.trim() || undefined,
+      paymentHolder:   d.paymentHolder?.trim() || undefined,
+      autoDebitBank:    d.autoDebitBank?.trim() || undefined,
+      autoDebitAccount: d.autoDebitAccount?.trim() || undefined,
+      autoDebitHolder:  d.autoDebitHolder?.trim() || undefined,
+      maintenanceProduct: d.maintenanceProduct?.trim() || undefined,
+      engineOilService,
+      inspectionService: boolOpt(d.inspectionService),
+      insurer:        d.insurer?.trim() || undefined,
+      deductibleMin:  numOpt(d.deductibleMin),
+      deductibleMax:  numOpt(d.deductibleMax),
+      deductibleRate: numOpt(d.deductibleRate),
+      predecessorName:  d.predecessorName?.trim() || undefined,
+      predecessorPhone: d.predecessorPhone?.trim() || undefined,
+      succeededAt:      d.succeededAt?.trim() || undefined,
+      purchaseOptionAmount: d.purchaseOptionAmount?.trim() || undefined,
       specialTerms:    d.specialTerms?.trim() || undefined,
-      events: generateContractSchedule(startDate, endDate, monthlyAmount),
+      events: generateContractSchedule(startDate, endDate, monthlyAmount, {
+        autopayDay: paymentDay,
+        engineOilService,
+      }),
     };
   }
 
@@ -349,6 +441,8 @@ export default function ContractListPage() {
     setSelected(null);
   }
 
+  const boolToOpt = (b: boolean | undefined): string => b === true ? '가입' : b === false ? '미가입' : '';
+  const numToOpt = (n: number | undefined): string => (typeof n === 'number' && Number.isFinite(n)) ? String(n) : '';
   const editInitial: Record<string, string> = selected ? {
     companyCode: selected.companyCode,
     contractNo: selected.contractNo,
@@ -359,6 +453,9 @@ export default function ContractListPage() {
     customerPhone: selected.customerPhone,
     customerLicenseNo: selected.customerLicenseNo ?? '',
     customerEmail:     selected.customerEmail ?? '',
+    customerAddress:   selected.customerAddress ?? '',
+    emergencyPhone:    selected.emergencyPhone ?? '',
+    emergencyRelation: selected.emergencyRelation ?? '',
     startDate: selected.startDate,
     endDate: selected.endDate,
     monthlyAmount: String(selected.monthlyAmount),
@@ -366,10 +463,30 @@ export default function ContractListPage() {
     driverScope:    selected.driverScope ?? '',
     driverAgeLimit: selected.driverAgeLimit ?? '',
     mileageLimitKm: selected.mileageLimitKm ? String(selected.mileageLimitKm) : '',
+    excessMileageFeeKr:      numToOpt(selected.excessMileageFeeKr),
+    excessMileageFeeForeign: numToOpt(selected.excessMileageFeeForeign),
+    initialMileageKm:        numToOpt(selected.initialMileageKm),
     deliveryAddress: selected.deliveryAddress ?? '',
     returnAddress:   selected.returnAddress ?? '',
     paymentMethod:   selected.paymentMethod ?? '',
     paymentDay:      selected.paymentDay ? String(selected.paymentDay) : '',
+    paymentBank:     selected.paymentBank ?? '',
+    paymentAccount:  selected.paymentAccount ?? '',
+    paymentHolder:   selected.paymentHolder ?? '',
+    autoDebitBank:    selected.autoDebitBank ?? '',
+    autoDebitAccount: selected.autoDebitAccount ?? '',
+    autoDebitHolder:  selected.autoDebitHolder ?? '',
+    maintenanceProduct: selected.maintenanceProduct ?? '',
+    engineOilService:   boolToOpt(selected.engineOilService),
+    inspectionService:  boolToOpt(selected.inspectionService),
+    insurer:        selected.insurer ?? '',
+    deductibleMin:  numToOpt(selected.deductibleMin),
+    deductibleMax:  numToOpt(selected.deductibleMax),
+    deductibleRate: numToOpt(selected.deductibleRate),
+    predecessorName:  selected.predecessorName ?? '',
+    predecessorPhone: selected.predecessorPhone ?? '',
+    succeededAt:      selected.succeededAt ?? '',
+    purchaseOptionAmount: selected.purchaseOptionAmount ?? '',
     specialTerms:    selected.specialTerms ?? '',
   } : {};
 

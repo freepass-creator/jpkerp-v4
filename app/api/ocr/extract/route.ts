@@ -187,8 +187,9 @@ const RENTAL_CONTRACT_SCHEMA = {
     contractor_ident: { type: Type.STRING, nullable: true, description: '주민번호 (XXXXXX-XXXXXXX) 또는 사업자등록번호 (XXX-XX-XXXXX)' },
     contractor_license_no: { type: Type.STRING, nullable: true, description: '운전면허번호 (XX-XX-XXXXXX-XX)' },
     contractor_phone: { type: Type.STRING, nullable: true, description: '임차인 휴대전화' },
-    contractor_address: { type: Type.STRING, nullable: true, description: '주소' },
+    contractor_address: { type: Type.STRING, nullable: true, description: '주소 / 실거주지' },
     contractor_emergency_phone: { type: Type.STRING, nullable: true, description: '비상연락처/가족연락처' },
+    contractor_emergency_relation: { type: Type.STRING, nullable: true, description: '비상연락처 관계 (부/모/배우자/자녀 등)' },
     contractor_biz_name: { type: Type.STRING, nullable: true, description: '개인사업자 상호 (있을 때)' },
     contractor_biz_address: { type: Type.STRING, nullable: true, description: '사업장 소재지' },
 
@@ -199,6 +200,8 @@ const RENTAL_CONTRACT_SCHEMA = {
     color: { type: Type.STRING, nullable: true, description: '색상 (예: 화이트/블랙)' },
     options: { type: Type.STRING, nullable: true, description: '옵션 (선루프, 후방카메라 등)' },
     maintenance_product: { type: Type.STRING, nullable: true, description: '정비상품 (정비제외/엔진오일 연1회 등)' },
+    engine_oil_service: { type: Type.BOOLEAN, nullable: true, description: '엔진오일 연1회 가입 여부 (정비상품/특약/체크박스 기준)' },
+    inspection_service: { type: Type.BOOLEAN, nullable: true, description: '검사대행 가입 여부' },
 
     // 계약 기간
     rental_period_months: { type: Type.INTEGER, nullable: true, description: '대여기간 개월. "차량 인도일로부터 48개월" → 48' },
@@ -207,6 +210,8 @@ const RENTAL_CONTRACT_SCHEMA = {
     driver_age_min: { type: Type.INTEGER, nullable: true, description: '운전자 최소 연령. "만 26세이상" → 26' },
     initial_mileage_km: { type: Type.INTEGER, nullable: true, description: '현재 주행거리 km (계약 시점)' },
     annual_mileage_limit_km: { type: Type.INTEGER, nullable: true, description: '연간 약정 주행거리 km. "3.0만Km" → 30000' },
+    excess_mileage_fee_kr: { type: Type.INTEGER, nullable: true, description: '약정 초과 km당 부과 (국산). "초과시 1km 당 국산 200원" → 200' },
+    excess_mileage_fee_foreign: { type: Type.INTEGER, nullable: true, description: '약정 초과 km당 부과 (수입). "수입 400원" → 400' },
 
     // 결제
     monthly_amount: { type: Type.INTEGER, nullable: true, description: '월 대여료 (원, VAT 포함)' },
@@ -222,6 +227,22 @@ const RENTAL_CONTRACT_SCHEMA = {
     payment_account_holder: { type: Type.STRING, nullable: true, description: '입금계좌 예금주 (회사명)' },
     autopay_day: { type: Type.INTEGER, nullable: true, description: '자동이체일 (5/10/15/20/25 중 1, 체크된 거 우선)' },
 
+    // 자동이체신청서 (CMS) — 보통 9페이지
+    auto_debit_bank: { type: Type.STRING, nullable: true, description: '자동이체 출금은행 (CMS 신청서)' },
+    auto_debit_account: { type: Type.STRING, nullable: true, description: '자동이체 출금계좌번호' },
+    auto_debit_holder: { type: Type.STRING, nullable: true, description: '자동이체 예금주' },
+
+    // 자동차보험 (계약서 본문에 명시된 것)
+    insurer: { type: Type.STRING, nullable: true, description: '보험사 (예: DB손해보험, 전국렌터카공제조합)' },
+    deductible_min: { type: Type.INTEGER, nullable: true, description: '자차 면책금 최소 (만원). "최소 50만원" → 50' },
+    deductible_max: { type: Type.INTEGER, nullable: true, description: '자차 면책금 최대 (만원). "최대 100만원" → 100' },
+    deductible_rate: { type: Type.NUMBER, nullable: true, description: '자차 면책 비율 (예: 0.2 = 20%). "사고처리 비용의 20%" → 0.2' },
+
+    // 승계 (양도/양수, 1페이지에 승계 확인서 있을 때만)
+    predecessor_name: { type: Type.STRING, nullable: true, description: '승계 (양도인) 이름 — 이전 계약자' },
+    predecessor_phone: { type: Type.STRING, nullable: true, description: '승계 (양도인) 연락처' },
+    succeeded_at: { type: Type.STRING, nullable: true, description: '승계 일자 YYYY-MM-DD' },
+
     // 회사 (임대인)
     company_name: { type: Type.STRING, nullable: true, description: '렌트회사명' },
     company_ceo: { type: Type.STRING, nullable: true, description: '대표자' },
@@ -232,14 +253,20 @@ const RENTAL_CONTRACT_SCHEMA = {
   required: [
     'contract_no', 'contract_date',
     'contractor_name', 'contractor_kind', 'contractor_ident', 'contractor_license_no',
-    'contractor_phone', 'contractor_address', 'contractor_emergency_phone',
+    'contractor_phone', 'contractor_address',
+    'contractor_emergency_phone', 'contractor_emergency_relation',
     'contractor_biz_name', 'contractor_biz_address',
     'car_number', 'car_name', 'fuel', 'color', 'options', 'maintenance_product',
+    'engine_oil_service', 'inspection_service',
     'rental_period_months', 'start_date', 'end_date',
     'driver_age_min', 'initial_mileage_km', 'annual_mileage_limit_km',
+    'excess_mileage_fee_kr', 'excess_mileage_fee_foreign',
     'monthly_amount', 'deposit_total', 'deposit_installments',
     'purchase_option_amount', 'payment_account_bank', 'payment_account_no',
     'payment_account_holder', 'autopay_day',
+    'auto_debit_bank', 'auto_debit_account', 'auto_debit_holder',
+    'insurer', 'deductible_min', 'deductible_max', 'deductible_rate',
+    'predecessor_name', 'predecessor_phone', 'succeeded_at',
     'company_name', 'company_ceo', 'company_biz_no', 'company_phone', 'company_address',
   ],
 };
@@ -378,7 +405,14 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
   },
   rental_contract: {
     label: '자동차 렌탈(대여) 계약서',
-    prompt: `이 문서는 한국 자동차 렌탈(대여) 계약서입니다. 보통 다중 페이지 PDF (계약서 본문 + 사실확인서 + 동의서 + 자동이체 신청서 + 약관 등)이며 1번째·2번째 페이지에 핵심 정보가 모두 들어 있습니다.
+    prompt: `이 PDF는 한국 시설대여 계약서 (자동차 임대차)입니다. 보통 다중 페이지 PDF 이며 페이지/섹션별로 정보가 흩어져 있을 수 있습니다:
+- 1페이지: 차량·기간·결제 요약
+- 2페이지: 임차인 인적사항·계약조건·결제방법·해지수수료
+- 3페이지: 자동차보험 사항·정비서비스·특약사항
+- 4페이지: 임대차 계약 사실 확인서
+- 5페이지: 개인정보 동의서
+- 9페이지: 자동이체신청서 (CMS) — auto_debit_bank/account/holder 여기서 추출
+- 1페이지에 승계 확인서가 있을 때만 — predecessor_name/phone, succeeded_at
 
 ## 핵심 추출 규칙
 
@@ -388,8 +422,9 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
 - **contractor_ident**: 주민번호(XXXXXX-XXXXXXX) 또는 사업자등록번호(XXX-XX-XXXXX). 신분에 맞는 거 우선
 - **contractor_license_no**: 면허번호 (XX-XX-XXXXXX-XX 포맷)
 - **contractor_phone**: 전화번호 / 휴대전화
-- **contractor_address**: 주소 (서울/경기 등)
-- **contractor_emergency_phone**: "비상연락처" 또는 "가족 연락처" 셀
+- **contractor_address**: 주소 / 실거주지 (서울/경기 등)
+- **contractor_emergency_phone**: "비상연락처" 또는 "가족 연락처" 셀의 번호
+- **contractor_emergency_relation**: 비상연락처 옆/괄호 안에 있는 관계 — "부", "모", "배우자", "자녀", "형제" 등
 - **contractor_biz_name**: 개인사업자 박스의 "상호" (있을 때)
 - **contractor_biz_address**: "사업장소재지"
 
@@ -399,15 +434,18 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
 - **fuel**: "연료" 셀. "가솔린", "디젤", "하이브리드", "전기"
 - **color**: "색상" 셀. "화이트/블랙", "흰색" 등 그대로
 - **options**: "옵션" 셀. "선루프" 등
-- **maintenance_product**: "정비상품" 셀. "정비제외" / "엔진오일 연1회" 등
+- **maintenance_product**: "정비상품" 셀. "정비제외" / "엔진오일 연1회" 등 한글 표기 그대로 보존
+- **engine_oil_service**: 정비상품 본문 또는 특약/체크박스에 "엔진오일 서비스", "엔진오일 연1회" 라벨이 보이면 true. "정비제외"이거나 미언급이면 false
+- **inspection_service**: "검사대행", "정기검사 대행" 라벨이 보이면 true. 미언급이면 false
 
-### 계약 기간
+### 계약 기간 / 주행거리
 - **rental_period_months**: "대여기간" / "차량 인도일로부터 N개월". "차량 인도일로부터 48개월" → 48
 - **start_date**: "계약시작일" YYYY-MM-DD. 비어있으면 null
 - **end_date**: "계약종료일" YYYY-MM-DD. 비어있으면 null
 - **driver_age_min**: "운전자 연령". "만 26세이상" → 26
-- **initial_mileage_km**: "현재 주행거리". "100,000Km" → 100000
+- **initial_mileage_km**: "현재 주행거리" / "인수 시점 주행거리". "100,000Km" → 100000
 - **annual_mileage_limit_km**: "연간 약정 주행거리". "3.0만Km" → 30000
+- **excess_mileage_fee_kr / excess_mileage_fee_foreign**: "약정 초과시 1km 당 국산 200원, 수입 400원" → kr=200, foreign=400. 한 가지만 표기되면 다른 쪽은 null
 
 ### 결제
 - **monthly_amount**: "월 대여료" 큰 숫자. "1,000,000" → 1000000
@@ -418,6 +456,20 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
 - **payment_account_no**: 입금계좌번호 (140-013-750928 등)
 - **payment_account_holder**: 입금계좌 예금주 = 회사명
 - **autopay_day**: "대여료 자동이체일" 라인. 5/10/15/20/25 중 □ 체크된 거 우선. 체크 인식 어려우면 가장 명확한 숫자 1개
+
+### 자동이체신청서 (CMS, 보통 9페이지)
+- **auto_debit_bank**: 출금은행 (예: "국민은행", "신한은행")
+- **auto_debit_account**: 출금계좌번호 (마스킹/하이픈 포함 그대로)
+- **auto_debit_holder**: 예금주 (보통 임차인 본인)
+
+### 자동차보험 (3페이지 보험 섹션)
+- **insurer**: "보험사" / "보험회사" 셀. 예: "DB손해보험", "전국렌터카공제조합"
+- **deductible_rate / deductible_min / deductible_max**: 자차면책금 문장 분해. "사고처리 비용의 20% 최소 50만원 ~ 최대 100만원" → rate=0.2, min=50, max=100. "%" 만 있고 만원 표기 없으면 rate 만 채움
+
+### 승계 (1페이지 승계 확인서, 있을 때만)
+- **predecessor_name**: 양도인 (이전 계약자) 이름
+- **predecessor_phone**: 양도인 연락처
+- **succeeded_at**: 승계 일자 YYYY-MM-DD ("YYYY년 MM월 DD일" 표기도 ISO 변환)
 
 ### 회사 (임대인)
 - **company_name**: "렌트회사" 셀 또는 표지의 큰 회사명
@@ -430,7 +482,8 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
 1. 라벨이 같은 줄/셀 또는 인접 셀에 있는 값을 우선 매칭
 2. "년 월 일" 형태인데 빈 칸이면 null (placeholder)
 3. 금액은 콤마 제거 후 정수
-4. 차량번호 포맷 안 맞으면 무조건 null`,
+4. 차량번호 포맷 안 맞으면 무조건 null
+5. 값 없으면 null. 한글 표기 그대로 보존 (정규화·번역 금지)`,
     schema: RENTAL_CONTRACT_SCHEMA,
   },
   penalty: {

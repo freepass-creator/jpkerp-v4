@@ -1,7 +1,7 @@
 import type { AuditFields } from './audit-fields';
 
 export type ContractStatus = '운행중' | '대기' | '만기' | '해지';
-export type ScheduleType = '출고' | '수납' | '검사' | '정비' | '보험' | '반납' | '기타';
+export type ScheduleType = '출고' | '수납' | '엔진오일' | '검사' | '정비' | '보험' | '반납' | '기타';
 export type ScheduleStatus = '예정' | '완료' | '지연' | '취소';
 
 export type ScheduleEvent = {
@@ -38,6 +38,9 @@ export type Contract = {
   customerPhone: string;         // 연락처 (미납·만기 통지용)
   customerLicenseNo?: string;    // 임차인 운전면허번호 (마스킹 노출용)
   customerEmail?: string;        // 임차인 이메일
+  customerAddress?: string;      // 임차인 실거주지
+  emergencyPhone?: string;       // 비상연락처
+  emergencyRelation?: string;    // 비상연락처 관계 (부/모/배우자/자녀 등)
 
   startDate: string;             // 계약 시작일
   endDate: string;               // 만기일
@@ -67,6 +70,56 @@ export type Contract = {
   paymentMethod?: string;
   /** 매월 결제일 (1-31) — 자동이체/정기결제 일자 */
   paymentDay?: number;
+  /** 입금계좌 은행 */
+  paymentBank?: string;
+  /** 입금계좌번호 */
+  paymentAccount?: string;
+  /** 입금계좌 예금주 (보통 회사명) */
+  paymentHolder?: string;
+  /** 자동이체 출금 은행 (고객측) */
+  autoDebitBank?: string;
+  /** 자동이체 출금 계좌번호 */
+  autoDebitAccount?: string;
+  /** 자동이체 예금주 */
+  autoDebitHolder?: string;
+
+  /* ── 정비 / 서비스 ── */
+  /** 정비상품 — 정비제외 / 엔진오일 연1회 / 종합 등 자유 텍스트 */
+  maintenanceProduct?: string;
+  /** 엔진오일 서비스 가입 — 매년 1회 자동 일정 생성 */
+  engineOilService?: boolean;
+  /** 검사대행 서비스 가입 — 정기/종합검사 회사 대행 */
+  inspectionService?: boolean;
+
+  /* ── 보험 (계약서에 명시된 정보, asset/insurance 와 별개) ── */
+  /** 보험사 명 (예: DB손해보험) */
+  insurer?: string;
+  /** 자차 면책금 최소 (만원). 사고 1건당 고객 부담 최소액 */
+  deductibleMin?: number;
+  /** 자차 면책금 최대 (만원) */
+  deductibleMax?: number;
+  /** 자차 면책 계산식 — 사고처리비 비율 (예: 0.2 = 20%) */
+  deductibleRate?: number;
+
+  /* ── 주행거리 초과 부과 ── */
+  /** 약정 초과 시 km당 부과 (국산차) */
+  excessMileageFeeKr?: number;
+  /** 약정 초과 시 km당 부과 (수입차) */
+  excessMileageFeeForeign?: number;
+  /** 인수 시점 주행거리 (km) — 계약서 시점 기준 */
+  initialMileageKm?: number;
+
+  /* ── 승계 (양도/양수 케이스) ── */
+  /** 승계 (양도인) 이름 — 이전 계약자 */
+  predecessorName?: string;
+  /** 승계 (양도인) 연락처 */
+  predecessorPhone?: string;
+  /** 승계 일자 */
+  succeededAt?: string;
+
+  /* ── 인수 옵션 ── */
+  /** 만기 인수가격 — '만기협의' 또는 숫자 또는 미설정 */
+  purchaseOptionAmount?: string;
 
   /* ── 특약 ── */
   /** 특약사항 (자유 텍스트, 다중 줄 허용) */
@@ -82,21 +135,29 @@ export type Contract = {
 } & AuditFields;
 
 /**
- * 계약 등록 시 자동 생성되는 계약 단위 events — 출고·수납·반납만.
+ * 계약 등록 시 자동 생성되는 계약 단위 events.
  *
- * 자산 단위 일정 (검사·자동차세·보험만기 등) 은 자산/보험 store 에서
- * 별도로 추적 — /pending/inspection, /pending/tax, /pending/insurance 가 직접 도출.
+ *  · 출고      — startDate (차량 인도)
+ *  · 수납      — autopayDay 기준 (없으면 startDate 일자) 매월
+ *  · 엔진오일  — engineOilService=true 인 경우 startDate + 12·24·... 개월
+ *  · 반납      — endDate (차량 회수·검수)
  *
- *  · 출고  — startDate (차량 인도)
- *  · 수납  — startDate ~ endDate 매월 시작일 같은 일자
- *  · 반납  — endDate (차량 회수·검수)
+ * 자산 단위 일정 (정기검사·자동차세·보험만기 등) 은 별도 — asset/insurance store 가 도출.
  *
- *  잘못된 날짜·만기 < 시작 → 빈 배열.
+ * 잘못된 날짜·만기 < 시작 → 빈 배열.
  */
+type ScheduleOptions = {
+  /** 자동이체일 (1~31). 미지정이면 startDate 의 일(day) 사용. */
+  autopayDay?: number;
+  /** 엔진오일 서비스 가입 여부. true 면 매년 1회 events 추가. */
+  engineOilService?: boolean;
+};
+
 export function generateContractSchedule(
   startDate: string,
   endDate: string,
   monthlyAmount: number,
+  opts: ScheduleOptions = {},
 ): ScheduleEvent[] {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -105,7 +166,7 @@ export function generateContractSchedule(
 
   const events: ScheduleEvent[] = [];
 
-  // 0번: 출고 — 계약 시작일에 차량 인도.
+  // 0번: 출고 — 계약 시작일에 차량 인도
   events.push({
     id: `d-${startDate}`,
     type: '출고',
@@ -114,13 +175,20 @@ export function generateContractSchedule(
     note: '차량 인도 — 외관/주행거리/연료 점검 + 키 전달 후 완료 처리',
   });
 
-  // 수납 — 매월 startDate 일자
-  const dayOfMonth = start.getDate();
-  let cycle = 1;
-  let cursor = new Date(start.getFullYear(), start.getMonth(), dayOfMonth);
+  // 수납 — autopayDay 기준 (지정 안 됐으면 startDate 일자)
+  const payDay = opts.autopayDay && opts.autopayDay >= 1 && opts.autopayDay <= 31
+    ? opts.autopayDay
+    : start.getDate();
 
+  // 첫 자동이체 일자 — 출고 다음 도래하는 payDay
+  let cursor = new Date(start.getFullYear(), start.getMonth(), payDay);
+  if (cursor < start) {
+    // payDay 가 출고일보다 이번 달에 이미 지났으면 다음 달부터
+    cursor = new Date(start.getFullYear(), start.getMonth() + 1, payDay);
+  }
+  let cycle = 1;
   while (cursor <= end) {
-    const dueStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+    const dueStr = ymd(cursor);
     events.push({
       id: `r-${startDate}-${cycle}`,
       type: '수납',
@@ -129,11 +197,29 @@ export function generateContractSchedule(
       amount: monthlyAmount,
       status: '예정',
     });
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, dayOfMonth);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, payDay);
     cycle++;
   }
 
-  // 반납 — 만기일에 차량 회수·검수
+  // 엔진오일 — 가입 시 매 12개월
+  if (opts.engineOilService) {
+    let oilCursor = new Date(start.getFullYear() + 1, start.getMonth(), start.getDate());
+    let oilCycle = 1;
+    while (oilCursor <= end) {
+      events.push({
+        id: `eo-${startDate}-${oilCycle}`,
+        type: '엔진오일',
+        cycle: oilCycle,
+        dueDate: ymd(oilCursor),
+        status: '예정',
+        note: `엔진오일 ${oilCycle}년차 — 지정 정비점 또는 제조사 공식 공업사 내방`,
+      });
+      oilCursor = new Date(oilCursor.getFullYear() + 1, oilCursor.getMonth(), oilCursor.getDate());
+      oilCycle++;
+    }
+  }
+
+  // 반납 — 만기일
   events.push({
     id: `rt-${endDate}`,
     type: '반납',
@@ -142,9 +228,19 @@ export function generateContractSchedule(
     note: '차량 반납 — 외관/주행거리/연료/손상 점검 후 보증금 정산',
   });
 
-  // 시간순 정렬
-  events.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  // 시간순 정렬 — 같은 일자면 출고/수납/엔진오일/반납 순
+  const TYPE_ORDER: Record<ScheduleType, number> = { 출고: 0, 수납: 1, 엔진오일: 2, 검사: 3, 정비: 4, 보험: 5, 기타: 6, 반납: 7 };
+  events.sort((a, b) => {
+    const d = a.dueDate.localeCompare(b.dueDate);
+    if (d !== 0) return d;
+    return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99);
+  });
   return events;
+}
+
+/** Date → 'YYYY-MM-DD' 로컬 시각 기반 (UTC 변환 X). */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** 실데이터는 사용자가 입력. 샘플 없음. */

@@ -66,6 +66,14 @@ function mapContractOcr(
 ): Partial<ContractDraft> {
   const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const numOrUndef = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  const strOrUndef = (v: unknown): string | undefined => {
+    const s = str(v);
+    return s ? s : undefined;
+  };
+  const boolOrUndef = (v: unknown): boolean | undefined =>
+    typeof v === 'boolean' ? v : undefined;
   const kindRaw = str(raw.contractor_kind);
   const customerKind: CustomerKind =
     kindRaw === '법인' ? '법인'
@@ -80,10 +88,47 @@ function mapContractOcr(
     customerKind,
     customerIdent: str(raw.contractor_ident),
     customerPhone: str(raw.contractor_phone),
+    customerLicenseNo: strOrUndef(raw.contractor_license_no),
+    customerAddress: strOrUndef(raw.contractor_address),
+    emergencyPhone: strOrUndef(raw.contractor_emergency_phone),
+    emergencyRelation: strOrUndef(raw.contractor_emergency_relation),
     startDate: normalizeKoreanDate(str(raw.start_date)),
     endDate: normalizeKoreanDate(str(raw.end_date)),
     monthlyAmount: num(raw.monthly_amount),
     deposit: num(raw.deposit_total),
+    // 운전 조건 / 주행거리
+    driverAgeLimit: typeof raw.driver_age_min === 'number'
+      ? `만 ${raw.driver_age_min}세 이상`
+      : undefined,
+    mileageLimitKm: numOrUndef(raw.annual_mileage_limit_km),
+    excessMileageFeeKr: numOrUndef(raw.excess_mileage_fee_kr),
+    excessMileageFeeForeign: numOrUndef(raw.excess_mileage_fee_foreign),
+    initialMileageKm: numOrUndef(raw.initial_mileage_km),
+    // 결제 / 자동이체
+    paymentDay: numOrUndef(raw.autopay_day),
+    paymentBank: strOrUndef(raw.payment_account_bank),
+    paymentAccount: strOrUndef(raw.payment_account_no),
+    paymentHolder: strOrUndef(raw.payment_account_holder),
+    autoDebitBank: strOrUndef(raw.auto_debit_bank),
+    autoDebitAccount: strOrUndef(raw.auto_debit_account),
+    autoDebitHolder: strOrUndef(raw.auto_debit_holder),
+    // 정비/서비스
+    maintenanceProduct: strOrUndef(raw.maintenance_product),
+    engineOilService: boolOrUndef(raw.engine_oil_service),
+    inspectionService: boolOrUndef(raw.inspection_service),
+    // 보험
+    insurer: strOrUndef(raw.insurer),
+    deductibleMin: numOrUndef(raw.deductible_min),
+    deductibleMax: numOrUndef(raw.deductible_max),
+    deductibleRate: typeof raw.deductible_rate === 'number' && Number.isFinite(raw.deductible_rate)
+      ? raw.deductible_rate
+      : undefined,
+    // 승계
+    predecessorName: strOrUndef(raw.predecessor_name),
+    predecessorPhone: strOrUndef(raw.predecessor_phone),
+    succeededAt: normalizeKoreanDate(str(raw.succeeded_at)) || undefined,
+    // 인수옵션
+    purchaseOptionAmount: strOrUndef(raw.purchase_option_amount),
   };
 }
 
@@ -636,6 +681,51 @@ function ManualForm({
             <input type="number" min="1" max="31" className="input w-full"
                    value={draft.paymentDay ?? ''}
                    onChange={(e) => set('paymentDay', e.target.value === '' ? undefined : Number(e.target.value))} />
+          </label>
+          <label className="block col-span-2">
+            <span className="label">실거주지</span>
+            <input className="input w-full" value={draft.customerAddress ?? ''}
+                   onChange={(e) => set('customerAddress', e.target.value)} />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">비상연락처</span>
+            <input className="input w-full" value={draft.emergencyPhone ?? ''}
+                   onChange={(e) => set('emergencyPhone', e.target.value)} placeholder="010-0000-0000" />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">비상연락처 관계</span>
+            <input className="input w-full" value={draft.emergencyRelation ?? ''}
+                   onChange={(e) => set('emergencyRelation', e.target.value)} placeholder="부/모/배우자/자녀" />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">정비상품</span>
+            <input className="input w-full" value={draft.maintenanceProduct ?? ''}
+                   onChange={(e) => set('maintenanceProduct', e.target.value)} placeholder="정비제외 / 엔진오일 연1회" />
+          </label>
+          <label className="block col-span-1">
+            <span className="label">엔진오일 서비스</span>
+            <select className="input w-full"
+                    value={draft.engineOilService === true ? 'true' : draft.engineOilService === false ? 'false' : ''}
+                    onChange={(e) => set('engineOilService', e.target.value === 'true' ? true : e.target.value === 'false' ? false : undefined)}>
+              <option value="">- 미선택 -</option>
+              <option value="true">가입</option>
+              <option value="false">미가입</option>
+            </select>
+          </label>
+          <label className="block col-span-1">
+            <span className="label">검사대행</span>
+            <select className="input w-full"
+                    value={draft.inspectionService === true ? 'true' : draft.inspectionService === false ? 'false' : ''}
+                    onChange={(e) => set('inspectionService', e.target.value === 'true' ? true : e.target.value === 'false' ? false : undefined)}>
+              <option value="">- 미선택 -</option>
+              <option value="true">가입</option>
+              <option value="false">미가입</option>
+            </select>
+          </label>
+          <label className="block col-span-1">
+            <span className="label">보험사</span>
+            <input className="input w-full" value={draft.insurer ?? ''}
+                   onChange={(e) => set('insurer', e.target.value)} placeholder="DB손해보험" />
           </label>
           <label className="block col-span-4">
             <span className="label">특약사항</span>

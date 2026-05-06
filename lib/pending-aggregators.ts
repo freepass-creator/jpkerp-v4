@@ -25,12 +25,13 @@ function daysBetween(date: string, ref: number): number {
  *  · 수납 = 만기 도래(과거)인데 아직 미납 → '미납'
  *  · 그 외 = 만기 임박(D-30 이내)인데 아직 미완료 → '미완료'
  */
-export type PendingKind = '검사' | '수납' | '출고' | '정비' | '보험' | '반납' | '기타';
+export type PendingKind = '검사' | '수납' | '출고' | '엔진오일' | '정비' | '보험' | '반납' | '기타';
 
 export const PENDING_LABELS: Record<PendingKind, string> = {
   검사: '검사 미완료',
   수납: '수납 미납',
   출고: '출고 미완료',
+  엔진오일: '엔진오일 미실시',
   정비: '정비 미완료',
   보험: '보험 미완료',
   반납: '반납 예정',
@@ -41,6 +42,7 @@ export const PENDING_TONES: Record<PendingKind, 'red' | 'orange'> = {
   수납: 'red',
   검사: 'orange',
   출고: 'orange',
+  엔진오일: 'orange',
   정비: 'orange',
   보험: 'orange',
   반납: 'orange',
