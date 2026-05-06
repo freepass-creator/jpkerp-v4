@@ -1,8 +1,14 @@
 'use client';
 
 /**
- * RegistrationForm — 자산 등록·수정·복사에서 공용으로 사용하는 폼.
- * 등록증 ① ~ ㉟ 전 항목 + 부가(차종마스터·견적서 자동입력 영역).
+ * RegistrationForm — 자산 등록·수정·복사·조회에서 공용으로 사용하는 폼.
+ * 등록증 ① ~ ㉟ 전 항목 + 부가(차종마스터·견적서 자동입력 영역) + 첨부 미리보기.
+ *
+ * 4-mode UX:
+ *  - view      : readonly (회색)   — 더블클릭 진입, [수정]으로 edit 전환
+ *  - edit      : editable (황색)   — view 의 [수정] 클릭
+ *  - create    : editable (기본)   — + 자산등록 manual 탭
+ *  - duplicate : editable (녹색)   — 우클릭 메뉴 → 복사 (unique 필드 비움)
  */
 
 import { useEffect, useState } from 'react';
@@ -10,20 +16,65 @@ import { DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import { loadVehicleMaster, MAKERS_SYNC, getModels, getDetailModels } from '@/lib/vehicle-master';
 import { EXT_COLORS, INT_COLORS, DRIVE_TYPES } from '@/lib/data/vehicle-constants';
+import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import type { Asset, AssetStatus } from '@/lib/sample-assets';
 
 const STATUS_OPTIONS: AssetStatus[] = ['등록예정', '대기', '운행중', '정비', '매각'];
+
+export type FormMode = 'view' | 'edit' | 'create' | 'duplicate';
 
 type Props = {
   data: Partial<Asset>;
   onSubmit: (d: Partial<Asset>) => void;
   submitLabel?: string;
+  /** 'view' = readonly + 회색 / 'edit' = 황색 / 'create' = 기본 / 'duplicate' = 녹색 */
+  mode?: FormMode;
+  /** 저장/취소 버튼 hide (다이얼로그가 자체 footer 가지는 경우) */
+  hideFooter?: boolean;
 };
 
-export function RegistrationForm({ data, onSubmit, submitLabel = '등록' }: Props) {
+export function RegistrationForm({
+  data,
+  onSubmit,
+  submitLabel = '등록',
+  mode = 'create',
+  hideFooter = false,
+}: Props) {
+  // 첨부 (create/duplicate 모드에서만 변경 가능). view/edit 은 미리보기 only.
+  const [fileDataUrl, setFileDataUrl] = useState<string | undefined>(data.fileDataUrl);
+  const [fileName, setFileName] = useState<string | undefined>(data.fileName);
+
+  useEffect(() => {
+    setFileDataUrl(data.fileDataUrl);
+    setFileName(data.fileName);
+  }, [data.fileDataUrl, data.fileName]);
+
+  const isReadonly = mode === 'view';
+  const canEditAttachment = mode === 'create' || mode === 'duplicate';
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const url = await fileToImageDataUrl(f);
+      setFileDataUrl(url);
+      setFileName(f.name);
+    } catch (err) {
+      alert('파일 읽기 실패: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  function handleSubmit() {
+    onSubmit({ ...data, fileDataUrl, fileName });
+  }
+
   return (
     <>
-      <div className="form-stack">
+      <fieldset
+        disabled={isReadonly}
+        className={cn('form-stack', `form-mode-${mode}`)}
+        style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+      >
         <Section title="식별자">
           <F label="회사코드 (CP01~CP99)" value={data.companyCode} placeholder="CP01" />
           <SF label="상태" value={data.status} options={STATUS_OPTIONS as unknown as string[]} />
@@ -90,14 +141,68 @@ export function RegistrationForm({ data, onSubmit, submitLabel = '등록' }: Pro
           <SF label="구동방식"     value={data.driveType}       options={DRIVE_TYPES as unknown as string[]} />
           <F  label="선택옵션"     value={data.options?.join(', ')} placeholder="견적서 업로드 시 자동" colSpan={3} />
         </Section>
-      </div>
 
-      <DialogFooter>
-        <DialogClose asChild>
-          <button className="btn">취소</button>
-        </DialogClose>
-        <button className="btn btn-primary" onClick={() => onSubmit(data)}>{submitLabel}</button>
-      </DialogFooter>
+        <Section title="첨부 - 등록증 사본">
+          <div className="col-span-4">
+            {fileDataUrl ? (
+              <div className="form-attach-preview">
+                <img
+                  src={fileDataUrl}
+                  alt={fileName ?? '등록증 사본'}
+                  style={{
+                    maxWidth: 300,
+                    maxHeight: 240,
+                    objectFit: 'scale-down',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    background: '#fff',
+                  }}
+                />
+                <div style={{ marginTop: 6, fontSize: 12 }}>
+                  <a href={fileDataUrl} download={fileName ?? 'registration.jpg'}>
+                    {fileName ?? 'registration.jpg'} 다운로드
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '20px 12px',
+                  textAlign: 'center',
+                  color: 'var(--text-sub)',
+                  background: 'var(--bg-disabled, #f5f5f5)',
+                  border: '1px dashed var(--border)',
+                  borderRadius: 4,
+                  fontSize: 12,
+                }}
+              >
+                첨부 없음 (OCR 등록 시 자동 첨부)
+              </div>
+            )}
+            {canEditAttachment && (
+              <div style={{ marginTop: 8 }}>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  style={{ fontSize: 12 }}
+                />
+              </div>
+            )}
+          </div>
+        </Section>
+      </fieldset>
+
+      {!hideFooter && (
+        <DialogFooter>
+          <DialogClose asChild>
+            <button className="btn">취소</button>
+          </DialogClose>
+          {!isReadonly && (
+            <button className="btn btn-primary" onClick={handleSubmit}>{submitLabel}</button>
+          )}
+        </DialogFooter>
+      )}
     </>
   );
 }

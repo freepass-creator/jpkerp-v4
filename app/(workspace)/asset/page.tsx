@@ -39,9 +39,9 @@ export default function AssetListPage() {
   const { search } = useTopbarSearch();
   const audit = useAuditStamp();
 
-  // 수정/복사 다이얼로그 상태
+  // 조회/수정/복사 다이얼로그 상태
   const [editOpen, setEditOpen] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>('edit');
+  const [editMode, setEditMode] = useState<EditMode>('view');
 
   // 우클릭 컨텍스트 메뉴
   const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number }>({ open: false, x: 0, y: 0 });
@@ -212,7 +212,7 @@ export default function AssetListPage() {
               assets={assets}
               selectedId={selected?.id}
               onRowClick={setSelected}
-              onRowDoubleClick={(a) => { setSelected(a); setEditMode('edit'); setEditOpen(true); }}
+              onRowDoubleClick={(a) => { setSelected(a); setEditMode('view'); setEditOpen(true); }}
               onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
               globalSearch={search}
             />
@@ -239,7 +239,8 @@ export default function AssetListPage() {
           onOpenChange={setEditOpen}
           mode={editMode}
           initial={selected}
-          onSave={editMode === 'edit' ? handleUpdate : handleCreate}
+          onSave={editMode === 'duplicate' ? handleCreate : handleUpdate}
+          onDelete={handleDelete}
         />
       )}
     </>

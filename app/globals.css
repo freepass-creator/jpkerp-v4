@@ -2251,3 +2251,36 @@ input[type="checkbox"], input[type="radio"] {
   .m-action-tile { min-height: 116px; padding: 18px 16px 16px; border-radius: 8px; }
   .m-h1 { font-size: 22px; }
 }
+
+/* ── 자산 폼 4-mode UX (view/edit/create/duplicate) ──
+   더블클릭 → view (회색, readonly) → [수정] → edit (황색)
+   + 자산등록 → create (기본 흰색)
+   우클릭 복사 → duplicate (녹색) */
+.form-mode-view input,
+.form-mode-view select,
+.form-mode-view textarea {
+  background: var(--bg-disabled, #f5f5f5);
+  color: var(--text-sub);
+  cursor: default;
+}
+.form-mode-edit input,
+.form-mode-edit select,
+.form-mode-edit textarea {
+  background: #fffbe6;
+}
+.form-mode-edit input:focus,
+.form-mode-edit select:focus,
+.form-mode-edit textarea:focus {
+  background: #fff8d6;
+}
+.form-mode-create input,
+.form-mode-create select,
+.form-mode-create textarea {
+  background: var(--bg-input, #ffffff);
+}
+.form-mode-duplicate input,
+.form-mode-duplicate select,
+.form-mode-duplicate textarea {
+  background: #f1f8e9;
+}
+

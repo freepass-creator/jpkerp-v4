@@ -25,7 +25,7 @@ export function DialogContent({
 }: {
   children: React.ReactNode;
   className?: string;
-  title?: string;
+  title?: React.ReactNode;
   size?: Size;
 }) {
   return (

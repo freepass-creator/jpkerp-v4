@@ -303,7 +303,11 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
           </TabsContent>
 
           <TabsContent value="manual">
-            <RegistrationForm data={{}} onSubmit={(d) => { onCreate(d); setOpen(false); ocr.reset(); }} />
+            <RegistrationForm
+              data={{}}
+              mode="create"
+              onSubmit={(d) => { onCreate(d); setOpen(false); ocr.reset(); }}
+            />
           </TabsContent>
 
           <TabsContent value="sheet">
