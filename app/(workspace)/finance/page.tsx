@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { PencilSimple, Copy, Plus } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Plus, Link as LinkIcon } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { type LedgerEntry, type LedgerMethod } from '@/lib/sample-finance';
@@ -12,9 +12,16 @@ const LedgerRegisterDialog = dynamic(
   () => import('@/components/finance/ledger-register-dialog').then((m) => m.LedgerRegisterDialog),
   { ssr: false },
 );
+const ReceiptMatchDialog = dynamic(
+  () => import('@/components/finance/receipt-match-dialog').then((m) => m.ReceiptMatchDialog),
+  { ssr: false },
+);
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useContractStore } from '@/lib/use-contract-store';
+import { useAuditStamp } from '@/lib/audit-fields';
+import { applyReceiptMatch, reverseReceiptMatch, type ReceiptCandidate } from '@/lib/receipt-match';
 import { dedupAgainst } from '@/lib/ledger-dedup';
 import { exportToExcel } from '@/lib/excel-export';
 import { genId } from '@/lib/ids';
@@ -37,10 +44,13 @@ const fmtNum = (v: unknown) => (typeof v === 'number' && v ? v.toLocaleString('k
 export default function FinanceLedgerPage() {
   const [entries, setEntries] = useLedgerStore();
   const [companies] = useCompanyStore();
+  const [contracts, setContracts] = useContractStore();
+  const audit = useAuditStamp();
   const [selected, setSelected] = useState<LedgerEntry | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [matchOpen, setMatchOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
   const [filteredRows, setFilteredRows] = useState<readonly LedgerEntry[]>(entries);
   const filteredCount = filteredRows.length;
@@ -82,6 +92,59 @@ export default function FinanceLedgerPage() {
   };
   // 삭제 기능은 개발도구(/dev) 에 일원화. 일반 페이지에서는 제공하지 않음.
 
+  function handleMatch(candidate: ReceiptCandidate) {
+    if (!selected) return;
+    const { ledgerPatch, eventPatch } = applyReceiptMatch(selected, candidate);
+    // 1) ledger update
+    setEntries((p) => p.map((e) => e.id === selected.id ? { ...e, ...ledgerPatch } : e));
+    // 2) contract event update
+    setContracts((prev) => prev.map((c) => {
+      if (c.id !== candidate.contract.id) return c;
+      return {
+        ...c,
+        events: c.events.map((e) => e.id === eventPatch.id
+          ? { ...e, status: eventPatch.status, doneDate: eventPatch.doneDate }
+          : e,
+        ),
+      };
+    }));
+    // 3) audit log
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: candidate.contract.id,
+      label: `${candidate.contract.contractNo} ${candidate.event.cycle}회차 자동매칭 (입금 ${selected.deposit?.toLocaleString('ko-KR')}원)`,
+      after: { eventStatus: '완료', doneDate: eventPatch.doneDate, ledgerId: selected.id },
+    });
+    setSelected({ ...selected, ...ledgerPatch });
+    setMatchOpen(false);
+  }
+
+  function handleReverse() {
+    if (!selected) return;
+    const { ledgerPatch, eventPatch } = reverseReceiptMatch(selected, contracts);
+    setEntries((p) => p.map((e) => e.id === selected.id ? { ...e, ...ledgerPatch } : e));
+    if (eventPatch) {
+      setContracts((prev) => prev.map((c) => {
+        if (c.id !== eventPatch.contractId) return c;
+        return {
+          ...c,
+          events: c.events.map((e) => e.id === eventPatch.eventId
+            ? { ...e, status: eventPatch.status, doneDate: undefined }
+            : e),
+        };
+      }));
+    }
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: selected.id,
+      label: `${selected.matchedContract} ${selected.matchedCycle}회차 매칭 해제`,
+    });
+    setSelected({ ...selected, ...ledgerPatch });
+    setMatchOpen(false);
+  }
+
   const editInitial: Record<string, string> = selected ? Object.fromEntries(
     Object.entries(selected).map(([k, v]) => [k, v == null ? '' : String(v)])
   ) : {};
@@ -96,9 +159,12 @@ export default function FinanceLedgerPage() {
     return { inSum, outSum };
   }, [filteredRows]);
 
+  const matchDisabled = !selected || !selected.deposit || selected.deposit === 0;
+
   const ctxItems: ContextMenuItem[] = [
     { label: '수정', icon: <PencilSimple size={12} weight="bold" />, onClick: () => setEditOpen(true) },
     { label: '복사', icon: <Copy size={12} weight="bold" />,         onClick: () => setDuplicateOpen(true) },
+    { label: '수납 매칭', icon: <LinkIcon size={12} weight="bold" />, disabled: matchDisabled, onClick: () => setMatchOpen(true) },
     { label: '', divider: true, onClick: () => {} },
     { label: '거래 등록', icon: <Plus size={12} weight="bold" />,    onClick: () => setRegisterOpen(true) },
   ];
@@ -167,6 +233,7 @@ export default function FinanceLedgerPage() {
           })}>엑셀</button>
           <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}><PencilSimple size={14} weight="bold" /> 수정</button>
           <button className="btn" disabled={!selected} onClick={() => setDuplicateOpen(true)}><Copy size={14} weight="bold" /> 복사</button>
+          <button className="btn" disabled={matchDisabled} onClick={() => setMatchOpen(true)}><LinkIcon size={14} weight="bold" /> 수납 매칭</button>
           <LedgerRegisterDialog
             open={registerOpen}
             onOpenChange={setRegisterOpen}
@@ -193,6 +260,14 @@ export default function FinanceLedgerPage() {
         submitLabel="수정" onSubmit={handleUpdate} size="xl" />
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
         title="거래 복사" fields={LEDGER_FIELDS} initial={dupInitial} onSubmit={handleDuplicate} size="xl" />
+      <ReceiptMatchDialog
+        open={matchOpen}
+        onOpenChange={setMatchOpen}
+        ledger={selected}
+        contracts={contracts}
+        onApply={handleMatch}
+        onReverse={handleReverse}
+      />
     </>
   );
 }

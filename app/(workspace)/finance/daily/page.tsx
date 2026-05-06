@@ -12,6 +12,9 @@ import {
   type AccountSubject,
 } from '@/lib/sample-finance';
 import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useContractStore } from '@/lib/use-contract-store';
+import { useAuditStamp } from '@/lib/audit-fields';
+import { applyReceiptMatch, reverseReceiptMatch, type ReceiptCandidate } from '@/lib/receipt-match';
 import { JpkTable, type JpkColumn } from '@/components/shared/jpk-table';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
@@ -83,6 +86,55 @@ export default function FinanceDailyPage() {
 
   // 수납 매칭 모달 — 행에서 [매칭] 클릭 시 열림
   const [matchTarget, setMatchTarget] = useState<LedgerEntry | null>(null);
+  const [contracts, setContracts] = useContractStore();
+  const audit = useAuditStamp();
+
+  function handleMatch(candidate: ReceiptCandidate) {
+    if (!matchTarget) return;
+    const { ledgerPatch, eventPatch } = applyReceiptMatch(matchTarget, candidate);
+    setEntries((p) => p.map((e) => e.id === matchTarget.id ? { ...e, ...ledgerPatch } : e));
+    setContracts((prev) => prev.map((c) => {
+      if (c.id !== candidate.contract.id) return c;
+      return {
+        ...c,
+        events: c.events.map((e) => e.id === eventPatch.id
+          ? { ...e, status: eventPatch.status, doneDate: eventPatch.doneDate }
+          : e),
+      };
+    }));
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: candidate.contract.id,
+      label: `${candidate.contract.contractNo} ${candidate.event.cycle}회차 자동매칭 (입금 ${matchTarget.deposit?.toLocaleString('ko-KR')}원)`,
+      after: { eventStatus: '완료', doneDate: eventPatch.doneDate, ledgerId: matchTarget.id },
+    });
+    setMatchTarget(null);
+  }
+
+  function handleReverse() {
+    if (!matchTarget) return;
+    const { ledgerPatch, eventPatch } = reverseReceiptMatch(matchTarget, contracts);
+    setEntries((p) => p.map((e) => e.id === matchTarget.id ? { ...e, ...ledgerPatch } : e));
+    if (eventPatch) {
+      setContracts((prev) => prev.map((c) => {
+        if (c.id !== eventPatch.contractId) return c;
+        return {
+          ...c,
+          events: c.events.map((e) => e.id === eventPatch.eventId
+            ? { ...e, status: eventPatch.status, doneDate: undefined }
+            : e),
+        };
+      }));
+    }
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: matchTarget.id,
+      label: `${matchTarget.matchedContract} ${matchTarget.matchedCycle}회차 매칭 해제`,
+    });
+    setMatchTarget(null);
+  }
 
   // JpkTable row handler — 안정화
   const getEntryId = useCallback((r: LedgerEntry) => r.id, []);
@@ -301,6 +353,9 @@ export default function FinanceDailyPage() {
         open={!!matchTarget}
         onOpenChange={(o) => !o && setMatchTarget(null)}
         ledger={matchTarget}
+        contracts={contracts}
+        onApply={handleMatch}
+        onReverse={handleReverse}
       />
     </PageShell>
   );

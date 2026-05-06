@@ -1,37 +1,40 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CheckCircle, Link as LinkIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { Link as LinkIcon, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
-import { useContractStore } from '@/lib/use-contract-store';
-import { useLedgerStore } from '@/lib/use-ledger-store';
-import { useAuditStamp } from '@/lib/audit-fields';
 import {
   findReceiptCandidates,
-  applyReceiptMatch,
-  reverseReceiptMatch,
   type ReceiptCandidate,
 } from '@/lib/receipt-match';
 import type { LedgerEntry } from '@/lib/sample-finance';
+import type { Contract } from '@/lib/sample-contracts';
 
 /**
  * 자금일보 입금 → 수납 회차 매칭 모달.
  *
  *  · 같은 회사의 모든 미수 수납 회차를 점수 정렬해서 표시
- *  · counterparty 이름 / 금액 일치도 우선
- *  · 클릭 → ledger + contract.events 즉시 동시 update
- *  · 이미 매칭된 항목은 [매칭 해제] 버튼
+ *  · counterparty 이름 / 금액 일치도 우선 (점수 ≥ 0.7 행은 highlight)
+ *  · 행 클릭 또는 [매칭] → onApply(candidate)
+ *  · 이미 매칭된 항목은 [매칭 해제] 버튼만 → onReverse()
+ *
+ * 실제 ledger / contract.events / audit 갱신은 부모 (page.tsx) 에서 일괄 처리.
  */
 export function ReceiptMatchDialog({
-  open, onOpenChange, ledger,
+  open,
+  onOpenChange,
+  ledger,
+  contracts,
+  onApply,
+  onReverse,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ledger: LedgerEntry | null;
+  contracts: readonly Contract[];
+  onApply: (candidate: ReceiptCandidate) => void;
+  onReverse: () => void;
 }) {
-  const [contracts, setContracts] = useContractStore();
-  const [, setLedger] = useLedgerStore();
-  const audit = useAuditStamp();
   const [filter, setFilter] = useState('');
 
   const candidates = useMemo(() => {
@@ -48,47 +51,17 @@ export function ReceiptMatchDialog({
     });
   }, [candidates, filter]);
 
-  function applyMatch(candidate: ReceiptCandidate) {
-    if (!ledger) return;
-    const { ledgerPatch, eventPatch } = applyReceiptMatch(ledger, candidate);
-    setLedger((prev) => prev.map((l) => (l.id === ledger.id ? { ...l, ...ledgerPatch } : l)));
-    setContracts((prev) => prev.map((c) =>
-      c.id === candidate.contract.id
-        ? {
-            ...c,
-            events: c.events.map((e) =>
-              e.id === eventPatch.id ? { ...e, status: eventPatch.status, doneDate: eventPatch.doneDate } : e
-            ),
-            ...audit.update(),
-          }
-        : c
-    ));
-    onOpenChange(false);
-  }
-
-  function unmatch() {
-    if (!ledger) return;
-    const { ledgerPatch, eventPatch } = reverseReceiptMatch(ledger, contracts);
-    setLedger((prev) => prev.map((l) => (l.id === ledger.id ? { ...l, ...ledgerPatch } : l)));
-    if (eventPatch) {
-      setContracts((prev) => prev.map((c) =>
-        c.id === eventPatch.contractId
-          ? {
-              ...c,
-              events: c.events.map((e) =>
-                e.id === eventPatch.eventId ? { ...e, status: eventPatch.status, doneDate: undefined } : e
-              ),
-              ...audit.update(),
-            }
-          : c
-      ));
-    }
-    onOpenChange(false);
-  }
-
   if (!ledger) return null;
 
   const isMatched = !!ledger.matchedEventId;
+
+  function handleApply(candidate: ReceiptCandidate) {
+    onApply(candidate);
+  }
+
+  function handleReverse() {
+    onReverse();
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,7 +79,7 @@ export function ReceiptMatchDialog({
           {ledger.memo && <div className="dim mt-1">적요: {ledger.memo}</div>}
           {isMatched && (
             <div className="mt-2" style={{ color: 'var(--brand)' }}>
-              현재 매칭: <strong>{ledger.matchedContract}</strong> · {ledger.matchedCycle}회차
+              현재 매칭됨 — <strong>{ledger.matchedContract}</strong> {ledger.matchedCycle}회차
             </div>
           )}
         </div>
@@ -125,25 +98,36 @@ export function ReceiptMatchDialog({
               <table className="table">
                 <thead>
                   <tr>
-                    <th>계약</th>
-                    <th>임차인</th>
+                    <th className="center">점수</th>
+                    <th>회사</th>
+                    <th>차량</th>
+                    <th>고객</th>
                     <th className="num">회차</th>
                     <th className="date">예정일</th>
                     <th className="num">금액</th>
                     <th className="center">상태</th>
-                    <th className="center">적합도</th>
                     <th className="center" style={{ width: 80 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="empty-row">매칭 가능한 미수 회차 없음</td></tr>
+                    <tr><td colSpan={9} className="empty-row">매칭 가능한 미수 회차 없음</td></tr>
                   ) : filtered.map((c) => {
                     const amountMatch = ledger.deposit && c.event.amount && Math.abs(ledger.deposit - c.event.amount) < 1;
+                    const isStrong = c.score >= 0.7;
                     return (
-                      <tr key={`${c.contract.id}-${c.event.id}`} onClick={() => applyMatch(c)} style={{ cursor: 'pointer' }}>
-                        <td className="mono">{c.contract.contractNo}</td>
-                        <td>{c.contract.customerName}<span className="text-weak ml-2">{c.contract.plate}</span></td>
+                      <tr
+                        key={`${c.contract.id}-${c.event.id}`}
+                        onClick={() => handleApply(c)}
+                        style={{
+                          cursor: 'pointer',
+                          background: isStrong ? 'var(--bg-highlight, rgba(34,197,94,0.08))' : undefined,
+                        }}
+                      >
+                        <td className="center mono"><strong>{c.score.toFixed(1)}</strong></td>
+                        <td>{c.contract.companyCode}</td>
+                        <td className="mono">{c.contract.plate}</td>
+                        <td>{c.contract.customerName}</td>
                         <td className="num">{c.event.cycle ?? '-'}</td>
                         <td className="date">{c.event.dueDate}</td>
                         <td className={`num ${amountMatch ? 'text-medium' : ''}`}>
@@ -155,9 +139,11 @@ export function ReceiptMatchDialog({
                             {c.event.status}
                           </span>
                         </td>
-                        <td className="center mono dim">{c.score.toFixed(1)}</td>
                         <td className="center">
-                          <button className="btn btn-sm btn-primary" onClick={(ev) => { ev.stopPropagation(); applyMatch(c); }}>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={(ev) => { ev.stopPropagation(); handleApply(c); }}
+                          >
                             <LinkIcon size={11} /> 매칭
                           </button>
                         </td>
@@ -168,14 +154,14 @@ export function ReceiptMatchDialog({
               </table>
             </div>
             <div className="text-weak text-xs mt-2">
-              행 클릭 또는 [매칭] → 회차 즉시 완료 처리 (doneDate = 거래일). 적합도는 이름·금액 일치 + 미수 가산점.
+              행 클릭 또는 [매칭] → 회차 즉시 완료 처리 (doneDate = 거래일). 적합도 ≥ 0.7 은 highlight.
             </div>
           </>
         )}
 
         <DialogFooter>
           {isMatched && (
-            <button className="btn" onClick={unmatch} style={{ marginRight: 'auto' }}>
+            <button className="btn" onClick={handleReverse} style={{ marginRight: 'auto' }}>
               <ArrowCounterClockwise size={12} weight="bold" /> 매칭 해제
             </button>
           )}
