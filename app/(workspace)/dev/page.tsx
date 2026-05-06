@@ -1,7 +1,8 @@
 'use client';
 
 import { Fragment, useState, useEffect } from 'react';
-import { Trash, TrashSimple, CaretRight, CaretDown, CurrencyKrw, Truck } from '@phosphor-icons/react';
+import { Trash, TrashSimple, CaretRight, CaretDown, CurrencyKrw, Truck, ShieldCheck, ClockCounterClockwise } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { ref, onValue, set, get } from 'firebase/database';
 import { PageShell } from '@/components/layout/page-shell';
 import { Dialog, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -133,52 +134,63 @@ export default function DevPage() {
       footerRight={
         <>
           {/* 생성 / 시드 — 마이그레이션·시뮬레이션 */}
-          <span className="text-weak text-xs" style={{ marginRight: 4 }}>생성</span>
-          <button className="btn" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → 그 계약의 events 재구성 (마이그레이션)">
-            <CurrencyKrw size={14} weight="bold" /> 수납생성
-          </button>
-          <button className="btn" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
-            <Truck size={14} weight="bold" /> 출고생성
-          </button>
+          <span className="dev-group-box">
+            <span className="dev-group-label">생성</span>
+            <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → 그 계약의 events 재구성">
+              <CurrencyKrw size={13} weight="bold" /> 수납생성
+            </button>
+            <button className="btn btn-sm" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
+              <Truck size={13} weight="bold" /> 출고생성
+            </button>
+          </span>
 
-          <span className="stat-divider" />
+          {/* 보수 / 정합성 — 운영 데이터 무결성 */}
+          <span className="dev-group-box">
+            <span className="dev-group-label">보수</span>
+            <Link href="/pending/integrity" className="btn btn-sm" title="14종 모순 케이스 자동 점검">
+              <ShieldCheck size={13} weight="bold" /> 정합성
+            </Link>
+            <Link href="/admin/audit" className="btn btn-sm" title="모든 변경 이력 시계열 조회">
+              <ClockCounterClockwise size={13} weight="bold" /> 감사로그
+            </Link>
+          </span>
 
           {/* 삭제 / 초기화 — 운영 안정 후 권한 제한 추가 */}
-          <span className="text-weak text-xs" style={{ marginRight: 4 }}>삭제</span>
-          <button className="btn" onClick={() => setPurgeOpen(true)} title="회사·자산·계약·계좌내역 노드 선택 후 일괄 hard-delete">
-            <TrashSimple size={14} weight="bold" /> 데이터 삭제
-          </button>
-          <button
-            className="btn"
-            onClick={async () => {
-              const txt = prompt('알려진 RTDB 노드 일괄 삭제. 권한(Rules) 거부되는 건 표시만.\n\n계속하려면 "WIPE-ALL" 입력:');
-              if (txt !== 'WIPE-ALL') return;
-              const NODES = [
-                // v4 자체
-                'companies', 'assets', 'contracts', 'customers', 'insurances', 'journal_entries',
-                'ledger', 'audit_logs', 'event_uploads', 'sms_logs',
-                // v3 잔여
-                'partners', 'billings', 'events', 'mobile_uploads',
-                'vehicle_master', 'contract_templates', 'sequences', 'code_sequences',
-                'uploads', 'alimtalk_queue', 'members',
-                'vendors', 'loans', 'autodebits', 'gps_devices', 'tasks', 'ocr_documents', 'car_models',
-              ];
-              const { ref: dbRef, set } = await import('firebase/database');
-              const { getRtdb } = await import('@/lib/firebase/client');
-              const db = getRtdb();
-              const ok: string[] = [];
-              const failed: string[] = [];
-              for (const n of NODES) {
-                try { await set(dbRef(db, n), null); ok.push(n); }
-                catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
-              }
-              alert(`완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}\n\nFirebase Console 새로고침해서 확인.`);
-            }}
-            style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
-            title="알려진 RTDB 노드 일괄 삭제 — 권한 있는 것만 (client SDK)"
-          >
-            <TrashSimple size={14} weight="bold" /> RTDB 초기화
-          </button>
+          <span className="dev-group-box dev-group-box-danger">
+            <span className="dev-group-label">삭제</span>
+            <button className="btn btn-sm" onClick={() => setPurgeOpen(true)} title="회사·자산·계약·계좌내역 노드 선택 후 일괄 hard-delete">
+              <TrashSimple size={13} weight="bold" /> 데이터 삭제
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={async () => {
+                const txt = prompt('알려진 RTDB 노드 일괄 삭제. 권한(Rules) 거부되는 건 표시만.\n\n계속하려면 "WIPE-ALL" 입력:');
+                if (txt !== 'WIPE-ALL') return;
+                const NODES = [
+                  'companies', 'assets', 'contracts', 'customers', 'insurances', 'journal_entries',
+                  'ledger', 'audit_logs', 'event_uploads', 'sms_logs',
+                  'partners', 'billings', 'events', 'mobile_uploads',
+                  'vehicle_master', 'contract_templates', 'sequences', 'code_sequences',
+                  'uploads', 'alimtalk_queue', 'members',
+                  'vendors', 'loans', 'autodebits', 'gps_devices', 'tasks', 'ocr_documents', 'car_models',
+                ];
+                const { ref: dbRef, set } = await import('firebase/database');
+                const { getRtdb } = await import('@/lib/firebase/client');
+                const db = getRtdb();
+                const ok: string[] = [];
+                const failed: string[] = [];
+                for (const n of NODES) {
+                  try { await set(dbRef(db, n), null); ok.push(n); }
+                  catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
+                }
+                alert(`완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}\n\nFirebase Console 새로고침해서 확인.`);
+              }}
+              style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
+              title="알려진 RTDB 노드 일괄 삭제"
+            >
+              <TrashSimple size={13} weight="bold" /> RTDB 초기화
+            </button>
+          </span>
         </>
       }
     >

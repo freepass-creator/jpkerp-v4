@@ -2284,3 +2284,27 @@ input[type="checkbox"], input[type="radio"] {
   background: #f1f8e9;
 }
 
+/* /dev 페이지 footer 작업 그룹 박스 — 성격별 시각 구분 */
+.dev-group-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-left: 6px;
+}
+.dev-group-box .dev-group-label {
+  font-size: 10px;
+  color: var(--text-weak);
+  margin-right: 2px;
+  letter-spacing: 0.5px;
+}
+.dev-group-box-danger {
+  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.04);
+}
+.dev-group-box-danger .dev-group-label {
+  color: var(--alert-red-text);
+}
+
