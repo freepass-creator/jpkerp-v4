@@ -154,28 +154,33 @@ export default function DevPage() {
           <button
             className="btn"
             onClick={async () => {
-              const txt = prompt('전체 RTDB 를 비웁니다. 되돌릴 수 없습니다.\n\n계속하려면 "WIPE-ALL" 입력:');
+              const txt = prompt('알려진 RTDB 노드 일괄 삭제. 권한(Rules) 거부되는 건 표시만.\n\n계속하려면 "WIPE-ALL" 입력:');
               if (txt !== 'WIPE-ALL') return;
-              try {
-                const auth = (await import('firebase/auth')).getAuth();
-                const token = await auth.currentUser?.getIdToken();
-                if (!token) { alert('로그인 필요'); return; }
-                const r = await fetch('/api/dev/wipe-all', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ confirm: 'WIPE-ALL' }),
-                });
-                const j = await r.json();
-                if (j.ok) alert(`완료 — ${j.removedNodes}개 노드 삭제됨. 새로고침하세요.`);
-                else alert(`실패: ${j.error}`);
-              } catch (e) {
-                alert(`오류: ${(e as Error).message}`);
+              const NODES = [
+                // v4 자체
+                'companies', 'assets', 'contracts', 'insurances', 'journal_entries',
+                'ledger', 'audit_logs', 'event_uploads', 'sms_logs',
+                // v3 잔여
+                'partners', 'customers', 'billings', 'events', 'mobile_uploads',
+                'vehicle_master', 'contract_templates', 'sequences', 'code_sequences',
+                'uploads', 'alimtalk_queue', 'members',
+                'vendors', 'loans', 'autodebits', 'gps_devices', 'tasks', 'ocr_documents', 'car_models',
+              ];
+              const { ref: dbRef, set } = await import('firebase/database');
+              const { getRtdb } = await import('@/lib/firebase/client');
+              const db = getRtdb();
+              const ok: string[] = [];
+              const failed: string[] = [];
+              for (const n of NODES) {
+                try { await set(dbRef(db, n), null); ok.push(n); }
+                catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
               }
+              alert(`완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}\n\nFirebase Console 새로고침해서 확인.`);
             }}
             style={{ color: 'var(--alert-red-text)', borderColor: 'var(--alert-red-text)' }}
-            title="Firebase RTDB 루트 전체 비우기 — 모든 노드 한방에 삭제"
+            title="알려진 RTDB 노드 일괄 삭제 — 권한 있는 것만 (client SDK)"
           >
-            <TrashSimple size={14} weight="bold" /> RTDB 전체 초기화
+            <TrashSimple size={14} weight="bold" /> 노드 일괄 삭제
           </button>
         </>
       }
