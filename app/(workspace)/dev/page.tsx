@@ -12,6 +12,8 @@ import { useContractStore } from '@/lib/use-contract-store';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { ContractsImportPanel } from '@/components/dev/contracts-import';
+import type { Contract } from '@/lib/sample-contracts';
+import { todayStr } from '@/lib/date-utils';
 import { cn } from '@/lib/cn';
 
 /**
@@ -86,20 +88,8 @@ export default function DevPage() {
     setPurgeOpen(false);
   }
 
-  /** 시드 — 수납생성: 모든 계약의 미경과 회차를 일괄 완료 처리 (보증금 포함 가정). */
-  function seedReceipts() {
-    if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
-    if (!confirm(`전체 계약 ${contracts.length}건의 만기 도래한 수납 회차 + 보증금을 일괄 납부 처리합니다.\n계속할까요?`)) return;
-    const today = new Date().toISOString().slice(0, 10);
-    setContracts((prev) => prev.map((c) => ({
-      ...c,
-      events: c.events.map((e) =>
-        e.type === '수납' && e.dueDate <= today && e.status === '예정'
-          ? { ...e, status: '완료' as const, doneDate: e.dueDate }
-          : e,
-      ),
-    })));
-  }
+  // 수납 마이그레이션 dialog — 고객명·등록번호로 매칭 후 미수 회차 입력
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   /** 시드 — 출고생성: 모든 계약의 출고 이벤트 완료 + 자산 상태 운행중 전환. */
   function seedDeliveries() {
@@ -142,7 +132,7 @@ export default function DevPage() {
       footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
       footerRight={
         <>
-          <button className="btn" onClick={seedReceipts} title="모든 계약의 만기 도래 회차 + 보증금 일괄 납부 처리">
+          <button className="btn" onClick={() => setReceiptOpen(true)} title="고객 정보 + 미수 회차 입력 → 그 계약의 events 재구성 (마이그레이션)">
             <CurrencyKrw size={14} weight="bold" /> 수납생성
           </button>
           <button className="btn" onClick={seedDeliveries} title="모든 계약의 출고 완료 + 자산 운행중 전환">
@@ -195,6 +185,12 @@ export default function DevPage() {
       </div>
 
       <PurgeDialog open={purgeOpen} onOpenChange={setPurgeOpen} counts={counts} onPurge={purge} />
+      <ReceiptSeedDialog
+        open={receiptOpen}
+        onOpenChange={setReceiptOpen}
+        contracts={contracts}
+        setContracts={setContracts}
+      />
     </PageShell>
   );
 }
@@ -612,5 +608,156 @@ function LedgerTable({ entries, setEntries }: {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/* ─── 수납생성 다이얼로그 — 마이그레이션 도구 ─── */
+function ReceiptSeedDialog({
+  open, onOpenChange, contracts, setContracts,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  contracts: Contract[];
+  setContracts: ReturnType<typeof useContractStore>[1];
+}) {
+  const audit = useAuditStamp();
+  const [name, setName] = useState('');
+  const [ident, setIdent] = useState('');
+  const [overdueCount, setOverdueCount] = useState(0);
+
+  // 다이얼로그 열릴 때 초기화
+  useEffect(() => {
+    if (open) { setName(''); setIdent(''); setOverdueCount(0); }
+  }, [open]);
+
+  // 고객명 + 등록번호 매칭 — 둘 중 하나만 있어도 OK. 등록번호는 앞 6자리 또는 전체
+  const matched: Contract[] = (() => {
+    const n = name.trim();
+    const i = ident.replace(/[\s\-]/g, '').trim();
+    if (!n && !i) return [];
+    return contracts.filter((c) => {
+      if (c.deletedAt) return false;
+      const okN = n ? c.customerName.includes(n) : true;
+      const okI = i ? c.customerIdent.replace(/[\s\-]/g, '').startsWith(i) : true;
+      return okN && okI;
+    });
+  })();
+
+  // 단일 매칭 시 events 미리보기
+  const target = matched.length === 1 ? matched[0] : null;
+  const receiptEvents = target
+    ? target.events.filter((e) => e.type === '수납').sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    : [];
+  const totalReceipts = receiptEvents.length;
+  const paidUntilCycle = totalReceipts - overdueCount;
+
+  function apply() {
+    if (!target) {
+      alert(matched.length === 0 ? '매칭되는 계약 없음' : `매칭이 ${matched.length}건 — 등록번호 더 구체적으로 입력`);
+      return;
+    }
+    const today = todayStr();
+    if (!confirm(
+      `${target.contractNo} (${target.customerName}, ${target.plate})\n`
+      + `총 수납 ${totalReceipts}회차 → 미수 ${overdueCount}회차로 재구성\n`
+      + `· cycle 1 ~ ${paidUntilCycle} 중 dueDate ≤ ${today}: 완료\n`
+      + `· cycle ${paidUntilCycle + 1} ~ ${totalReceipts}: 예정 (미수)\n\n계속?`,
+    )) return;
+
+    setContracts((prev) => prev.map((c) => {
+      if (c.id !== target.id) return c;
+      const next: Contract = {
+        ...c,
+        events: c.events.map((e) => {
+          if (e.type !== '수납') return e;
+          const cyc = e.cycle ?? 0;
+          if (cyc <= paidUntilCycle && e.dueDate <= today) {
+            return { ...e, status: '완료' as const, doneDate: e.dueDate };
+          }
+          return { ...e, status: '예정' as const, doneDate: undefined };
+        }),
+        ...audit.update(),
+      };
+      return next;
+    }));
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: target.id,
+      label: `${target.contractNo} 수납재구성 (미수 ${overdueCount})`,
+      before: target,
+    });
+    alert(`재구성 완료. ${target.contractNo} 미수 ${overdueCount}회차.`);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="수납생성 — 마이그레이션" size="md">
+        <div className="space-y-3">
+          <p className="text-weak text-xs">
+            기존 운영 데이터에서 옮겨올 때 사용. 고객 정보로 계약 찾고, 현재 미수 회차 수만 입력하면 events 재구성:
+            <br />· 미수 외 회차 — 완료 처리
+            <br />· 미수 N회차 — 예정 (자동으로 /pending/overdue 에 표시)
+          </p>
+
+          <div className="form-grid">
+            <label className="block col-span-2">
+              <span className="label">고객명</span>
+              <input className="input w-full" value={name} onChange={(e) => setName(e.target.value)} placeholder="송대성" />
+            </label>
+            <label className="block col-span-2">
+              <span className="label">등록번호 (앞 6자리 또는 전체)</span>
+              <input className="input w-full" value={ident} onChange={(e) => setIdent(e.target.value)} placeholder="930213 또는 930213-1095624" />
+            </label>
+            <label className="block col-span-2">
+              <span className="label">현재 미수 회차 수</span>
+              <input
+                type="number"
+                className="input w-full"
+                value={overdueCount}
+                min={0}
+                onChange={(e) => setOverdueCount(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <span className="text-weak text-xs">0 = 완납 / N = 마지막 N회차 미납</span>
+            </label>
+          </div>
+
+          {/* 매칭 결과 */}
+          {(name || ident) && (
+            <div style={{ background: 'var(--bg-card)', padding: 8, border: '1px solid var(--border)', borderRadius: 4 }}>
+              {matched.length === 0 && <span className="text-red text-xs">매칭되는 계약 없음</span>}
+              {matched.length > 1 && (
+                <span className="text-amber text-xs">
+                  {matched.length}건 매칭 — 정확히 좁혀주세요:
+                  <ul className="mt-1 ml-4">
+                    {matched.slice(0, 5).map((c) => (
+                      <li key={c.id} className="text-xs dim">{c.contractNo} · {c.customerName} · {c.plate}</li>
+                    ))}
+                  </ul>
+                </span>
+              )}
+              {target && (
+                <div className="text-xs">
+                  <div><strong>{target.contractNo}</strong> · {target.customerName} · {target.plate}</div>
+                  <div className="text-weak">총 수납 {totalReceipts}회차 / 입력 시 완료 {paidUntilCycle}회 + 미수 {overdueCount}회</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild><button className="btn">취소</button></DialogClose>
+          <button
+            className="btn btn-primary"
+            disabled={!target || overdueCount > totalReceipts}
+            onClick={apply}
+          >
+            재구성 적용
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
