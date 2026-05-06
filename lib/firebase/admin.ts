@@ -29,6 +29,7 @@ function getApp(): App {
   if (!databaseURL) {
     throw new Error('Firebase Admin: NEXT_PUBLIC_FIREBASE_DATABASE_URL 누락');
   }
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
   const rawKey = process.env.FIREBASE_ADMIN_KEY;
   if (rawKey) {
@@ -38,12 +39,12 @@ function getApp(): App {
     } catch (e) {
       throw new Error(`Firebase Admin: FIREBASE_ADMIN_KEY JSON 파싱 실패 — ${(e as Error).message}`);
     }
-    _app = initializeApp({ credential: cert(parsed), databaseURL });
+    _app = initializeApp({ credential: cert(parsed), databaseURL, projectId });
     return _app;
   }
 
-  // fallback — gcloud / Vercel 자동
-  _app = initializeApp({ credential: applicationDefault(), databaseURL });
+  // fallback — gcloud / Vercel 자동. projectId 명시 (verifyIdToken 등 일부 API 가 요구)
+  _app = initializeApp({ credential: applicationDefault(), databaseURL, projectId });
   return _app;
 }
 
