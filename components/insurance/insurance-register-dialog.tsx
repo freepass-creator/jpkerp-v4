@@ -5,6 +5,7 @@ import { Upload, X, CircleNotch, CheckCircle, Warning, Plus, ArrowCounterClockwi
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { activeCompanies } from '@/lib/sample-companies';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
@@ -35,6 +36,11 @@ type Props = {
 export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
   const [assets] = useAssetStore();
   const [companies] = useCompanyStore();
+  const [existingPolicies] = useInsuranceStore();
+  // policyNo (보험사 발행 증권번호) 가 이미 등록된 경우 중복 — 매칭용 Set
+  const existingPolicyNos = new Set(
+    existingPolicies.filter((p) => !p.deletedAt && p.policyNo).map((p) => p.policyNo),
+  );
   const matchAsset = (carNumber?: string) => findAssetByPlate(assets, carNumber ?? '');
 
   const [openInner, setOpenInner] = useState(false);
@@ -167,14 +173,16 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
     setItems((p) => p.filter((i) => i.id !== id));
   }
 
-  // 등록 가능 = 정상 차량번호 + 회사코드 둘 다 있어야 함 (보험증권은 차량 단위)
+  // 등록 가능 = 정상 차량번호 + 회사코드 + policyNo 미중복 (보험증권은 차량 단위 + 외부 발급 증권번호 unique)
   const PLATE_RE = /^\d{2,3}[가-힣]\d{4}$/;
   const doneItems = items.filter((i) => i._status === 'done');
   const registerableItems = doneItems.filter((i) =>
-    i.carNumber && PLATE_RE.test(i.carNumber) && i.companyCode,
+    i.carNumber && PLATE_RE.test(i.carNumber) && i.companyCode
+    && !(i.policyNo && existingPolicyNos.has(i.policyNo)),
   );
   const noPlateCount = doneItems.filter((i) => !i.carNumber || !PLATE_RE.test(i.carNumber)).length;
   const noCompanyCount = doneItems.filter((i) => i.carNumber && !i.companyCode).length;
+  const dupPolicyCount = doneItems.filter((i) => i.policyNo && existingPolicyNos.has(i.policyNo)).length;
 
   function commitAll() {
     if (registerableItems.length === 0) {
@@ -343,6 +351,7 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
               총 {items.length}건 · 등록 가능 <strong>{registerableItems.length}</strong> · 자산 매칭 <strong>{matchedCount}</strong>
               {noPlateCount > 0 && <> · <span className="text-red">차량번호 누락 {noPlateCount}건 (행에서 직접 입력)</span></>}
               {noCompanyCount > 0 && <> · <span className="text-amber">회사 미매칭 {noCompanyCount}건 (행에서 선택)</span></>}
+              {dupPolicyCount > 0 && <> · <span className="text-red">증권번호 중복 {dupPolicyCount}건 제외</span></>}
             </div>
           )}
         </div>
