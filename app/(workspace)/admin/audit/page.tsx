@@ -23,6 +23,7 @@ const ACTION_FILTERS: Array<{ key: 'all' | AuditAction; label: string }> = [
 const ENTITY_LABEL: Record<AuditEntityType, string> = {
   asset:     '자산',
   contract:  '계약',
+  customer:  '고객',
   company:   '회사',
   insurance: '보험',
   journal:   '업무일지',

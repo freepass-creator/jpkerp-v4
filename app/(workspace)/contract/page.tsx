@@ -7,6 +7,8 @@ import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useCompanyStore } from '@/lib/use-company-store';
+import { useCustomerStore } from '@/lib/use-customer-store';
+import { findCustomerMatch, type Customer } from '@/lib/sample-customers';
 import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { activeContracts, type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
@@ -17,7 +19,7 @@ import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/
 import { EmptyState } from '@/components/ui/empty-state';
 import { FileText } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
-import { nextDateScopedCode } from '@/lib/code-gen';
+import { nextDateScopedCode, nextCompanyScopedCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { genId } from '@/lib/ids';
@@ -95,6 +97,7 @@ const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = [
 export default function ContractListPage() {
   const [allContracts, setContracts] = useContractStore();
   const [allAssets, setAssets] = useAssetStore();
+  const [customers, setCustomers] = useCustomerStore();
   // active 만 — 소프트 삭제는 목록·집계에서 제외 (코드는 영구 보존)
   const contracts = useMemo(() => activeContracts(allContracts), [allContracts]);
   const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
@@ -134,6 +137,62 @@ export default function ContractListPage() {
     };
   }
 
+  /**
+   * 계약 등록/수정 시 고객 매칭 — 기존 고객이면 코드 재사용 + 정보 갱신, 없으면 신규 발급.
+   * 반환: 사용할 customerCode. customer master mutation 은 내부에서 처리 (audit 포함).
+   */
+  function resolveCustomerCode(args: {
+    companyCode: string;
+    name: string;
+    kind: CustomerKind;
+    ident: string;
+    phone: string;
+    licenseNo?: string;
+    email?: string;
+  }): string {
+    const matched = findCustomerMatch(customers, args.companyCode, args.ident, args.phone);
+    if (matched) {
+      // 정보 변동 있으면 master 갱신 — 마지막 계약 시점 정보로.
+      const changed =
+        matched.name !== args.name ||
+        matched.kind !== args.kind ||
+        (matched.ident ?? '') !== args.ident ||
+        matched.phone !== args.phone ||
+        (matched.licenseNo ?? '') !== (args.licenseNo ?? '') ||
+        (matched.email ?? '') !== (args.email ?? '');
+      if (changed) {
+        const updated: Customer = {
+          ...matched,
+          name: args.name,
+          kind: args.kind,
+          ident: args.ident || matched.ident,
+          phone: args.phone || matched.phone,
+          licenseNo: args.licenseNo ?? matched.licenseNo,
+          email: args.email ?? matched.email,
+          ...audit.update(),
+        };
+        setCustomers((prev) => prev.map((c) => (c.code === matched.code ? updated : c)));
+        audit.log({ action: 'update', entityType: 'customer', entityId: updated.code, label: updated.name, before: matched, after: updated });
+      }
+      return matched.code;
+    }
+    const code = nextCompanyScopedCode('CU', args.companyCode, customers.map((c) => c.code), { pad: 4 });
+    const created: Customer = {
+      code,
+      companyCode: args.companyCode,
+      name: args.name,
+      kind: args.kind,
+      ident: args.ident || undefined,
+      phone: args.phone,
+      licenseNo: args.licenseNo,
+      email: args.email,
+      ...audit.create(),
+    };
+    setCustomers((prev) => [...prev, created]);
+    audit.log({ action: 'create', entityType: 'customer', entityId: created.code, label: created.name, after: created });
+    return code;
+  }
+
   /** 수정/복사 폼 record → Contract — 등록은 ContractRegisterDialog 가 처리. */
   function fromFormRecord(d: Record<string, string>): Contract {
     const contractNo = d.contractNo?.trim() || nextDateScopedCode('C', contracts.map((c) => c.contractNo));
@@ -171,7 +230,16 @@ export default function ContractListPage() {
   }
 
   function handleCreate(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>) {
-    const contract: Contract = { ...fromDraft(draft), ...audit.create() };
+    const customerCode = resolveCustomerCode({
+      companyCode: draft.companyCode,
+      name: draft.customerName,
+      kind: draft.customerKind,
+      ident: draft.customerIdent,
+      phone: draft.customerPhone,
+      licenseNo: draft.customerLicenseNo,
+      email: draft.customerEmail,
+    });
+    const contract: Contract = { ...fromDraft({ ...draft, customerCode }), ...audit.create() };
     setContracts((prev) => [contract, ...prev]);
     audit.log({ action: 'create', entityType: 'contract', entityId: contract.id, label: contract.contractNo, after: contract });
     // cascade: 자산 상태 전환 — '등록예정' → '대기' (출고 대기). 이미 운행중/정비/매각이면 손대지 않음.
@@ -186,7 +254,46 @@ export default function ContractListPage() {
 
   function handleUpdate(d: Record<string, string>) {
     if (!selected) return;
-    const updated: Contract = { ...selected, ...fromFormRecord(d), id: selected.id, contractNo: selected.contractNo, events: selected.events, ...audit.update() };
+    const base = fromFormRecord(d);
+    // 기존 customerCode 유지 (이미 발급됐으면 변경 X). 없으면 매칭/신규 발급.
+    // 정보 갱신은 master 에 반영 (resolveCustomerCode 내부에서 처리).
+    const customerCode = selected.customerCode ?? resolveCustomerCode({
+      companyCode: base.companyCode,
+      name: base.customerName,
+      kind: base.customerKind,
+      ident: base.customerIdent,
+      phone: base.customerPhone,
+      licenseNo: base.customerLicenseNo,
+      email: base.customerEmail,
+    });
+    // 이미 customerCode 가 있을 때도 master 정보 변경분 반영 (이름/연락처/이메일/면허 변경 등).
+    if (selected.customerCode) {
+      const existing = customers.find((c) => c.code === selected.customerCode);
+      if (existing) {
+        const changed =
+          existing.name !== base.customerName ||
+          existing.kind !== base.customerKind ||
+          (existing.ident ?? '') !== base.customerIdent ||
+          existing.phone !== base.customerPhone ||
+          (existing.licenseNo ?? '') !== (base.customerLicenseNo ?? '') ||
+          (existing.email ?? '') !== (base.customerEmail ?? '');
+        if (changed) {
+          const updatedCust: Customer = {
+            ...existing,
+            name: base.customerName,
+            kind: base.customerKind,
+            ident: base.customerIdent || existing.ident,
+            phone: base.customerPhone || existing.phone,
+            licenseNo: base.customerLicenseNo ?? existing.licenseNo,
+            email: base.customerEmail ?? existing.email,
+            ...audit.update(),
+          };
+          setCustomers((prev) => prev.map((c) => (c.code === existing.code ? updatedCust : c)));
+          audit.log({ action: 'update', entityType: 'customer', entityId: updatedCust.code, label: updatedCust.name, before: existing, after: updatedCust });
+        }
+      }
+    }
+    const updated: Contract = { ...selected, ...base, id: selected.id, contractNo: selected.contractNo, customerCode, events: selected.events, ...audit.update() };
     setContracts((prev) => prev.map((c) => (c.id === selected.id ? updated : c)));
     setSelected(updated);
     audit.log({ action: 'update', entityType: 'contract', entityId: updated.id, label: updated.contractNo, before: selected, after: updated });
@@ -194,7 +301,19 @@ export default function ContractListPage() {
   }
 
   function handleDuplicate(d: Record<string, string>) {
-    const dup: Contract = { ...fromFormRecord(d), ...audit.create() };
+    // 재계약 — 원본의 customerCode 유지 (같은 고객의 새 계약).
+    const base = fromFormRecord(d);
+    const customerCode = selected?.customerCode
+      ?? resolveCustomerCode({
+        companyCode: base.companyCode,
+        name: base.customerName,
+        kind: base.customerKind,
+        ident: base.customerIdent,
+        phone: base.customerPhone,
+        licenseNo: base.customerLicenseNo,
+        email: base.customerEmail,
+      });
+    const dup: Contract = { ...base, customerCode, ...audit.create() };
     setContracts((prev) => [dup, ...prev]);
     audit.log({ action: 'create', entityType: 'contract', entityId: dup.id, label: dup.contractNo, after: dup });
     setDuplicateOpen(false);
@@ -397,6 +516,8 @@ function ContractGrid({
       cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
     { headerName: '계약번호', field: 'contractNo', width: 130, filterable: true,
       cellRenderer: ({ value }) => <span className="mono text-medium">{value as string}</span> },
+    { headerName: '고객코드', field: 'customerCode', width: 110, filterable: true,
+      cellRenderer: ({ value }) => <span className="mono text-medium">{(value as string) || '-'}</span> },
     { headerName: '고객명', field: 'customerName', width: 130, filterable: true },
     { headerName: '고객 신분', field: 'customerKind', width: 90, filterable: true,
       cellRenderer: ({ value }) => <span className="dim">{(value as string) ?? '-'}</span> },

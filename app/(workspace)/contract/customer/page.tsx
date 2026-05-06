@@ -6,174 +6,136 @@ import { UserList } from '@phosphor-icons/react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useContractStore } from '@/lib/use-contract-store';
+import { useCustomerStore } from '@/lib/use-customer-store';
 import { activeContracts } from '@/lib/sample-contracts';
-import { cn } from '@/lib/cn';
+import { activeCustomers, type Customer } from '@/lib/sample-customers';
 
 /**
- * 임차인정보 — 활성/종료 임차인 목록.
- * 계약 종료 후 일정 기간(개인 5년 / 사업자 10년) 경과 시 자동 폐기.
- * 폐기 D-day 색상 코딩.
+ * 고객 — Customer master entity. 계약과 분리된 영구 master.
+ *
+ * 한 고객이 여러 계약 보유 가능 (재계약·다중차량). 계약 등록 시 ident/phone 매칭으로 자동 누적.
+ * 계약서 본문엔 "임차인" 표기, 시스템 코드/UI 는 "고객".
+ *
+ * 표시:
+ *   · 고객코드 (CP01CU0001)
+ *   · 회사 / 이름 / 신분 / 연락처 / 이메일
+ *   · 등록번호 (마스킹: 주민이면 앞 6자리, 사업자/법인은 그대로)
+ *   · 보유 계약 수 (active) + 마지막 계약 만기일
  */
 
-type LesseeKind = '개인' | '사업자' | '법인';
-type LesseeStatus = '유지중' | '만기도래' | '종료';
-
-type Lessee = {
-  id: string;
-  companyCode: string;
-  code: string;             // 임차인 코드 (LS-NNNN)
-  name: string;
-  kind: LesseeKind;
-  phone: string;
-  identNumber: string;
-  currentPlate?: string;
-  contractNo?: string;
-  status: LesseeStatus;
-  contractEndDate?: string;  // 마지막 계약 종료일
-};
-
-// 개인 5년 / 사업자 10년 보존 정책
-const RETENTION_YEARS: Record<LesseeKind, number> = { 개인: 5, 사업자: 10, 법인: 10 };
+/** 등록번호 마스킹 — 주민(개인)은 앞 6자리만 노출, 사업자/법인은 그대로. */
+function maskIdent(c: Customer): string {
+  if (!c.ident) return '-';
+  if (c.kind === '개인') {
+    // 주민번호 앞 6자리 + 뒤 ******
+    const front = c.ident.replace(/[^0-9]/g, '').slice(0, 6);
+    return front ? `${front}-*******` : '-';
+  }
+  return c.ident;
+}
 
 export default function ContractCustomerPage() {
+  const [allCustomers] = useCustomerStore();
   const [allContracts] = useContractStore();
-  // 소프트 삭제 계약 제외 — 임차인 마스터는 active 계약 기반.
-  const contracts = useMemo(() => activeContracts(allContracts), [allContracts]);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
-  const lessees = useMemo<Lessee[]>(() => {
-    const active = contracts
-      .filter((c) => c.status === '운행중')
-      .map((c, i) => ({
-        id: `ls-${c.id}`,
-        companyCode: c.companyCode,
-        code: `LS-${String(i + 1).padStart(4, '0')}`,
-        name: c.customerName,
-        kind: c.customerKind ?? '개인',
-        phone: c.customerPhone ?? '',
-        identNumber: c.customerKind === '사업자' ? '-' : '-',
-        currentPlate: c.plate,
-        contractNo: c.contractNo,
-        status: '유지중' as LesseeStatus,
-        contractEndDate: c.endDate,
-      }));
-    const ended = contracts
-      .filter((c) => c.status === '만기' || c.status === '해지')
-      .map((c, i) => ({
-        id: `ls-end-${c.id}`,
-        companyCode: c.companyCode,
-        code: `LS-${String(active.length + i + 1).padStart(4, '0')}`,
-        name: c.customerName,
-        kind: c.customerKind ?? '개인',
-        phone: c.customerPhone ?? '',
-        identNumber: '-',
-        currentPlate: undefined,
-        contractNo: c.contractNo,
-        status: '종료' as LesseeStatus,
-        contractEndDate: c.endDate,
-      }));
-    return [...active, ...ended];
+  const customers = useMemo(() => activeCustomers(allCustomers), [allCustomers]);
+  const contracts = useMemo(() => activeContracts(allContracts), [allContracts]);
+
+  /** 고객별 계약 join — code 매칭. O(N+M) Map 으로 그룹핑. */
+  const contractsByCustomer = useMemo(() => {
+    const map = new Map<string, typeof contracts>();
+    for (const c of contracts) {
+      if (!c.customerCode) continue;
+      const arr = map.get(c.customerCode);
+      if (arr) arr.push(c);
+      else map.set(c.customerCode, [c]);
+    }
+    return map;
   }, [contracts]);
 
-  function retentionEndDate(l: Lessee): Date | null {
-    if (!l.contractEndDate) return null;
-    const end = new Date(l.contractEndDate);
-    if (isNaN(end.getTime())) return null;
-    end.setFullYear(end.getFullYear() + RETENTION_YEARS[l.kind]);
-    return end;
-  }
+  type Row = {
+    customer: Customer;
+    activeContractCount: number;
+    lastEndDate?: string;
+  };
 
-  function disposeDday(l: Lessee): number | null {
-    const re = retentionEndDate(l);
-    if (!re) return null;
-    return Math.floor((re.getTime() - today.getTime()) / 86400000);
-  }
+  const rows = useMemo<Row[]>(() => {
+    return customers.map((cust) => {
+      const list = contractsByCustomer.get(cust.code) ?? [];
+      const active = list.filter((c) => c.status === '운행중');
+      const lastEndDate = list
+        .map((c) => c.endDate)
+        .filter((d): d is string => !!d)
+        .sort()
+        .pop();
+      return {
+        customer: cust,
+        activeContractCount: active.length,
+        lastEndDate,
+      };
+    });
+  }, [customers, contractsByCustomer]);
 
-  const total = lessees.length;
-  const active = lessees.filter((l) => l.status === '유지중').length;
-  const expiring = lessees.filter((l) => {
-    const d = disposeDday(l);
-    return d !== null && d <= 90 && d >= 0;
-  }).length;
-  const overdue = lessees.filter((l) => {
-    const d = disposeDday(l);
-    return d !== null && d < 0;
-  }).length;
+  const total = rows.length;
+  const withActive = rows.filter((r) => r.activeContractCount > 0).length;
 
   return (
     <PageShell
       subTabs={CONTRACT_SUBTABS}
-     
       footerLeft={
         <>
           <span className="stat-item">전체 <strong>{total}</strong></span>
-          <span className="stat-item">유지중 <strong>{active}</strong></span>
-          {expiring > 0 && <span className="stat-item alert">폐기 임박 <strong>{expiring}</strong></span>}
-          {overdue > 0 && <span className="stat-item alert">폐기 경과 <strong>{overdue}</strong></span>}
+          <span className="stat-item">계약 보유 <strong>{withActive}</strong></span>
         </>
       }
       footerRight={
         <>
           <button className="btn">엑셀</button>
-          <button className="btn">+ 임차인 등록</button>
+          <button className="btn">+ 고객 등록</button>
         </>
       }
     >
-      {lessees.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
           icon={UserList}
-          title="등록된 임차인 없음"
-          description="계약 등록 시 임차인 마스터에 자동 누적됩니다."
-          hint={<>① 계약 등록 → 임차인 정보 저장<br />② 같은 고객 재계약 시 자동 매칭<br />③ 다중 차량 보유 고객 그룹화</>}
+          title="등록된 고객 없음"
+          description="계약 등록 시 고객 마스터에 자동 누적됩니다."
+          hint={<>① 계약 등록 → 고객 자동 매칭 (ident/phone) 또는 신규 발급<br />② 같은 고객 재계약 시 같은 코드 재사용<br />③ 다중 차량 보유 고객 그룹화</>}
         />
       ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
-              <th>회사코드</th>
-              <th>차량번호</th>
-              <th>임차인코드</th>
-              <th>성명/명칭</th>
+              <th>고객코드</th>
+              <th>회사</th>
+              <th>이름</th>
               <th>신분</th>
               <th>연락처</th>
-              <th>식별번호</th>
-              <th>계약번호</th>
-              <th className="center">상태</th>
-              <th className="date">계약 종료일</th>
-              <th className="date">폐기 예정일</th>
-              <th className="center">폐기 D-day</th>
+              <th>이메일</th>
+              <th>등록번호</th>
+              <th className="center">보유 계약</th>
+              <th className="date">마지막 만기일</th>
             </tr>
           </thead>
           <tbody>
-            {lessees.map((l) => {
-              const re = retentionEndDate(l);
-              const dday = disposeDday(l);
-              const ddCls = dday === null ? '' : dday < 0 ? 'overdue' : dday < 30 ? 'overdue' : dday < 90 ? 'due-soon' : '';
-              return (
-                <tr key={l.id}>
-                  <td className="plate">{l.companyCode}</td>
-                  <td className="plate">{l.currentPlate ?? <span className="text-muted">-</span>}</td>
-                  <td className="mono dim">{l.code}</td>
-                  <td className="text-medium">{l.name}</td>
-                  <td className="dim">{l.kind}</td>
-                  <td className="mono">{l.phone}</td>
-                  <td className="mono dim">{l.identNumber}</td>
-                  <td className="mono dim">{l.contractNo ?? <span className="text-muted">-</span>}</td>
-                  <td className="center">
-                    <span className={cn('badge', l.status === '유지중' ? 'badge-green' : l.status === '만기도래' ? 'badge-orange' : 'badge')}>
-                      {l.status}
-                    </span>
-                  </td>
-                  <td className="date">{l.contractEndDate ?? <span className="text-muted">-</span>}</td>
-                  <td className="date dim">{re ? re.toISOString().slice(0, 10) : <span className="text-muted">-</span>}</td>
-                  <td className={cn('center', ddCls)}>
-                    {dday === null ? <span className="text-muted">-</span> : dday < 0 ? `폐기 ${-dday}일 경과` : `D-${dday}`}
-                  </td>
-                </tr>
-              );
-            })}
+            {rows.map((r) => (
+              <tr key={r.customer.code}>
+                <td className="mono text-medium">{r.customer.code}</td>
+                <td className="plate">{r.customer.companyCode}</td>
+                <td className="text-medium">{r.customer.name}</td>
+                <td className="dim">{r.customer.kind}</td>
+                <td className="mono">{r.customer.phone || <span className="text-muted">-</span>}</td>
+                <td className="mono dim">{r.customer.email || <span className="text-muted">-</span>}</td>
+                <td className="mono dim">{maskIdent(r.customer)}</td>
+                <td className="center">
+                  {r.activeContractCount > 0
+                    ? <span className="badge badge-green">{r.activeContractCount}</span>
+                    : <span className="text-muted">-</span>}
+                </td>
+                <td className="date dim">{r.lastEndDate ?? <span className="text-muted">-</span>}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

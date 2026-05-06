@@ -27,6 +27,7 @@ export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'login' |
 export type AuditEntityType =
   | 'asset'
   | 'contract'
+  | 'customer'
   | 'company'
   | 'insurance'
   | 'journal'

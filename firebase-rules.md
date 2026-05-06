@@ -30,6 +30,11 @@
     },
 
     "contracts":  { ".read": "auth != null", ".write": "auth != null" },
+    "customers": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["code", "companyCode", "phone", "ident"]
+    },
     "assets":     { ".read": "auth != null", ".write": "auth != null" },
     "companies":  { ".read": "auth != null", ".write": "auth != null" },
     "insurances": { ".read": "auth != null", ".write": "auth != null" },

@@ -29,9 +29,10 @@ export type AdditionalDriver = {
 export type Contract = {
   id: string;
   companyCode: string;
-  contractNo: string;            // 계약번호 (C-YYYY-NNNN)
+  contractNo: string;            // 계약번호 (CTYYMMDD####)
+  customerCode?: string;         // 고객코드 FK (CP01CU0001) — 등록 시 자동 매칭/발급
   plate: string;                 // 차량번호
-  customerName: string;          // 고객명
+  customerName: string;          // 고객명 (denormalized — 빠른 표시 + 계약 시점 스냅샷)
   customerKind: CustomerKind;    // 신분 — 등록번호 형식 결정
   customerIdent: string;         // 고객등록번호 (주민/사업자/법인등록번호)
   customerPhone: string;         // 연락처 (미납·만기 통지용)
