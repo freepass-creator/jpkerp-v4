@@ -24,14 +24,25 @@ import { cn } from '@/lib/cn';
 
 type Tab = 'companies' | 'assets' | 'contracts' | 'ledger' | 'import' | 'other';
 
-const TABS: { v: Tab; label: string }[] = [
-  { v: 'companies', label: '회사' },
-  { v: 'assets', label: '자산' },
-  { v: 'contracts', label: '계약' },
-  { v: 'ledger', label: '계좌내역' },
-  { v: 'import', label: '데이터 import' },
-  { v: 'other', label: '기타 노드' },
+type TabGroup = 'master' | 'transactional' | 'tools' | 'misc';
+const TABS: { v: Tab; label: string; group: TabGroup }[] = [
+  // 마스터 — 회사·자산·계약·계좌내역
+  { v: 'companies', label: '회사',     group: 'master' },
+  { v: 'assets',    label: '자산',     group: 'master' },
+  { v: 'contracts', label: '계약',     group: 'master' },
+  { v: 'ledger',    label: '계좌내역', group: 'master' },
+  // 작업 — 마이그레이션·일괄
+  { v: 'import',    label: '데이터 import', group: 'tools' },
+  // 기타 — 옛날 v3 노드 등
+  { v: 'other',     label: '기타 노드', group: 'misc' },
 ];
+
+const GROUP_LABEL: Record<TabGroup, string> = {
+  master: '점검',
+  transactional: '트랜잭션',
+  tools: '작업',
+  misc: '기타',
+};
 
 const KNOWN_PATHS = new Set(['companies', 'assets', 'contracts', 'ledger']);
 
@@ -117,17 +128,26 @@ export default function DevPage() {
   return (
     <PageShell
       filterbar={
-        <div className="chip-group">
-          {TABS.map((t) => (
-            <button
-              key={t.v}
-              type="button"
-              className={cn('chip', tab === t.v && 'active')}
-              onClick={() => setTab(t.v)}
-            >
-              {t.label} ({counts[t.v]})
-            </button>
-          ))}
+        <div className="chip-group" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {(['master', 'tools', 'misc'] as TabGroup[]).map((g) => {
+            const tabs = TABS.filter((t) => t.group === g);
+            if (tabs.length === 0) return null;
+            return (
+              <span key={g} className="dev-group-box">
+                <span className="dev-group-label">{GROUP_LABEL[g]}</span>
+                {tabs.map((t) => (
+                  <button
+                    key={t.v}
+                    type="button"
+                    className={cn('chip', tab === t.v && 'active')}
+                    onClick={() => setTab(t.v)}
+                  >
+                    {t.label} ({counts[t.v]})
+                  </button>
+                ))}
+              </span>
+            );
+          })}
         </div>
       }
       footerLeft={<span className="stat-item">전체 <strong>{counts[tab]}</strong></span>}
