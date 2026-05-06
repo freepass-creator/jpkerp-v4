@@ -32,7 +32,7 @@ const VEHICLE_REG_SCHEMA = {
     car_number: { type: Type.STRING, nullable: true, description: '① 자동차등록번호 (예: 01도9893)' },
     category_hint: { type: Type.STRING, nullable: true, description: '② 차종 (경형 승용 / 대형 승용 등)' },
     usage_type: { type: Type.STRING, nullable: true, description: '③ 용도 (자가용 / 영업용 등)' },
-    car_name: { type: Type.STRING, nullable: true, description: '④ 차명 (예: 모닝, 아슬란)' },
+    car_name: { type: Type.STRING, nullable: true, description: '④ 차명 — 등록증에 적힌 그대로 (지프/짚/JEEP 등 임의 변환 절대 금지). 예: "모닝", "아슬란", "Model 3 Long Range", "지프 랭글러"' },
     type_number: { type: Type.STRING, nullable: true, description: '⑤ 형식 (예: JA51BA-T6-P)' },
     car_year_month: { type: Type.STRING, nullable: true, description: '⑤ 제작연월 YYYY-MM (예: 2017-09)' },
     vin: { type: Type.STRING, nullable: true, description: '⑥ 차대번호' },
@@ -279,7 +279,21 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
     label: '자동차등록증',
     prompt: `이 문서는 한국 자동차등록증입니다.
 
-**car_number (① 자동차등록번호)** — 가장 중요. 반드시 추출:
+## 절대 규칙 — 텍스트 원본 보존
+
+**모든 텍스트 필드는 등록증에 적힌 그대로 추출. 절대 정규화·표준화·번역·교정 금지.**
+
+특히 차명(car_name) 같은 외래어 한글 표기:
+- 등록증에 "지프" 라고 적혀 있으면 → "지프" (절대 "짚"으로 변환 X)
+- 등록증에 "짚" 이라고 적혀 있으면 → "짚" (절대 "지프"로 변환 X)
+- 등록증에 "JEEP" 영문 표기면 → "JEEP" 그대로
+- "모닝", "아슬란", "Model 3 Long Range", "올 뉴 K3 1.6 가솔린 럭셔리 A/T" 같은 띄어쓰기·괄호·영문혼용 모두 등록증 표기 그대로
+- 같은 차종이라도 발급 시점·제조사 등록 방식에 따라 표기가 다를 수 있음 — 등록증이 진리
+
+차명·차종·용도·연료·주소·제조사명 등 모든 한글/영문 필드 동일 원칙. 정규화 매핑테이블 사용 절대 금지.
+
+## car_number (① 자동차등록번호) — 가장 중요
+
 - 등록증 최상단 표 첫 행 ① 자동차등록번호 칸에 적혀 있음 (차종 / 용도 같은 행)
 - 한국 번호판 포맷 \`\\d{2,3}[가-힣]\\d{4}\` (예: "01도9893", "15가4481", "123가4567")
 - **외산차도 동일** — Tesla / BMW / Mercedes / MINI / Audi 등 한국 등록증엔 한국번호판 표기 (예: "15가4481" Model 3 Long Range)
