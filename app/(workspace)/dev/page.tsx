@@ -19,11 +19,32 @@ import { ContractsImportPanel } from '@/components/dev/contracts-import';
 import type { Contract } from '@/lib/sample-contracts';
 import { todayStr } from '@/lib/date-utils';
 import { cn } from '@/lib/cn';
+import { useIsAdmin } from '@/lib/admin-guard';
 
 /**
- * 개발도구 — 사용자 본인 전용 admin tool.
- * 양식 무시. 3 섹션: 데이터 삭제 / 데이터 생성 / 기타 노드.
+ * 개발도구 — admin email 화이트리스트만 접근 가능.
+ * 양식 무시. 4 섹션: 점검 / 일괄등록 / 시드 / 기타.
  */
+
+export default function DevRoute() {
+  const { isAdmin, loading } = useIsAdmin();
+  if (loading) return null;
+  if (!isAdmin) {
+    return (
+      <div className="main-panel">
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', padding: 48, maxWidth: 420 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>접근 권한 없음</div>
+            <div className="text-weak text-xs">
+              개발도구는 시스템 관리자 전용입니다. 필요 시 관리자에게 권한 요청.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <DevPage />;
+}
 
 type Section = 'inspect' | 'import' | 'seed' | 'other';
 
@@ -53,7 +74,7 @@ type OtherNode = { key: string; count: number };
 const FIREBASE_CONSOLE_URL =
   'https://console.firebase.google.com/project/jpkerp/database/jpkerp-default-rtdb/data';
 
-export default function DevPage() {
+function DevPage() {
   const [section, setSection] = useState<Section>('inspect');
 
   // 모든 store

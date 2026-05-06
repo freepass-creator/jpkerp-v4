@@ -6,6 +6,7 @@ import { Fragment } from 'react';
 import { Gear, Code } from '@phosphor-icons/react';
 import { MENU, type MenuItem } from '@/lib/menu';
 import { useUserProfile } from '@/lib/use-user-profile';
+import { useIsAdmin } from '@/lib/admin-guard';
 import { cn } from '@/lib/cn';
 
 function isActive(pathname: string, href: string): boolean {
@@ -16,6 +17,7 @@ function isActive(pathname: string, href: string): boolean {
 export function Sidebar() {
   const pathname = usePathname();
   const { profile } = useUserProfile();
+  const { isAdmin } = useIsAdmin();
 
   return (
     <aside className="sidebar">
@@ -40,13 +42,15 @@ export function Sidebar() {
       </nav>
 
       <div className="sb-foot">
-        <Link
-          href="/dev"
-          className={cn('sb-item', isActive(pathname, '/dev') && 'active')}
-        >
-          <Code size={15} />
-          <span>개발도구</span>
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/dev"
+            className={cn('sb-item', isActive(pathname, '/dev') && 'active')}
+          >
+            <Code size={15} />
+            <span>개발도구</span>
+          </Link>
+        )}
         <Link
           href="/settings"
           className={cn('sb-item', isActive(pathname, '/settings') && 'active')}
