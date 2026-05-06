@@ -9,6 +9,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebase/client';
+import { pushAuditLog } from './audit-log';
 
 /**
  * Firebase Auth 훅 — 이메일/비밀번호 로그인 (jpkerp3 패턴 동일).
@@ -50,15 +51,27 @@ export function useAuth() {
   return { user, loading };
 }
 
-/** 이메일/비밀번호 로그인. 실패 시 throw. */
+/** 이메일/비밀번호 로그인. 실패 시 throw. 성공 시 audit_logs 에 login 이벤트 push. */
 export async function login(email: string, password: string): Promise<void> {
-  await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+  const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+  const u = cred.user;
+  pushAuditLog(
+    { uid: u.uid, email: u.email ?? undefined, name: u.displayName ?? undefined },
+    { action: 'login', entityType: 'auth', entityId: u.uid, label: u.email ?? u.uid },
+  );
 }
 
-/** 로그아웃 */
+/** 로그아웃. 호출 직전 user 정보 캡처해서 audit push (signOut 후엔 currentUser null). */
 export async function logout(): Promise<void> {
+  const u = getFirebaseAuth().currentUser;
   try {
     await fbSignOut(getFirebaseAuth());
+    if (u) {
+      pushAuditLog(
+        { uid: u.uid, email: u.email ?? undefined, name: u.displayName ?? undefined },
+        { action: 'logout', entityType: 'auth', entityId: u.uid, label: u.email ?? u.uid },
+      );
+    }
   } catch (e) {
     console.error('[auth] logout failed', e);
   }

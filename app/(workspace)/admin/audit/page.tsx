@@ -16,6 +16,8 @@ const ACTION_FILTERS: Array<{ key: 'all' | AuditAction; label: string }> = [
   { key: 'update',  label: '수정' },
   { key: 'delete',  label: '삭제' },
   { key: 'restore', label: '복원' },
+  { key: 'login',   label: '로그인' },
+  { key: 'logout',  label: '로그아웃' },
 ];
 
 const ENTITY_LABEL: Record<AuditEntityType, string> = {
@@ -24,6 +26,7 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
   company:   '회사',
   insurance: '보험',
   journal:   '업무일지',
+  auth:      '인증',
 };
 
 const ACTION_LABEL: Record<AuditAction, string> = {
@@ -31,6 +34,8 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   update:  '수정',
   delete:  '삭제',
   restore: '복원',
+  login:   '로그인',
+  logout:  '로그아웃',
 };
 
 export default function AdminAuditPage() {
@@ -56,7 +61,7 @@ export default function AdminAuditPage() {
   }, [entries, filter, search]);
 
   const counts = useMemo(() => {
-    const c: Record<AuditAction | 'total', number> = { total: entries.length, create: 0, update: 0, delete: 0, restore: 0 };
+    const c: Record<AuditAction | 'total', number> = { total: entries.length, create: 0, update: 0, delete: 0, restore: 0, login: 0, logout: 0 };
     entries.forEach((e) => { c[e.action] = (c[e.action] ?? 0) + 1; });
     return c;
   }, [entries]);
