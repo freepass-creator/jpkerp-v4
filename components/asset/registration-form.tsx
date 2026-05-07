@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
-import { IdentificationCard, FileText, Car, Wrench, Receipt, Lock, DotsThree, Notebook, Paperclip } from '@phosphor-icons/react';
+import { IdentificationCard, FileText, Car, Wrench, Receipt, Lock, DotsThree, Notebook, Paperclip, User } from '@phosphor-icons/react';
 import { DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import { loadVehicleMaster, MAKERS_SYNC, getModels, getDetailModels } from '@/lib/vehicle-master';
@@ -77,32 +77,29 @@ export function RegistrationForm({
         className={cn('form-stack', `form-mode-${mode}`)}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
-        <Section title="식별자" icon={IdentificationCard}>
+        <Section title="자산 관리" icon={IdentificationCard}>
           <F label="회사코드 (CP01~CP99)" value={data.companyCode} placeholder="CP01" />
           <SF label="상태" value={data.status} options={STATUS_OPTIONS as unknown as string[]} />
         </Section>
 
-        <Section title="등록증 헤더" icon={FileText}>
-          <F label="문서확인번호"   value={data.documentNo} />
-          <F label="최초등록일"     value={data.firstRegistDate} />
-          <F label="등록증 발급일"  value={data.certIssueDate} />
-        </Section>
-
-        <Section title="본문" icon={Car}>
+        <Section title="차량 정보" icon={Car}>
           <F label="차량번호"  value={data.plate} />
-          <F label="차종"           value={data.vehicleClass} />
-          <F label="용도"           value={data.usage} />
-          <F label="차명"           value={data.vehicleName} />
-          <F label="형식"           value={data.modelType} />
-          <F label="제작연월"       value={data.manufactureDate} />
-          <F label="차대번호"       value={data.vin} colSpan={2} />
-          <F label="원동기형식"     value={data.engineType} />
-          <F label="사용본거지"     value={data.ownerLocation} colSpan={3} />
-          <F label="성명/명칭"      value={data.ownerName} colSpan={2} />
-          <F label="법인등록번호"   value={data.ownerRegNumber} colSpan={2} />
+          <F label="차종"      value={data.vehicleClass} />
+          <F label="용도"      value={data.usage} />
+          <F label="차명"      value={data.vehicleName} />
+          <F label="형식"      value={data.modelType} />
+          <F label="제작연월"  value={data.manufactureDate} />
+          <F label="차대번호"  value={data.vin} colSpan={2} />
+          <F label="원동기형식" value={data.engineType} />
         </Section>
 
-        <Section title="제원" icon={Wrench}>
+        <Section title="소유자 정보" icon={User}>
+          <F label="성명/명칭"     value={data.ownerName} colSpan={2} />
+          <F label="법인등록번호"  value={data.ownerRegNumber} />
+          <F label="사용본거지"    value={data.ownerLocation} colSpan={3} />
+        </Section>
+
+        <Section title="제조사 스펙 (제원)" icon={Wrench}>
           <F label="제원관리번호"   value={data.approvalNumber} colSpan={2} />
           <F label="길이 (mm)"      value={num(data.length)} />
           <F label="너비 (mm)"      value={num(data.width)} />
@@ -120,13 +117,19 @@ export function RegistrationForm({
           <F label="셀 주요원료 (전기차)" value={data.batteryMaterial} colSpan={2} />
         </Section>
 
-        <Section title="등록번호판 교부" icon={Receipt}>
+        <Section title="등록증 발급정보" icon={FileText}>
+          <F label="문서확인번호"   value={data.documentNo} />
+          <F label="최초등록일"     value={data.firstRegistDate} />
+          <F label="등록증 발급일"  value={data.certIssueDate} />
+        </Section>
+
+        <Section title="번호판 교부" icon={Receipt}>
           <F label="구분"           value={data.plateIssueType} />
           <F label="발급일"         value={data.plateIssueDate} />
           <F label="발급대행자확인" value={data.plateIssueAgent} colSpan={2} />
         </Section>
 
-        <Section title="저당권등록사실" icon={Lock}>
+        <Section title="저당권등록" icon={Lock}>
           <F label="구분"           value={data.mortgageType} />
           <F label="날짜"           value={data.mortgageDate} />
         </Section>
