@@ -42,6 +42,7 @@ type FormState = {
   bizType: string;
   bizCategory: string;
   phone: string;
+  fax: string;
   email: string;
   entityType: 'corporate' | 'individual' | '';
   taxIssueDate: string;
@@ -55,7 +56,7 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   code: '', name: '', ceo: '', ceoType: '', bizNo: '', corpNo: '', openDate: '',
   hqAddress: '', bizAddress: '', bizType: '', bizCategory: '',
-  phone: '', email: '', entityType: '',
+  phone: '', fax: '', email: '', entityType: '',
   taxIssueDate: '', taxOffice: '', issueReason: '', singleTaxFlag: '',
   accounts: [], cards: [],
 };
@@ -119,6 +120,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
         bizType: initial.bizType ?? '',
         bizCategory: initial.bizCategory ?? '',
         phone: isDup ? '' : (initial.phone ?? ''),
+        fax: isDup ? '' : (initial.fax ?? ''),
         email: initial.email ?? '',
         entityType: initial.entityType ?? '',
         taxIssueDate: initial.taxIssueDate ?? '',
@@ -248,6 +250,7 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
       bizType: form.bizType.trim(),
       bizCategory: form.bizCategory.trim(),
       phone: form.phone.trim(),
+      fax: form.fax.trim() || undefined,
       openDate: form.openDate.trim() || undefined,
       email: form.email.trim() || undefined,
       entityType: form.entityType || undefined,
@@ -466,7 +469,8 @@ function CompanyForm({
                 onChange={(v) => set('entityType', v as FormState['entityType'])} colSpan={1} />
         <Input label="개업일" value={form.openDate} onChange={(v) => set('openDate', v)} placeholder="YYYY-MM-DD" type="date" colSpan={1} />
         <Input label="대표전화" value={form.phone} onChange={(v) => set('phone', v)} placeholder="02-0000-0000" colSpan={1} />
-        <Input label="이메일" value={form.email} onChange={(v) => set('email', v)} colSpan={2} />
+        <Input label="팩스" value={form.fax} onChange={(v) => set('fax', v)} placeholder="02-0000-0000" colSpan={1} />
+        <Input label="이메일" value={form.email} onChange={(v) => set('email', v)} colSpan={1} />
         <Input label="본점주소" value={form.hqAddress} onChange={(v) => set('hqAddress', v)} colSpan={4} />
         <Input label="사업장주소 (본점과 다를 때만)" value={form.bizAddress} onChange={(v) => set('bizAddress', v)} colSpan={4} />
         <Input label="업태 (멀티값은 콤마 구분)" value={form.bizType} onChange={(v) => set('bizType', v)} placeholder="서비스, 부동산업" colSpan={2} />

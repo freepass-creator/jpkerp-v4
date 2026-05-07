@@ -31,6 +31,7 @@ export type Company = {
   bizType: string;                                 // 업태 — 멀티값은 ", " join (예: "서비스, 부동산업")
   bizCategory: string;                             // 종목 — 멀티값은 ", " join (예: "렌터카, 매매업")
   phone: string;                                   // 대표전화
+  fax?: string;                                    // 대표 팩스 (과태료/통행료 발신팩스 등에 사용)
   openDate?: string;                               // 개업연월일 YYYY-MM-DD
   email?: string;
   entityType?: 'corporate' | 'individual';         // 법인/개인
