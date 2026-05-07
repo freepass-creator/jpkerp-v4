@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip, CircleNotch } from '@phosphor-icons/react';
+import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip, CircleNotch, FileText, User } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { downloadPenaltyZip, previewPenaltyItem, type PenaltyWorkItem } from '@/lib/penalty-pdf';
 import { dedupPenalties, describeDuplicate } from '@/lib/penalty-dedup';
@@ -713,8 +713,8 @@ export default function PenaltyPage() {
         onOpenChange={(o) => { if (!o) setEditingId(null); }}
         title={`고지서 정보 수정${editing ? ` — ${editing.fileName}` : ''}`}
         sections={[
-          { title: '고지서', fields: PENALTY_FIELDS.slice(0, 11) },
-          { title: '임차인 / 계약', fields: PENALTY_FIELDS.slice(11) },
+          { title: '고지서', icon: FileText, fields: PENALTY_FIELDS.slice(0, 11) },
+          { title: '임차인 / 계약', icon: User, fields: PENALTY_FIELDS.slice(11) },
         ]}
         initial={editInitial}
         submitLabel="저장"

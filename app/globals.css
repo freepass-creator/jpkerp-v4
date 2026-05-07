@@ -2290,11 +2290,18 @@ fieldset.form-mode-view:disabled * {
   padding-top: 14px;
 }
 .form-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-sub);
   letter-spacing: 0.2px;
   margin: 0;
+}
+.form-section-title svg {
+  flex-shrink: 0;
+  color: var(--brand, var(--text-sub));
 }
 .form-grid {
   display: grid;

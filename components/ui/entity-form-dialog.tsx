@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import type { Icon } from '@phosphor-icons/react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from './dialog';
 import { cn } from '@/lib/cn';
 import { useDialogShortcuts, countChanges } from '@/lib/use-dialog-shortcuts';
@@ -36,6 +37,8 @@ export type FieldDef = {
 
 export type FieldSection = {
   title: string;
+  /** 섹션 제목 좌측 아이콘 (Phosphor Icon component) — 시각적 그룹 구분 */
+  icon?: Icon;
   fields: FieldDef[];
 };
 
@@ -140,7 +143,12 @@ export function EntityFormDialog({
         >
           {allSections.map((section, i) => (
             <div key={i} className="form-section">
-              {section.title && <div className="form-section-title">{section.title}</div>}
+              {section.title && (
+                <div className="form-section-title">
+                  {section.icon && <section.icon size={13} weight="bold" />}
+                  <span>{section.title}</span>
+                </div>
+              )}
               <div className="form-grid">
                 {section.fields.map((f) => (
                   <Field key={f.key} f={f} value={data[f.key] ?? ''} onChange={(v) => setField(f.key, v)} />

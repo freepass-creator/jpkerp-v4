@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { PencilSimple, Copy, Trash, PaperPlaneTilt } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Trash, PaperPlaneTilt, IdentificationCard, User, Car, Truck, CreditCard, ArrowsClockwise, Wrench, ShieldCheck, Users, Receipt, NotePencil } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
@@ -45,6 +45,7 @@ const BOOLEAN_TRISTATE_OPTIONS = ['가입', '미가입'];
 const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   {
     title: '임차인 추가 정보',
+    icon: User,
     fields: [
       { key: 'customerLicenseNo', label: '운전면허번호', placeholder: '00-00-000000-00' },
       { key: 'customerEmail',     label: '이메일',       placeholder: 'name@example.com' },
@@ -55,6 +56,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '운전 조건',
+    icon: Car,
     fields: [
       { key: 'driverScope',              label: '운전자 범위',  type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
       { key: 'driverAgeLimit',           label: '연령 제한',    placeholder: '예: 만 26세 이상' },
@@ -65,6 +67,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '인도 · 반납',
+    icon: Truck,
     fields: [
       { key: 'deliveryAddress', label: '인도 장소', colSpan: 2 },
       { key: 'returnAddress',   label: '반납 장소', colSpan: 2 },
@@ -72,6 +75,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '결제',
+    icon: CreditCard,
     fields: [
       { key: 'paymentMethod', label: '결제 방법', placeholder: '자동이체 / 계좌이체 / 카드' },
       { key: 'paymentDay',    label: '결제일 (1-31)', type: 'number' },
@@ -82,6 +86,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '자동이체 (CMS)',
+    icon: ArrowsClockwise,
     fields: [
       { key: 'autoDebitBank',    label: '출금 은행' },
       { key: 'autoDebitAccount', label: '출금 계좌번호' },
@@ -90,6 +95,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '정비 · 서비스',
+    icon: Wrench,
     fields: [
       { key: 'maintenanceProduct', label: '정비상품', placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 2 },
       { key: 'engineOilService',   label: '엔진오일 서비스', type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
@@ -98,6 +104,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '보험',
+    icon: ShieldCheck,
     fields: [
       { key: 'insurer',          label: '보험사', placeholder: '예: DB손해보험', colSpan: 2 },
       { key: 'deductibleMin',    label: '자차 면책금 최소 (만원)', type: 'number' },
@@ -108,6 +115,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '승계 (양도/양수)',
+    icon: Users,
     fields: [
       { key: 'predecessorName',  label: '양도인 이름' },
       { key: 'predecessorPhone', label: '양도인 연락처' },
@@ -116,12 +124,14 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
   },
   {
     title: '인수 옵션',
+    icon: Receipt,
     fields: [
       { key: 'purchaseOptionAmount', label: '만기 인수가격', placeholder: '만기협의 / 숫자', colSpan: 2 },
     ],
   },
   {
     title: '특약사항',
+    icon: NotePencil,
     fields: [
       { key: 'specialTerms', label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 2 },
     ],
@@ -129,13 +139,14 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
 ];
 
 const CONTRACT_EDIT_SECTIONS: FieldSection[] = [
-  { title: '필수 정보', fields: CONTRACT_REQUIRED_FIELDS },
+  { title: '필수 정보', icon: IdentificationCard, fields: CONTRACT_REQUIRED_FIELDS },
   ...CONTRACT_OPTIONAL_SECTIONS,
 ];
 
 const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = [
   {
     title: '필수 정보',
+    icon: IdentificationCard,
     fields: CONTRACT_REQUIRED_FIELDS.map((f) =>
       f.key === 'companyCode' ? { ...f, readOnly: false } :
       f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C2605060001)' } : f,
