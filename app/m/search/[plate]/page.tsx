@@ -363,18 +363,29 @@ function ReceiptSeedSection({
 
   if (totalReceipts === 0) return null;
 
-  const paidUntilCycle = totalReceipts - overdueCount;
+  // 도래분 (dueDate <= today) 만 완료/미수 대상. 미래 회차는 그대로 예정.
+  const pastDueEvents = receiptEvents
+    .filter((e) => e.dueDate <= today)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const pastDueCount = pastDueEvents.length;
 
   function apply() {
-    if (overdueCount < 0 || overdueCount > totalReceipts) {
-      alert(`미수 회차는 0 ~ ${totalReceipts} 사이여야 합니다`);
+    if (overdueCount < 0 || overdueCount > pastDueCount) {
+      alert(`미수 회차는 0 ~ ${pastDueCount} (도래분 한도) 사이여야 합니다`);
       return;
     }
+    // 도래분 중 가장 최근 N회차를 "현재 미수" 로 → 예정 유지
+    // 나머지 도래분 → 완료. 미래 회차는 손대지 않음 (그대로 예정).
+    const overdueCycleSet = new Set(
+      pastDueEvents.slice(pastDueCount - overdueCount).map((e) => e.cycle),
+    );
+    const paidCount = pastDueCount - overdueCount;
     if (!confirm(
       `${contract.contractNo} (${contract.customerName})\n`
-      + `총 ${totalReceipts}회차 → 미수 ${overdueCount}회차로 재구성\n`
-      + `· cycle 1 ~ ${paidUntilCycle} 중 dueDate ≤ 오늘: 완료\n`
-      + `· cycle ${paidUntilCycle + 1} ~ ${totalReceipts}: 예정 (미수)\n\n계속?`,
+      + `도래 ${pastDueCount}회차 중 미수 ${overdueCount}회차 (마지막 ${overdueCount}개) 로 설정.\n`
+      + `· 완료: ${paidCount}회차 (이전 도래분)\n`
+      + `· 예정(미수): ${overdueCount}회차 (최근 ${overdueCount}개)\n`
+      + `· 미래 회차 ${totalReceipts - pastDueCount}건은 그대로\n\n계속?`,
     )) return;
     setBusy(true);
     try {
@@ -382,11 +393,13 @@ function ReceiptSeedSection({
         ...contract,
         events: contract.events.map((e) => {
           if (e.type !== '수납') return e;
-          const cyc = e.cycle ?? 0;
-          if (cyc <= paidUntilCycle && e.dueDate <= today) {
-            return { ...e, status: '완료' as const, doneDate: e.dueDate };
+          // 미래 회차 — 손대지 않음
+          if (e.dueDate > today) return e;
+          // 도래 회차 — 미수 set 에 있으면 예정 유지, 아니면 완료
+          if (overdueCycleSet.has(e.cycle)) {
+            return { ...e, status: '예정' as const, doneDate: undefined };
           }
-          return { ...e, status: '예정' as const, doneDate: undefined };
+          return { ...e, status: '완료' as const, doneDate: e.dueDate };
         }),
         ...audit.update(),
       };
@@ -430,18 +443,20 @@ function ReceiptSeedSection({
       {open && (
         <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--m-divider)' }}>
           <p className="text-weak text-xs" style={{ marginTop: 12 }}>
-            현재 미수 회차 수를 입력하면, 그 시점 기준으로 events 재구성합니다. 마이그레이션·일괄 보정용.
+            현재 미수 회차 수만 입력 → 마지막 N개 도래분이 미수, 그 이전 도래분은 모두 완료. 미래 회차는 그대로.
           </p>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 14 }}>
             <label style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, color: 'var(--m-text-sub)', marginBottom: 4 }}>미수 회차 수 (0 = 완납)</div>
+              <div style={{ fontSize: 12, color: 'var(--m-text-sub)', marginBottom: 4 }}>
+                미수 회차 수 (0 = 도래분 완납) · 최대 {pastDueCount}
+              </div>
               <input
                 type="number"
                 inputMode="numeric"
                 value={overdueCount}
                 min={0}
-                max={totalReceipts}
-                onChange={(e) => setOverdueCount(Math.max(0, Math.min(totalReceipts, Number(e.target.value) || 0)))}
+                max={pastDueCount}
+                onChange={(e) => setOverdueCount(Math.max(0, Math.min(pastDueCount, Number(e.target.value) || 0)))}
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -468,8 +483,9 @@ function ReceiptSeedSection({
             </button>
           </div>
           <div className="text-weak text-xs" style={{ marginTop: 8 }}>
-            · cycle 1 ~ {paidUntilCycle} : dueDate ≤ 오늘이면 완료<br />
-            · cycle {paidUntilCycle + 1} ~ {totalReceipts} : 예정 (미수)
+            · 도래분 {pastDueCount}회차 중 마지막 {overdueCount}회차 = 미수 (예정)<br />
+            · 나머지 도래분 {Math.max(0, pastDueCount - overdueCount)}회차 = 완료<br />
+            · 미래 회차 {Math.max(0, totalReceipts - pastDueCount)}건은 변경 없음
           </div>
         </div>
       )}

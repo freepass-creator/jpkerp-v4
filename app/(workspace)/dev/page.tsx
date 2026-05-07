@@ -682,19 +682,31 @@ function ReceiptSeedDialog({
     ? target.events.filter((e) => e.type === '수납').sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     : [];
   const totalReceipts = receiptEvents.length;
-  const paidUntilCycle = totalReceipts - overdueCount;
+  const today = todayStr();
+  // 도래분 (dueDate <= today) 만 완료/미수 대상. 미래 회차는 그대로.
+  const pastDueEvents = receiptEvents.filter((e) => e.dueDate <= today);
+  const pastDueCount = pastDueEvents.length;
 
   function apply() {
     if (!target) {
       alert(matched.length === 0 ? '매칭되는 계약 없음' : `매칭이 ${matched.length}건 — 등록번호 더 구체적으로 입력`);
       return;
     }
-    const today = todayStr();
+    if (overdueCount > pastDueCount) {
+      alert(`미수 회차는 도래분(${pastDueCount}) 이내여야 합니다`);
+      return;
+    }
+    // 도래분 중 마지막 N회차를 미수(예정)로, 그 이전 도래분은 완료
+    const overdueCycleSet = new Set(
+      pastDueEvents.slice(pastDueCount - overdueCount).map((e) => e.cycle),
+    );
+    const paidCount = pastDueCount - overdueCount;
     if (!confirm(
       `${target.contractNo} (${target.customerName}, ${target.plate})\n`
-      + `총 수납 ${totalReceipts}회차 → 미수 ${overdueCount}회차로 재구성\n`
-      + `· cycle 1 ~ ${paidUntilCycle} 중 dueDate ≤ ${today}: 완료\n`
-      + `· cycle ${paidUntilCycle + 1} ~ ${totalReceipts}: 예정 (미수)\n\n계속?`,
+      + `도래 ${pastDueCount}회차 중 미수 ${overdueCount}회차 (마지막 ${overdueCount}개) 로 설정.\n`
+      + `· 완료: ${paidCount}회차 (이전 도래분)\n`
+      + `· 예정(미수): ${overdueCount}회차 (최근 ${overdueCount}개)\n`
+      + `· 미래 ${totalReceipts - pastDueCount}건은 그대로\n\n계속?`,
     )) return;
 
     setContracts((prev) => prev.map((c) => {
@@ -703,11 +715,11 @@ function ReceiptSeedDialog({
         ...c,
         events: c.events.map((e) => {
           if (e.type !== '수납') return e;
-          const cyc = e.cycle ?? 0;
-          if (cyc <= paidUntilCycle && e.dueDate <= today) {
-            return { ...e, status: '완료' as const, doneDate: e.dueDate };
+          if (e.dueDate > today) return e; // 미래 — 손대지 않음
+          if (overdueCycleSet.has(e.cycle)) {
+            return { ...e, status: '예정' as const, doneDate: undefined };
           }
-          return { ...e, status: '예정' as const, doneDate: undefined };
+          return { ...e, status: '완료' as const, doneDate: e.dueDate };
         }),
         ...audit.update(),
       };
@@ -772,7 +784,9 @@ function ReceiptSeedDialog({
               {target && (
                 <div className="text-xs">
                   <div><strong>{target.contractNo}</strong> · {target.customerName} · {target.plate}</div>
-                  <div className="text-weak">총 수납 {totalReceipts}회차 / 입력 시 완료 {paidUntilCycle}회 + 미수 {overdueCount}회</div>
+                  <div className="text-weak">
+                    총 수납 {totalReceipts}회차 (도래 {pastDueCount}) — 입력 시 완료 {Math.max(0, pastDueCount - overdueCount)}회 + 미수 {overdueCount}회 (미래 {totalReceipts - pastDueCount}건 변경 없음)
+                  </div>
                 </div>
               )}
             </div>
