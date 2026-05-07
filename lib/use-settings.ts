@@ -39,7 +39,7 @@ export type Settings = {
 
 const DEFAULTS: Settings = {
   theme: 'light',
-  fontFamily: 'mono',
+  fontFamily: 'pretendard',
   fontSize: 12,
   density: 'compact',
 };

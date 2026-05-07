@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
-import { IdentificationCard, FileText, Car, Wrench, Receipt, Lock, DotsThree, Notebook, Paperclip, User } from '@phosphor-icons/react';
+import { IdentificationCard, FileText, Car } from '@phosphor-icons/react';
 import { DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import { loadVehicleMaster, MAKERS_SYNC, getModels, getDetailModels } from '@/lib/vehicle-master';
@@ -77,29 +77,39 @@ export function RegistrationForm({
         className={cn('form-stack', `form-mode-${mode}`)}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
-        <Section title="자산 관리" icon={IdentificationCard}>
-          <F label="회사코드 (CP01~CP99)" value={data.companyCode} placeholder="CP01" />
-          <SF label="상태" value={data.status} options={STATUS_OPTIONS as unknown as string[]} />
+        <Section title="기본정보" icon={IdentificationCard}>
+          <F  label="차량번호"        value={data.plate} />
+          <F  label="회사코드 (CP01~CP99)" value={data.companyCode} placeholder="CP01" />
+          <SF label="상태"            value={data.status} options={STATUS_OPTIONS as unknown as string[]} />
+          <F  label="소유자명"        value={data.ownerName} colSpan={2} />
+          <F  label="법인등록번호"    value={data.ownerRegNumber} />
+          <F  label="사용본거지"      value={data.ownerLocation} colSpan={3} />
         </Section>
 
-        <Section title="차량 정보" icon={Car}>
-          <F label="차량번호"  value={data.plate} />
-          <F label="차종"      value={data.vehicleClass} />
-          <F label="용도"      value={data.usage} />
-          <F label="차명"      value={data.vehicleName} />
-          <F label="형식"      value={data.modelType} />
-          <F label="제작연월"  value={data.manufactureDate} />
-          <F label="차대번호"  value={data.vin} colSpan={2} />
-          <F label="원동기형식" value={data.engineType} />
+        <Section title="제조사 스펙" icon={Car}>
+          <VehicleCascade data={data} />
+          <F  label="세부트림"  value={data.detailTrim}    placeholder="견적서 업로드 시 자동" colSpan={2} />
+          <F  label="제작연월"  value={data.manufactureDate} placeholder="2024-03 (연식)" />
+          <F  label="연료종류"  value={data.fuelType} />
+          <SF label="구동방식"  value={data.driveType}     options={DRIVE_TYPES as unknown as string[]} />
+          <SF label="외부색상"  value={data.exteriorColor} options={EXT_COLORS as unknown as string[]} />
+          <SF label="내부색상"  value={data.interiorColor} options={INT_COLORS as unknown as string[]} />
+          <F  label="선택옵션"  value={data.options?.join(', ')} placeholder="견적서 업로드 시 자동" colSpan={3} />
         </Section>
 
-        <Section title="소유자 정보" icon={User}>
-          <F label="성명/명칭"     value={data.ownerName} colSpan={2} />
-          <F label="법인등록번호"  value={data.ownerRegNumber} />
-          <F label="사용본거지"    value={data.ownerLocation} colSpan={3} />
-        </Section>
-
-        <Section title="제조사 스펙 (제원)" icon={Wrench}>
+        <Section title="등록증 스펙" icon={FileText}>
+          {/* 등록증 헤더 */}
+          <F label="문서확인번호"   value={data.documentNo} />
+          <F label="최초등록일"     value={data.firstRegistDate} />
+          <F label="등록증 발급일"  value={data.certIssueDate} />
+          {/* 본문 */}
+          <F label="차종"           value={data.vehicleClass} />
+          <F label="용도"           value={data.usage} />
+          <F label="차명"           value={data.vehicleName} />
+          <F label="형식"           value={data.modelType} colSpan={2} />
+          <F label="원동기형식"     value={data.engineType} />
+          <F label="차대번호"       value={data.vin} colSpan={3} />
+          {/* 제원 */}
           <F label="제원관리번호"   value={data.approvalNumber} colSpan={2} />
           <F label="길이 (mm)"      value={num(data.length)} />
           <F label="너비 (mm)"      value={num(data.width)} />
@@ -110,44 +120,19 @@ export function RegistrationForm({
           <F label="배기량 (cc)"    value={num(data.displacement)} />
           <F label="정격출력"       value={data.ratedOutput} />
           <F label="기통수"         value={data.cylinders} />
-          <F label="연료종류"       value={data.fuelType} />
-          <F label="연료소비율 (km/L)" value={num(data.fuelEfficiency)} />
+          <F label="연료소비율 (km/L)" value={num(data.fuelEfficiency)} colSpan={2} />
           <F label="셀 제조사 (전기차)"  value={data.batteryMaker} />
           <F label="셀 형태 (전기차)"    value={data.batteryShape} />
-          <F label="셀 주요원료 (전기차)" value={data.batteryMaterial} colSpan={2} />
-        </Section>
-
-        <Section title="등록증 발급정보" icon={FileText}>
-          <F label="문서확인번호"   value={data.documentNo} />
-          <F label="최초등록일"     value={data.firstRegistDate} />
-          <F label="등록증 발급일"  value={data.certIssueDate} />
-        </Section>
-
-        <Section title="번호판 교부" icon={Receipt}>
-          <F label="구분"           value={data.plateIssueType} />
-          <F label="발급일"         value={data.plateIssueDate} />
-          <F label="발급대행자확인" value={data.plateIssueAgent} colSpan={2} />
-        </Section>
-
-        <Section title="저당권등록" icon={Lock}>
-          <F label="구분"           value={data.mortgageType} />
-          <F label="날짜"           value={data.mortgageDate} />
-        </Section>
-
-        <Section title="기타" icon={DotsThree}>
-          <F label="자동차 출고(취득)가격" value={num(data.acquisitionPrice)} colSpan={2} />
-        </Section>
-
-        <Section title="부가 — 선택입력 (등록증에 없음 / 차종마스터·견적서 연동)" icon={Notebook}>
-          <VehicleCascade data={data} />
-          <F  label="세부트림"     value={data.detailTrim}      placeholder="견적서 업로드 시 자동" />
-          <SF label="외부색상"     value={data.exteriorColor}   options={EXT_COLORS as unknown as string[]} />
-          <SF label="내부색상"     value={data.interiorColor}   options={INT_COLORS as unknown as string[]} />
-          <SF label="구동방식"     value={data.driveType}       options={DRIVE_TYPES as unknown as string[]} />
-          <F  label="선택옵션"     value={data.options?.join(', ')} placeholder="견적서 업로드 시 자동" colSpan={3} />
-        </Section>
-
-        <Section title="첨부 — 등록증 사본" icon={Paperclip}>
+          <F label="셀 주요원료 (전기차)" value={data.batteryMaterial} />
+          {/* 번호판 교부 */}
+          <F label="번호판 구분"       value={data.plateIssueType} />
+          <F label="번호판 발급일"     value={data.plateIssueDate} />
+          <F label="번호판 발급대행자" value={data.plateIssueAgent} />
+          {/* 저당권 + 출고가격 */}
+          <F label="저당권 구분"       value={data.mortgageType} />
+          <F label="저당권 날짜"       value={data.mortgageDate} />
+          <F label="출고(취득)가격"    value={num(data.acquisitionPrice)} />
+          {/* 첨부 — 등록증 사본 (등록증 스펙 일부) */}
           <div className="col-span-4">
             {fileDataUrl ? (
               <div className="form-attach-preview">

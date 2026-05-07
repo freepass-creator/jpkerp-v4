@@ -1193,6 +1193,9 @@ input[type="checkbox"], input[type="radio"] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 더블클릭 시 텍스트 선택 차단 — 행 클릭/더블클릭이 곧 진입 동작이라 선택 하이라이트 거슬림 */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .jpk-table tbody td:last-child { border-right: none; }
 .jpk-table tbody td.align-right { text-align: right; font-variant-numeric: tabular-nums; }
