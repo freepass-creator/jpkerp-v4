@@ -54,9 +54,22 @@ export function findCompany(code?: string): Company | undefined {
 }
 
 /**
- * 자동차등록증 ⑨성명·⑩법인등록번호로 회사 찾기. 새 자산 매칭이라 active 만 대상.
- *   매칭 우선순위: 법인등록번호(corpNo) > 사업자등록번호(bizNo) > 회사명(name).
- *   하이픈/공백 정규화 후 비교.
+ * 회사명·식별번호 정규화. 비교 시 동일 회사를 가능한 한 일치시킴.
+ *   "(주)", "주식회사", "㈜" 제거 + 공백/하이픈/언더바 제거 + 소문자.
+ */
+function normCompanyName(s: string): string {
+  return s
+    .replace(/\(주\)|㈜|주식회사/g, '')
+    .replace(/[\s\-_·]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * 자동차등록증 ⑨성명·⑩법인등록번호 또는 보험증권 피보험자/사업자번호 로 회사 찾기.
+ *   1) corpNo / bizNo exact (정확)
+ *   2) 회사명 정규화 매칭 (`(주)` 제거 + 공백 무시 등)
+ *   3) bizNo 마스킹 prefix (예: "158-81-*****") — 동일 prefix 회사가 유일할 때만 매칭
  */
 export function findCompanyByOwner(
   ownerName: string | undefined,
@@ -66,17 +79,34 @@ export function findCompanyByOwner(
   const norm = (s?: string) => s?.replace(/[-\s]/g, '') ?? '';
   const reg = norm(ownerRegNo);
   const active = companies.filter((c) => !c.deletedAt);
-  if (reg) {
-    const byCorp = active.find((c) => norm(c.corpNo) === reg);
+
+  // 1) 정확 매칭 — corpNo / bizNo (마스킹 없을 때만)
+  if (reg && !reg.includes('*')) {
+    const byCorp = active.find((c) => c.corpNo && norm(c.corpNo) === reg);
     if (byCorp) return byCorp;
-    const byBiz = active.find((c) => norm(c.bizNo) === reg);
+    const byBiz = active.find((c) => c.bizNo && norm(c.bizNo) === reg);
     if (byBiz) return byBiz;
   }
+
+  // 2) 회사명 정규화 매칭
   const name = ownerName?.trim();
   if (name) {
-    const byName = active.find((c) => c.name === name);
-    if (byName) return byName;
+    const target = normCompanyName(name);
+    if (target) {
+      const byName = active.find((c) => normCompanyName(c.name) === target);
+      if (byName) return byName;
+    }
   }
+
+  // 3) 마스킹 사업자번호 prefix — "158-81-*****" → 살아있는 prefix 로 유일 회사 찾기
+  if (reg && reg.includes('*')) {
+    const prefix = reg.replace(/\*+.*$/, '');
+    if (prefix.length >= 5) {
+      const candidates = active.filter((c) => c.bizNo && norm(c.bizNo).startsWith(prefix));
+      if (candidates.length === 1) return candidates[0];
+    }
+  }
+
   return undefined;
 }
 

@@ -6,7 +6,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from 
 import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
-import { activeCompanies } from '@/lib/sample-companies';
+import { activeCompanies, findCompanyByOwner } from '@/lib/sample-companies';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
@@ -104,6 +104,14 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
           const ex = json.extracted as Record<string, unknown>;
           const carNumber = (ex.car_number as string) ?? '';
           const matched = matchAsset(carNumber);
+          // 회사 매칭 — 1) 자산→회사 (있으면 우선), 2) 피보험자/계약자명 + 사업자번호 fallback
+          const ocrInsured = (ex.insured as string) ?? '';
+          const ocrContractor = (ex.contractor as string) ?? '';
+          const ocrBizNo = (ex.biz_no as string) ?? '';
+          const companyByOwner = matched?.companyCode
+            ? undefined
+            : findCompanyByOwner(ocrInsured || ocrContractor, ocrBizNo, companies);
+          const resolvedCompanyCode = matched?.companyCode ?? companyByOwner?.code;
 
           const rawIns = Array.isArray(ex.installments) ? ex.installments : [];
           const installments: Installment[] = rawIns.map((it, idx) => {
@@ -121,9 +129,9 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
             insurer: (ex.insurer as string) ?? '',
             productName: (ex.product_name as string) ?? '',
             policyNo: (ex.policy_no as string) ?? '',
-            contractor: (ex.contractor as string) ?? '',
-            insured: (ex.insured as string) ?? '',
-            bizNo: (ex.biz_no as string) ?? '',
+            contractor: ocrContractor,
+            insured: ocrInsured,
+            bizNo: ocrBizNo,
             startDate: normalizeKoreanDate(ex.start_date as string | null | undefined),
             endDate: normalizeKoreanDate(ex.end_date as string | null | undefined),
             carNumber,
@@ -151,8 +159,8 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
             autoDebitAccount: (ex.auto_debit_account as string) ?? '',
             autoDebitHolder: (ex.auto_debit_holder as string) ?? '',
             installments,
-            companyCode: matched?.companyCode,
-            _matched: !!matched,
+            companyCode: resolvedCompanyCode,
+            _matched: !!matched,  // 자산 매칭 여부 (회사매칭은 별도)
             _status: 'done',
           } : p));
         } catch (err) {
@@ -290,10 +298,18 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
                           <CircleNotch size={14} className="spin" style={{ color: 'var(--brand)' }} />
                         ) : p._status === 'failed' ? (
                           <Warning size={14} weight="fill" style={{ color: '#ef4444' }} />
-                        ) : p._matched ? (
-                          <CheckCircle size={14} weight="fill" style={{ color: '#10b981' }} />
+                        ) : (p.carNumber && PLATE_RE.test(p.carNumber) && p.companyCode) ? (
+                          <span title={p._matched ? '자산·회사 매칭' : '회사 매칭 (자산 미등록 — 등록 후 자동 연결)'}>
+                            <CheckCircle
+                              size={14}
+                              weight="fill"
+                              style={{ color: p._matched ? '#10b981' : '#3b82f6' }}
+                            />
+                          </span>
                         ) : (
-                          <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
+                          <span title="차량번호·회사 누락 — 행에서 직접 입력">
+                            <Warning size={14} weight="fill" style={{ color: '#f59e0b' }} />
+                          </span>
                         )}
                       </td>
                       {/* 회사 — OCR 매칭 실패 시 인라인 select */}
