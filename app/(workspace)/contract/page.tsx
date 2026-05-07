@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { PencilSimple, Copy, Trash, PaperPlaneTilt, IdentificationCard, User, Car, Truck, CreditCard, ArrowsClockwise, Wrench, ShieldCheck, Users, Receipt, NotePencil } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Trash, PaperPlaneTilt, User, Car, ClipboardText, Truck, CreditCard, Wrench, ShieldCheck, NotePencil } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
@@ -13,7 +13,7 @@ import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { activeContracts, type Contract, type CustomerKind, generateContractSchedule } from '@/lib/sample-contracts';
 import { activeAssets } from '@/lib/sample-assets';
-import { EntityFormDialog, type FieldDef, type FieldSection, type EntityDialogMode } from '@/components/ui/entity-form-dialog';
+import { EntityFormDialog, type FieldSection, type EntityDialogMode } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -25,44 +25,50 @@ import { useAuditStamp } from '@/lib/audit-fields';
 import { genId } from '@/lib/ids';
 import { cn } from '@/lib/cn';
 
-/** 수정·복사용 폼 — 섹션 단위. 등록은 ContractRegisterDialog 사용. */
-const CONTRACT_REQUIRED_FIELDS: FieldDef[] = [
-  { key: 'companyCode',    label: '회사코드',  required: true, readOnly: true },
-  { key: 'contractNo',     label: '계약번호',  readOnly: true },
-  { key: 'plate',          label: '차량번호',  required: true },
-  { key: 'customerName',   label: '고객명',    required: true },
-  { key: 'customerKind',   label: '신분',      type: 'select', options: ['개인', '사업자', '법인'], required: true },
-  { key: 'customerIdent',  label: '고객등록번호', required: true },
-  { key: 'customerPhone',  label: '연락처',    required: true },
-  { key: 'startDate',      label: '시작일',    type: 'date', required: true },
-  { key: 'endDate',        label: '만기일',    type: 'date', required: true },
-  { key: 'monthlyAmount',  label: '월 청구액', type: 'number' },
-  { key: 'deposit',        label: '보증금',    type: 'number' },
-];
-
+/** 수정·복사용 폼 — 섹션 단위. 등록은 ContractRegisterDialog 사용.
+ *  순서: 사람(인적사항) → 차량 → 조건/기간 → 운영(인도반납/결제/정비/보험) → 기타 약정.
+ */
 const BOOLEAN_TRISTATE_OPTIONS = ['가입', '미가입'];
 
-const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
+const CONTRACT_BASE_SECTIONS: FieldSection[] = [
   {
-    title: '임차인 추가 정보',
+    title: '계약자 인적사항',
     icon: User,
     fields: [
-      { key: 'customerLicenseNo', label: '운전면허번호', placeholder: '00-00-000000-00' },
-      { key: 'customerEmail',     label: '이메일',       placeholder: 'name@example.com' },
-      { key: 'customerAddress',   label: '실거주지',     colSpan: 3 },
-      { key: 'emergencyPhone',    label: '비상연락처',   placeholder: '010-0000-0000' },
+      { key: 'customerName',      label: '고객명',         required: true },
+      { key: 'customerKind',      label: '신분',           type: 'select', options: ['개인', '사업자', '법인'], required: true },
+      { key: 'customerIdent',     label: '고객등록번호',   required: true },
+      { key: 'customerPhone',     label: '연락처',         required: true, placeholder: '010-0000-0000' },
+      { key: 'customerLicenseNo', label: '운전면허번호',   placeholder: '00-00-000000-00' },
+      { key: 'customerEmail',     label: '이메일',         placeholder: 'name@example.com' },
+      { key: 'customerAddress',   label: '실거주지',       colSpan: 3 },
+      { key: 'emergencyPhone',    label: '비상연락처',     placeholder: '010-0000-0000' },
       { key: 'emergencyRelation', label: '비상연락처 관계', placeholder: '부/모/배우자/자녀' },
     ],
   },
   {
-    title: '운전 조건',
+    title: '계약 차량 정보',
     icon: Car,
     fields: [
-      { key: 'driverScope',              label: '운전자 범위',  type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
-      { key: 'driverAgeLimit',           label: '연령 제한',    placeholder: '예: 만 26세 이상' },
-      { key: 'mileageLimitKm',           label: '연간 주행거리 한도 (km)', type: 'number', placeholder: '0=무제한' },
-      { key: 'excessMileageFeeKr',       label: '초과 km당 (국산, 원)', type: 'number' },
-      { key: 'excessMileageFeeForeign',  label: '초과 km당 (수입, 원)', type: 'number' },
+      { key: 'companyCode', label: '회사코드',  required: true, readOnly: true },
+      { key: 'contractNo',  label: '계약번호',  readOnly: true },
+      { key: 'plate',       label: '차량번호',  required: true },
+    ],
+  },
+  {
+    title: '계약 조건 · 기간',
+    icon: ClipboardText,
+    fields: [
+      { key: 'startDate',                label: '시작일',                  type: 'date', required: true },
+      { key: 'endDate',                  label: '만기일',                  type: 'date', required: true },
+      { key: 'monthlyAmount',            label: '월 청구액 (원)',          type: 'number' },
+      { key: 'deposit',                  label: '보증금 (원)',             type: 'number' },
+      { key: 'initialMileageKm',         label: '인수 시점 주행거리 (km)', type: 'number' },
+      { key: 'driverScope',              label: '운전자 범위',             type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
+      { key: 'driverAgeLimit',           label: '연령 제한',               placeholder: '예: 만 26세 이상' },
+      { key: 'mileageLimitKm',           label: '연간 주행 한도 (km)',     type: 'number', placeholder: '0=무제한' },
+      { key: 'excessMileageFeeKr',       label: '초과 km당 (국산, 원)',    type: 'number' },
+      { key: 'excessMileageFeeForeign',  label: '초과 km당 (수입, 원)',    type: 'number' },
     ],
   },
   {
@@ -74,31 +80,25 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     ],
   },
   {
-    title: '결제',
+    title: '결제 · 자동이체',
     icon: CreditCard,
     fields: [
-      { key: 'paymentMethod', label: '결제 방법', placeholder: '자동이체 / 계좌이체 / 카드' },
-      { key: 'paymentDay',    label: '결제일 (1-31)', type: 'number' },
-      { key: 'paymentBank',    label: '입금 은행' },
-      { key: 'paymentAccount', label: '입금 계좌번호' },
-      { key: 'paymentHolder',  label: '입금 예금주' },
-    ],
-  },
-  {
-    title: '자동이체 (CMS)',
-    icon: ArrowsClockwise,
-    fields: [
-      { key: 'autoDebitBank',    label: '출금 은행' },
-      { key: 'autoDebitAccount', label: '출금 계좌번호' },
-      { key: 'autoDebitHolder',  label: '예금주' },
+      { key: 'paymentMethod',    label: '결제 방법',          placeholder: '자동이체 / 계좌이체 / 카드' },
+      { key: 'paymentDay',       label: '결제일 (1-31)',      type: 'number' },
+      { key: 'paymentBank',      label: '입금 은행' },
+      { key: 'paymentAccount',   label: '입금 계좌번호' },
+      { key: 'paymentHolder',    label: '입금 예금주' },
+      { key: 'autoDebitBank',    label: '출금 은행 (CMS)' },
+      { key: 'autoDebitAccount', label: '출금 계좌번호 (CMS)' },
+      { key: 'autoDebitHolder',  label: '출금 예금주 (CMS)' },
     ],
   },
   {
     title: '정비 · 서비스',
     icon: Wrench,
     fields: [
-      { key: 'maintenanceProduct', label: '정비상품', placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 3 },
-      { key: 'engineOilService',   label: '엔진오일 서비스', type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
+      { key: 'maintenanceProduct', label: '정비상품',         placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 3 },
+      { key: 'engineOilService',   label: '엔진오일 서비스',  type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
       { key: 'inspectionService',  label: '검사대행',         type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
     ],
   },
@@ -106,54 +106,38 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     title: '보험',
     icon: ShieldCheck,
     fields: [
-      { key: 'insurer',          label: '보험사', placeholder: '예: DB손해보험' },
-      { key: 'deductibleMin',    label: '자차 면책금 최소 (만원)', type: 'number' },
-      { key: 'deductibleMax',    label: '자차 면책금 최대 (만원)', type: 'number' },
-      { key: 'deductibleRate',   label: '자차 면책 비율 (0.2 = 20%)', type: 'number' },
-      { key: 'initialMileageKm', label: '인수 시점 주행거리 (km)', type: 'number' },
+      { key: 'insurer',        label: '보험사',                       placeholder: '예: DB손해보험' },
+      { key: 'deductibleMin',  label: '자차 면책금 최소 (만원)',      type: 'number' },
+      { key: 'deductibleMax',  label: '자차 면책금 최대 (만원)',      type: 'number' },
+      { key: 'deductibleRate', label: '자차 면책 비율 (0.2 = 20%)',   type: 'number' },
     ],
   },
   {
-    title: '승계 (양도/양수)',
-    icon: Users,
-    fields: [
-      { key: 'predecessorName',  label: '양도인 이름' },
-      { key: 'predecessorPhone', label: '양도인 연락처' },
-      { key: 'succeededAt',      label: '승계일자', type: 'date' },
-    ],
-  },
-  {
-    title: '인수 옵션',
-    icon: Receipt,
-    fields: [
-      { key: 'purchaseOptionAmount', label: '만기 인수가격', placeholder: '만기협의 / 숫자' },
-    ],
-  },
-  {
-    title: '특약사항',
+    title: '기타 약정 (승계 · 인수옵션 · 특약)',
     icon: NotePencil,
     fields: [
-      { key: 'specialTerms', label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 3 },
+      { key: 'predecessorName',      label: '양도인 이름' },
+      { key: 'predecessorPhone',     label: '양도인 연락처' },
+      { key: 'succeededAt',          label: '승계일자',         type: 'date' },
+      { key: 'purchaseOptionAmount', label: '만기 인수가격',    placeholder: '만기협의 / 숫자' },
+      { key: 'specialTerms',         label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 3 },
     ],
   },
+  // 추가 운전자(additionalDrivers)는 배열 — 별도 UI 필요 (미구현). 추후 별도 섹션 또는 별도 다이얼로그.
 ];
 
-const CONTRACT_EDIT_SECTIONS: FieldSection[] = [
-  { title: '필수 정보', icon: IdentificationCard, fields: CONTRACT_REQUIRED_FIELDS },
-  ...CONTRACT_OPTIONAL_SECTIONS,
-];
+const CONTRACT_EDIT_SECTIONS: FieldSection[] = CONTRACT_BASE_SECTIONS;
 
-const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = [
-  {
-    title: '필수 정보',
-    icon: IdentificationCard,
-    fields: CONTRACT_REQUIRED_FIELDS.map((f) =>
+const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = CONTRACT_BASE_SECTIONS.map((section) => {
+  if (section.title !== '계약 차량 정보') return section;
+  return {
+    ...section,
+    fields: section.fields.map((f) =>
       f.key === 'companyCode' ? { ...f, readOnly: false } :
-      f.key === 'contractNo' ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C2605060001)' } : f,
+      f.key === 'contractNo'  ? { ...f, readOnly: false, placeholder: '비워두면 자동 (C2605060001)' } : f,
     ),
-  },
-  ...CONTRACT_OPTIONAL_SECTIONS,
-];
+  };
+});
 
 export default function ContractListPage() {
   const [allContracts, setContracts] = useContractStore();
