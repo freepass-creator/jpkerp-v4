@@ -6,6 +6,7 @@ import { PageShell } from '@/components/layout/page-shell';
 import { useSettings, type Theme, type FontFamily, type FontSize, type Density } from '@/lib/use-settings';
 import { useAuth, logout } from '@/lib/use-auth';
 import { useUserProfile, type UserProfile } from '@/lib/use-user-profile';
+import { cn } from '@/lib/cn';
 
 /**
  * 설정 — 계정 정보 + 시스템 환경설정.
@@ -57,10 +58,28 @@ export default function SettingsPage() {
   return (
     <PageShell
       filterbar={
-        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-          <TabButton active={tab === 'account'} onClick={() => setTab('account')} icon={<User size={12} weight="bold" />}>계정 설정</TabButton>
-          <TabButton active={tab === 'system'}  onClick={() => setTab('system')}  icon={<Wrench size={12} weight="bold" />}>시스템 설정</TabButton>
-          <TabButton active={tab === 'help'}    onClick={() => setTab('help')}    icon={<Question size={12} weight="bold" />}>사용설명서</TabButton>
+        <div className="chip-group">
+          <button
+            type="button"
+            className={cn('chip', tab === 'account' && 'active')}
+            onClick={() => setTab('account')}
+          >
+            <User size={12} weight="bold" /> 계정 설정
+          </button>
+          <button
+            type="button"
+            className={cn('chip', tab === 'system' && 'active')}
+            onClick={() => setTab('system')}
+          >
+            <Wrench size={12} weight="bold" /> 시스템 설정
+          </button>
+          <button
+            type="button"
+            className={cn('chip', tab === 'help' && 'active')}
+            onClick={() => setTab('help')}
+          >
+            <Question size={12} weight="bold" /> 사용설명서
+          </button>
         </div>
       }
       footerLeft={
@@ -389,26 +408,6 @@ function PageGuide({ title, desc, buttons }: { title: string; desc: string; butt
 }
 
 /* ─── 공용 컴포넌트 ─── */
-
-function TabButton({
-  active, onClick, icon, children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={active ? 'btn btn-primary' : 'btn'}
-      style={{ borderRadius: 0, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-    >
-      {icon}{children}
-    </button>
-  );
-}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
