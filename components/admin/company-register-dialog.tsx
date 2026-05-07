@@ -5,6 +5,7 @@ import { Upload, Pencil, FileXls, Plus, X, CircleNotch, Warning, CheckCircle, Ar
 import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { fileToImageDataUrl } from '@/lib/pdf-to-image';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 import type { Company, CompanyAccount, CompanyCard } from '@/lib/sample-companies';
 import { nextCompanyCode } from '@/lib/code-gen';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
@@ -184,7 +185,13 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
       const fd = new FormData();
       fd.append('file', file);
       fd.append('type', 'business_reg');
-      const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
+      const user = getFirebaseAuth().currentUser;
+      const idToken = user ? await user.getIdToken() : '';
+      const res = await fetch('/api/ocr/extract', {
+        method: 'POST',
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+        body: fd,
+      });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'OCR 실패');
       const ex = json.extracted as Record<string, string | null>;

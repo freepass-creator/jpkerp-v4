@@ -15,6 +15,7 @@ import { fileToImageDataUrl } from '@/lib/pdf-to-image';
 import { useOcrBatch, type OcrBatchItem } from '@/lib/use-ocr-batch';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
 import type { Company } from '@/lib/sample-companies';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 
 type WorkItem = PenaltyWorkItem & OcrBatchItem;
 
@@ -386,7 +387,13 @@ function FaxSendDialog({
         const fname = it.fileName || `penalty-${i + 1}.png`;
         fd.append(`file_${i + 1}`, blob, fname);
       });
-      const res = await fetch('/api/fax/send', { method: 'POST', body: fd });
+      const user = getFirebaseAuth().currentUser;
+      const idToken = user ? await user.getIdToken() : '';
+      const res = await fetch('/api/fax/send', {
+        method: 'POST',
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+        body: fd,
+      });
       const json = await res.json() as { ok: boolean; faxId?: string; message?: string; error?: string };
       setResult({ ok: !!json.ok, message: json.message ?? json.error ?? (json.ok ? `발송 접수 (faxId=${json.faxId ?? '-'})` : '발송 실패') });
     } catch (e) {

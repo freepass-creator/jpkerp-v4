@@ -36,7 +36,7 @@ type LogEntry = {
 
 function authorize(req: Request): boolean {
   const expected = process.env.CRON_SECRET;
-  if (!expected) return true; // 미설정 시 통과 (개발 편의 — 운영에서는 반드시 설정)
+  if (!expected) return false; // 미설정 시 차단 — 운영 abuse 방지
   const url = new URL(req.url);
   const q = url.searchParams.get('secret');
   if (q && q === expected) return true;
@@ -45,7 +45,7 @@ function authorize(req: Request): boolean {
 
 async function authorizeHeader(): Promise<boolean> {
   const expected = process.env.CRON_SECRET;
-  if (!expected) return true;
+  if (!expected) return false;
   const h = await headers();
   const auth = h.get('authorization') ?? '';
   if (auth === `Bearer ${expected}`) return true;

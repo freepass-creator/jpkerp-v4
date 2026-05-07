@@ -85,6 +85,7 @@ function DevPage() {
   const [customers, setCustomers] = useCustomerStore();
   const [insurances, setInsurances] = useInsuranceStore();
   const [journals, setJournals] = useJournalStore();
+  const audit = useAuditStamp();
 
   // store 없는 노드 — count 만 따로 구독
   const [rawCounts, setRawCounts] = useState<Record<string, number | null>>({
@@ -195,24 +196,40 @@ function DevPage() {
       try { await set(ref(db, n), null); ok.push(n); }
       catch (e) { failed.push(`${n} (${(e as Error).message?.slice(0, 50)})`); }
     }
+    audit.log({
+      action: 'bulk_delete',
+      entityType: 'system',
+      entityId: 'WIPE-ALL',
+      label: `전체 RTDB 초기화 — 성공 ${ok.length} / 실패 ${failed.length}`,
+    });
     alert(
       `완료\n\n삭제 ${ok.length}개:\n${ok.join(', ')}\n\n`
       + `실패 ${failed.length}개 (Rules 거부 가능):\n${failed.join('\n')}`,
     );
   }
 
+  /** 노드 통째 삭제 시 감사로그 기록 (store 기반 + raw 기반 모두) */
+  const logBulkDelete = (path: string, label: string, count: number | null) => {
+    audit.log({
+      action: 'bulk_delete',
+      entityType: 'system',
+      entityId: path,
+      label: `${label} 노드 통째 삭제 (${count ?? '?'}건)`,
+    });
+  };
+
   const SECTIONS: Section[] = ['inspect', 'import', 'seed', 'other'];
   const deleteRows: DeleteRow[] = [
-    { path: 'companies', label: '회사', count: companies.length, purge: () => setCompanies([]) },
-    { path: 'assets', label: '자산', count: assets.length, purge: () => setAssets([]) },
-    { path: 'contracts', label: '계약', count: contracts.length, purge: () => setContracts([]) },
-    { path: 'customers', label: '고객', count: customers.length, purge: () => setCustomers([]) },
-    { path: 'insurances', label: '보험', count: insurances.length, purge: () => setInsurances([]) },
-    { path: 'journal_entries', label: '업무일지', count: journals.length, purge: () => setJournals([]) },
-    { path: 'ledger', label: '자금일보', count: ledger.length, purge: () => setLedger([]) },
-    { path: 'audit_logs', label: '감사로그', count: rawCounts.audit_logs, purge: () => purgeRawNode('audit_logs', '감사로그') },
-    { path: 'event_uploads', label: '모바일업로드', count: rawCounts.event_uploads, purge: () => purgeRawNode('event_uploads', '모바일업로드') },
-    { path: 'sms_logs', label: 'SMS로그', count: rawCounts.sms_logs, purge: () => purgeRawNode('sms_logs', 'SMS로그') },
+    { path: 'companies',     label: '회사',      count: companies.length,         purge: () => { logBulkDelete('companies', '회사', companies.length);          setCompanies([]);  } },
+    { path: 'assets',        label: '자산',      count: assets.length,            purge: () => { logBulkDelete('assets', '자산', assets.length);                setAssets([]);     } },
+    { path: 'contracts',     label: '계약',      count: contracts.length,         purge: () => { logBulkDelete('contracts', '계약', contracts.length);          setContracts([]);  } },
+    { path: 'customers',     label: '고객',      count: customers.length,         purge: () => { logBulkDelete('customers', '고객', customers.length);          setCustomers([]);  } },
+    { path: 'insurances',    label: '보험',      count: insurances.length,        purge: () => { logBulkDelete('insurances', '보험', insurances.length);        setInsurances([]); } },
+    { path: 'journal_entries', label: '업무일지', count: journals.length,         purge: () => { logBulkDelete('journal_entries', '업무일지', journals.length); setJournals([]);   } },
+    { path: 'ledger',        label: '자금일보',  count: ledger.length,            purge: () => { logBulkDelete('ledger', '자금일보', ledger.length);            setLedger([]);     } },
+    { path: 'audit_logs',    label: '감사로그',  count: rawCounts.audit_logs,     purge: () => purgeRawNode('audit_logs', '감사로그', rawCounts.audit_logs, audit) },
+    { path: 'event_uploads', label: '모바일업로드', count: rawCounts.event_uploads, purge: () => purgeRawNode('event_uploads', '모바일업로드', rawCounts.event_uploads, audit) },
+    { path: 'sms_logs',      label: 'SMS로그',    count: rawCounts.sms_logs,      purge: () => purgeRawNode('sms_logs', 'SMS로그', rawCounts.sms_logs, audit) },
   ];
 
   return (
@@ -289,10 +306,24 @@ function DevPage() {
   );
 }
 
-/** store 가 없는 RTDB 노드 직접 wipe. */
-async function purgeRawNode(path: string, label: string) {
+/** store 가 없는 RTDB 노드 직접 wipe. audit 로그 동반 (audit_logs 자기삭제는 logging skip). */
+async function purgeRawNode(
+  path: string,
+  label: string,
+  count: number | null,
+  audit: ReturnType<typeof useAuditStamp>,
+) {
   if (!confirm(`${label} 노드 전체 삭제. 되돌릴 수 없습니다. 계속?`)) return;
   try {
+    // audit_logs 노드 자체를 삭제할 때는 미리 로그 — 삭제 후 push 하면 새로 만든 로그가 같이 사라짐
+    if (path !== 'audit_logs') {
+      audit.log({
+        action: 'bulk_delete',
+        entityType: 'system',
+        entityId: path,
+        label: `${label} 노드 통째 삭제 (${count ?? '?'}건)`,
+      });
+    }
     await set(ref(getRtdb(), path), null);
     alert(`${label} 삭제 완료`);
   } catch (e) {

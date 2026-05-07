@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sendFax } from '@/lib/fax/aligo';
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * POST /api/fax/send — multipart/form-data
+ *
+ * 인증: Authorization: Bearer <Firebase ID token> — 직원만.
  *
  *   sender   : 발신 팩스번호 (미지정 시 ALIGO_FAX_SENDER env)
  *   receiver : 받는 팩스번호 (필수)
@@ -11,6 +14,8 @@ import { sendFax } from '@/lib/fax/aligo';
  *   file_1, file_2, ... : 첨부 파일 (PDF/이미지). 최소 1개
  */
 export async function POST(req: Request) {
+  const actor = await requireAuth();
+  if (actor instanceof NextResponse) return actor;
   try {
     const fd = await req.formData();
     const sender = (fd.get('sender') as string | null) ?? undefined;

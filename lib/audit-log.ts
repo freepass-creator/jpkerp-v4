@@ -23,7 +23,7 @@ import { stripUndef } from './store-utils';
 import type { AuditActor } from './audit-fields';
 import { collectAuditMeta } from './audit-meta';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'login' | 'logout';
+export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'login' | 'logout' | 'bulk_delete';
 export type AuditEntityType =
   | 'asset'
   | 'contract'
@@ -31,7 +31,8 @@ export type AuditEntityType =
   | 'company'
   | 'insurance'
   | 'journal'
-  | 'auth';
+  | 'auth'
+  | 'system';
 
 export type AuditMeta = {
   /** 클라이언트 IP — 서버사이드 `/api/whoami` 에서 받아 세션당 캐시. */

@@ -6,6 +6,7 @@ import type { Asset } from '@/lib/sample-assets';
 import type { InsurancePolicy } from '@/lib/sample-insurance';
 import type { Company } from '@/lib/sample-companies';
 import { asArray } from '@/lib/store-utils';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 /**
  * 손님 페이지 매칭 — 서버에서 Firebase Admin SDK 로 RTDB 조회 후 1건만 반환.
@@ -56,6 +57,12 @@ function stripAudit<T extends Record<string, unknown>>(o: T): Omit<T, 'createdBy
 }
 
 export async function POST(req: Request) {
+  // brute-force 방지 — IP 단위 분당 10회 제한
+  const ip = await getClientIp();
+  if (!checkRateLimit(`customer-lookup:${ip}`, { max: 10, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
   let body: { plate?: string; ident?: string };
   try {
     body = await req.json();

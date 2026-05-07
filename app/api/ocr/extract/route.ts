@@ -11,6 +11,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { GoogleGenAI, Type } from '@google/genai';
+import { requireAuth } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -516,6 +517,10 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
 };
 
 export async function POST(req: NextRequest) {
+  // 인증 — Authorization: Bearer <Firebase ID token> (직원만)
+  const actor = await requireAuth();
+  if (actor instanceof NextResponse) return actor;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

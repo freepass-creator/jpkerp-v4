@@ -7,6 +7,7 @@ import { useAssetStore, findAssetByPlate } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { activeCompanies, findCompanyByOwner } from '@/lib/sample-companies';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 import type { InsurancePolicy, Installment } from '@/lib/sample-insurance';
 import { splitPdfPages } from '@/lib/pdf-split';
 import { pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
@@ -98,7 +99,13 @@ export function InsuranceRegisterDialog({ onCreate, open: openProp, onOpenChange
           const fd = new FormData();
           fd.append('file', toSend);
           fd.append('type', 'insurance_policy');
-          const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
+          const user = getFirebaseAuth().currentUser;
+          const idToken = user ? await user.getIdToken() : '';
+          const res = await fetch('/api/ocr/extract', {
+            method: 'POST',
+            headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+            body: fd,
+          });
           const json = await res.json();
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const ex = json.extracted as Record<string, unknown>;

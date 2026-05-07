@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { runWithConcurrency } from './parallel';
+import { getFirebaseAuth } from './firebase/client';
 
 /**
  * 도메인 무관 OCR 배치 훅 — 자산·과태료·회사 등 공통 사용.
@@ -100,7 +101,13 @@ export function useOcrBatch<W extends OcrBatchItem>(opts: Options<W>) {
           const fd = new FormData();
           fd.append('file', toSend);
           fd.append('type', O.docType);
-          const res = await fetch('/api/ocr/extract', { method: 'POST', body: fd });
+          const user = getFirebaseAuth().currentUser;
+          const idToken = user ? await user.getIdToken() : '';
+          const res = await fetch('/api/ocr/extract', {
+            method: 'POST',
+            headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+            body: fd,
+          });
           const json = await res.json();
           if (!json.ok) throw new Error(json.error || 'OCR 실패');
           const raw = json.extracted as Record<string, unknown>;

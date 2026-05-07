@@ -11,13 +11,14 @@ import type { AuditAction, AuditEntityType, AuditLogEntry } from '@/lib/audit-lo
 import { cn } from '@/lib/cn';
 
 const ACTION_FILTERS: Array<{ key: 'all' | AuditAction; label: string }> = [
-  { key: 'all',     label: '전체' },
-  { key: 'create',  label: '등록' },
-  { key: 'update',  label: '수정' },
-  { key: 'delete',  label: '삭제' },
-  { key: 'restore', label: '복원' },
-  { key: 'login',   label: '로그인' },
-  { key: 'logout',  label: '로그아웃' },
+  { key: 'all',         label: '전체' },
+  { key: 'create',      label: '등록' },
+  { key: 'update',      label: '수정' },
+  { key: 'delete',      label: '삭제' },
+  { key: 'bulk_delete', label: '일괄삭제' },
+  { key: 'restore',     label: '복원' },
+  { key: 'login',       label: '로그인' },
+  { key: 'logout',      label: '로그아웃' },
 ];
 
 const ENTITY_LABEL: Record<AuditEntityType, string> = {
@@ -28,15 +29,17 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
   insurance: '보험',
   journal:   '업무일지',
   auth:      '인증',
+  system:    '시스템',
 };
 
 const ACTION_LABEL: Record<AuditAction, string> = {
-  create:  '등록',
-  update:  '수정',
-  delete:  '삭제',
-  restore: '복원',
-  login:   '로그인',
-  logout:  '로그아웃',
+  create:      '등록',
+  update:      '수정',
+  delete:      '삭제',
+  bulk_delete: '일괄삭제',
+  restore:     '복원',
+  login:       '로그인',
+  logout:      '로그아웃',
 };
 
 export default function AdminAuditPage() {
@@ -62,7 +65,7 @@ export default function AdminAuditPage() {
   }, [entries, filter, search]);
 
   const counts = useMemo(() => {
-    const c: Record<AuditAction | 'total', number> = { total: entries.length, create: 0, update: 0, delete: 0, restore: 0, login: 0, logout: 0 };
+    const c: Record<AuditAction | 'total', number> = { total: entries.length, create: 0, update: 0, delete: 0, bulk_delete: 0, restore: 0, login: 0, logout: 0 };
     entries.forEach((e) => { c[e.action] = (c[e.action] ?? 0) + 1; });
     return c;
   }, [entries]);
