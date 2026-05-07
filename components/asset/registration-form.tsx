@@ -12,6 +12,8 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
+import { IdentificationCard, FileText, Car, Wrench, Receipt, Lock, DotsThree, Notebook, Paperclip } from '@phosphor-icons/react';
 import { DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import { loadVehicleMaster, MAKERS_SYNC, getModels, getDetailModels } from '@/lib/vehicle-master';
@@ -75,18 +77,18 @@ export function RegistrationForm({
         className={cn('form-stack', `form-mode-${mode}`)}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
-        <Section title="식별자">
+        <Section title="식별자" icon={IdentificationCard}>
           <F label="회사코드 (CP01~CP99)" value={data.companyCode} placeholder="CP01" />
           <SF label="상태" value={data.status} options={STATUS_OPTIONS as unknown as string[]} />
         </Section>
 
-        <Section title="등록증 헤더">
+        <Section title="등록증 헤더" icon={FileText}>
           <F label="문서확인번호"   value={data.documentNo} />
           <F label="최초등록일"     value={data.firstRegistDate} />
           <F label="등록증 발급일"  value={data.certIssueDate} />
         </Section>
 
-        <Section title="본문">
+        <Section title="본문" icon={Car}>
           <F label="차량번호"  value={data.plate} />
           <F label="차종"           value={data.vehicleClass} />
           <F label="용도"           value={data.usage} />
@@ -100,7 +102,7 @@ export function RegistrationForm({
           <F label="법인등록번호"   value={data.ownerRegNumber} colSpan={2} />
         </Section>
 
-        <Section title="1. 제원">
+        <Section title="제원" icon={Wrench}>
           <F label="제원관리번호"   value={data.approvalNumber} colSpan={2} />
           <F label="길이 (mm)"      value={num(data.length)} />
           <F label="너비 (mm)"      value={num(data.width)} />
@@ -118,22 +120,22 @@ export function RegistrationForm({
           <F label="셀 주요원료 (전기차)" value={data.batteryMaterial} colSpan={2} />
         </Section>
 
-        <Section title="2. 등록번호판 교부">
+        <Section title="등록번호판 교부" icon={Receipt}>
           <F label="구분"           value={data.plateIssueType} />
           <F label="발급일"         value={data.plateIssueDate} />
           <F label="발급대행자확인" value={data.plateIssueAgent} colSpan={2} />
         </Section>
 
-        <Section title="3. 저당권등록사실">
+        <Section title="저당권등록사실" icon={Lock}>
           <F label="구분"           value={data.mortgageType} />
           <F label="날짜"           value={data.mortgageDate} />
         </Section>
 
-        <Section title="기타">
+        <Section title="기타" icon={DotsThree}>
           <F label="자동차 출고(취득)가격" value={num(data.acquisitionPrice)} colSpan={2} />
         </Section>
 
-        <Section title="부가 — 선택입력 (등록증에 없음 / 차종마스터·견적서 연동)">
+        <Section title="부가 — 선택입력 (등록증에 없음 / 차종마스터·견적서 연동)" icon={Notebook}>
           <VehicleCascade data={data} />
           <F  label="세부트림"     value={data.detailTrim}      placeholder="견적서 업로드 시 자동" />
           <SF label="외부색상"     value={data.exteriorColor}   options={EXT_COLORS as unknown as string[]} />
@@ -142,7 +144,7 @@ export function RegistrationForm({
           <F  label="선택옵션"     value={data.options?.join(', ')} placeholder="견적서 업로드 시 자동" colSpan={3} />
         </Section>
 
-        <Section title="첨부 - 등록증 사본">
+        <Section title="첨부 — 등록증 사본" icon={Paperclip}>
           <div className="col-span-4">
             {fileDataUrl ? (
               <div className="form-attach-preview">
@@ -211,10 +213,13 @@ function num(n?: number): string {
   return typeof n === 'number' ? String(n) : '';
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, icon: Icon, children }: { title: string; icon?: PhosphorIcon; children: React.ReactNode }) {
   return (
     <div className="form-section">
-      <div className="form-section-title">{title}</div>
+      <div className="form-section-title">
+        {Icon && <Icon size={13} weight="bold" />}
+        <span>{title}</span>
+      </div>
       <div className="form-grid">{children}</div>
     </div>
   );

@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { IdentificationCard, Car, Buildings } from '@phosphor-icons/react';
 import { Dialog, DialogContent, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 import type { Customer, CustomerKind } from '@/lib/sample-customers';
@@ -187,7 +188,9 @@ export function CustomerEditDialog({ open, onOpenChange, mode, initial, companie
           style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
         >
           <div className="form-section">
-            <div className="form-section-title">기본 정보</div>
+            <div className="form-section-title">
+              <IdentificationCard size={13} weight="bold" /> <span>기본 정보</span>
+            </div>
             <div className="form-grid">
               <Input label={codeReadOnly ? '고객코드 (변경 불가)' : '고객코드 (자동 부여)'}
                      value={form.code} onChange={(v) => set('code', v)}
@@ -220,7 +223,9 @@ export function CustomerEditDialog({ open, onOpenChange, mode, initial, companie
           </div>
 
           <div className="form-section">
-            <div className="form-section-title">운전 정보</div>
+            <div className="form-section-title">
+              <Car size={13} weight="bold" /> <span>운전 정보</span>
+            </div>
             <div className="form-grid">
               <Input label="운전면허번호" value={form.licenseNo} onChange={(v) => set('licenseNo', v)}
                      placeholder="00-00-000000-00" colSpan={2} />
@@ -231,7 +236,9 @@ export function CustomerEditDialog({ open, onOpenChange, mode, initial, companie
 
           {(form.kind === '사업자' || form.kind === '법인') && (
             <div className="form-section">
-              <div className="form-section-title">사업자 정보</div>
+              <div className="form-section-title">
+                <Buildings size={13} weight="bold" /> <span>사업자 정보</span>
+              </div>
               <div className="form-grid">
                 <Input label="상호" value={form.bizName} onChange={(v) => set('bizName', v)} colSpan={2} />
                 <Input label="사업장 소재지" value={form.bizAddress} onChange={(v) => set('bizAddress', v)} colSpan={4} />
