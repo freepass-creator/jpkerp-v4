@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Car, FileText, Phone, UploadSimple, Image as ImageIcon, IdentificationCard, ShieldCheck,
+  CurrencyKrw, CaretDown, CaretUp,
 } from '@phosphor-icons/react';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { useAssetStore } from '@/lib/use-asset-store';
@@ -15,6 +16,8 @@ import { getRtdb } from '@/lib/firebase/client';
 import { asArray } from '@/lib/store-utils';
 import { todayStr, daysBetween, formatDate, formatMoney, formatDday } from '@/lib/date-utils';
 import { normalizePlate } from '@/lib/customer-match';
+import { useAuditStamp } from '@/lib/audit-fields';
+import type { Contract } from '@/lib/sample-contracts';
 import type { EventUploadEntry } from '@/lib/use-event-uploads-store';
 
 /**
@@ -33,9 +36,10 @@ export default function MobileVehicleDetailPage() {
   const plate = decodeURIComponent((params?.plate as string) ?? '');
 
   const [allAssets] = useAssetStore();
-  const [allContracts] = useContractStore();
+  const [allContracts, setContracts] = useContractStore();
   const [allCompanies] = useCompanyStore();
   const [allPolicies] = useInsuranceStore();
+  const audit = useAuditStamp();
 
   const asset = useMemo(
     () => allAssets.find((a) => !a.deletedAt && normalizePlate(a.plate) === normalizePlate(plate)) ?? null,
@@ -228,6 +232,9 @@ export default function MobileVehicleDetailPage() {
           </div>
         )}
 
+        {/* 수납 회차 재구성 (마이그레이션) */}
+        {contract && <ReceiptSeedSection contract={contract} setContracts={setContracts} audit={audit} />}
+
         {/* 보험 카드 */}
         {policy && (
           <div className="m-card" style={{ padding: '12px 18px' }}>
@@ -324,6 +331,149 @@ export default function MobileVehicleDetailPage() {
         )}
       </main>
     </>
+  );
+}
+
+/**
+ * 수납 회차 재구성 — 마이그레이션 도구.
+ * 사용자가 현재 미수 N회차 입력 → events 재구성:
+ *  · cycle <= (totalReceipts - N) AND dueDate <= today → 완료
+ *  · 그 외 → 예정 (마지막 N회차가 미수로 남음)
+ */
+function ReceiptSeedSection({
+  contract, setContracts, audit,
+}: {
+  contract: Contract;
+  setContracts: ReturnType<typeof useContractStore>[1];
+  audit: ReturnType<typeof useAuditStamp>;
+}) {
+  const receiptEvents = (contract.events ?? []).filter((e) => e.type === '수납');
+  const totalReceipts = receiptEvents.length;
+  const today = todayStr();
+  const detectedOverdue = receiptEvents.filter((e) => e.status !== '완료' && e.dueDate < today).length;
+
+  const [open, setOpen] = useState(false);
+  const [overdueCount, setOverdueCount] = useState<number>(detectedOverdue);
+  const [busy, setBusy] = useState(false);
+
+  // 다이얼로그 열 때마다 현재값으로 초기화
+  useEffect(() => {
+    if (open) setOverdueCount(detectedOverdue);
+  }, [open, detectedOverdue]);
+
+  if (totalReceipts === 0) return null;
+
+  const paidUntilCycle = totalReceipts - overdueCount;
+
+  function apply() {
+    if (overdueCount < 0 || overdueCount > totalReceipts) {
+      alert(`미수 회차는 0 ~ ${totalReceipts} 사이여야 합니다`);
+      return;
+    }
+    if (!confirm(
+      `${contract.contractNo} (${contract.customerName})\n`
+      + `총 ${totalReceipts}회차 → 미수 ${overdueCount}회차로 재구성\n`
+      + `· cycle 1 ~ ${paidUntilCycle} 중 dueDate ≤ 오늘: 완료\n`
+      + `· cycle ${paidUntilCycle + 1} ~ ${totalReceipts}: 예정 (미수)\n\n계속?`,
+    )) return;
+    setBusy(true);
+    try {
+      const updated: Contract = {
+        ...contract,
+        events: contract.events.map((e) => {
+          if (e.type !== '수납') return e;
+          const cyc = e.cycle ?? 0;
+          if (cyc <= paidUntilCycle && e.dueDate <= today) {
+            return { ...e, status: '완료' as const, doneDate: e.dueDate };
+          }
+          return { ...e, status: '예정' as const, doneDate: undefined };
+        }),
+        ...audit.update(),
+      };
+      setContracts((prev) => prev.map((c) => (c.id === contract.id ? updated : c)));
+      audit.log({
+        action: 'update',
+        entityType: 'contract',
+        entityId: contract.id,
+        label: `${contract.contractNo} 수납재구성 (미수 ${overdueCount})`,
+        before: contract,
+      });
+      alert(`재구성 완료. 미수 ${overdueCount}회차.`);
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="m-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: '100%',
+          padding: '14px 18px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          background: 'transparent', border: 0,
+          fontSize: 14, fontWeight: 600, color: 'var(--m-text)',
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <CurrencyKrw size={16} weight="bold" style={{ color: 'var(--m-brand)' }} />
+          수납 회차 재구성
+          <span className="text-weak text-xs">총 {totalReceipts}회차 · 현재 미수 {detectedOverdue}</span>
+        </span>
+        {open ? <CaretUp size={14} /> : <CaretDown size={14} />}
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--m-divider)' }}>
+          <p className="text-weak text-xs" style={{ marginTop: 12 }}>
+            현재 미수 회차 수를 입력하면, 그 시점 기준으로 events 재구성합니다. 마이그레이션·일괄 보정용.
+          </p>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 14 }}>
+            <label style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--m-text-sub)', marginBottom: 4 }}>미수 회차 수 (0 = 완납)</div>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={overdueCount}
+                min={0}
+                max={totalReceipts}
+                onChange={(e) => setOverdueCount(Math.max(0, Math.min(totalReceipts, Number(e.target.value) || 0)))}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: 18, fontWeight: 700,
+                  border: '1px solid var(--m-divider)', borderRadius: 8,
+                  background: '#fff',
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={apply}
+              disabled={busy}
+              style={{
+                padding: '14px 18px',
+                fontSize: 14, fontWeight: 700,
+                background: 'var(--m-brand)', color: '#fff',
+                border: 0, borderRadius: 8,
+                cursor: busy ? 'wait' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {busy ? '처리중…' : '재구성'}
+            </button>
+          </div>
+          <div className="text-weak text-xs" style={{ marginTop: 8 }}>
+            · cycle 1 ~ {paidUntilCycle} : dueDate ≤ 오늘이면 완료<br />
+            · cycle {paidUntilCycle + 1} ~ {totalReceipts} : 예정 (미수)
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
