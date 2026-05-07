@@ -197,7 +197,7 @@ export function EntityFormDialog({
 function Field({ f, value, onChange }: { f: FieldDef; value: string; onChange: (v: string) => void }) {
   const span = f.colSpan === 4 ? 'col-span-4' : f.colSpan === 3 ? 'col-span-3' : f.colSpan === 2 ? 'col-span-2' : '';
   const lockedStyle = f.readOnly
-    ? { background: 'var(--bg-disabled)', color: 'var(--text-sub)', cursor: 'not-allowed' }
+    ? { background: 'var(--bg-disabled)', color: 'var(--text-main)', cursor: 'default' as const }
     : undefined;
   const lockedTitle = f.readOnly ? '등록 후 변경 불가' : undefined;
   return (

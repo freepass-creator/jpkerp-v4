@@ -540,7 +540,7 @@ function Input({
         onChange={(e) => !readOnly && onChange(e.target.value)}
         placeholder={placeholder}
         readOnly={readOnly}
-        style={readOnly ? { background: 'var(--bg-disabled)', color: 'var(--text-sub)', cursor: 'not-allowed' } : undefined}
+        style={readOnly ? { background: 'var(--bg-disabled)', color: 'var(--text-main)', cursor: 'default' } : undefined}
         title={readOnly ? '코드는 등록 후 변경 불가' : undefined}
       />
     </label>

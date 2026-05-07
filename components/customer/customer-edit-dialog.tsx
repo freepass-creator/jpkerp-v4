@@ -308,7 +308,7 @@ function Input({
         onChange={(e) => !readOnly && onChange(e.target.value)}
         placeholder={placeholder}
         readOnly={readOnly}
-        style={readOnly ? { background: 'var(--bg-disabled)', color: 'var(--text-sub)', cursor: 'not-allowed' } : undefined}
+        style={readOnly ? { background: 'var(--bg-disabled)', color: 'var(--text-main)', cursor: 'default' } : undefined}
       />
     </label>
   );
