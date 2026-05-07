@@ -2303,14 +2303,20 @@ fieldset.form-mode-view:disabled * {
   flex-shrink: 0;
   color: var(--brand, var(--text-sub));
 }
+/* ── form-grid: 3단(1/3) 기본 / col-span-2 = 2/3 / col-span-3 = 1단(전체) ──
+   1단 = colSpan=3 (전체)
+   2단 = colSpan=2 (한 행에 2개) — 2/3 + 1/3 식으로 조합
+   3단 = 기본 (한 행에 3개)
+   4단 이상은 col-span 작은 값으로 6/12 grid 가 필요한 경우 별도 (지금 사용처 없음).
+*/
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px 14px;
 }
 .form-grid > .col-span-2 { grid-column: span 2; }
 .form-grid > .col-span-3 { grid-column: span 3; }
-.form-grid > .col-span-4 { grid-column: span 4; }
+.form-grid > .col-span-4 { grid-column: span 3; } /* 3-col 기준 — 4 이상은 전체로 clamp */
 .form-mode-edit input,
 .form-mode-edit select,
 .form-mode-edit textarea {

@@ -49,7 +49,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     fields: [
       { key: 'customerLicenseNo', label: '운전면허번호', placeholder: '00-00-000000-00' },
       { key: 'customerEmail',     label: '이메일',       placeholder: 'name@example.com' },
-      { key: 'customerAddress',   label: '실거주지',     colSpan: 2 },
+      { key: 'customerAddress',   label: '실거주지',     colSpan: 3 },
       { key: 'emergencyPhone',    label: '비상연락처',   placeholder: '010-0000-0000' },
       { key: 'emergencyRelation', label: '비상연락처 관계', placeholder: '부/모/배우자/자녀' },
     ],
@@ -69,8 +69,8 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     title: '인도 · 반납',
     icon: Truck,
     fields: [
-      { key: 'deliveryAddress', label: '인도 장소', colSpan: 2 },
-      { key: 'returnAddress',   label: '반납 장소', colSpan: 2 },
+      { key: 'deliveryAddress', label: '인도 장소', colSpan: 3 },
+      { key: 'returnAddress',   label: '반납 장소', colSpan: 3 },
     ],
   },
   {
@@ -81,7 +81,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
       { key: 'paymentDay',    label: '결제일 (1-31)', type: 'number' },
       { key: 'paymentBank',    label: '입금 은행' },
       { key: 'paymentAccount', label: '입금 계좌번호' },
-      { key: 'paymentHolder',  label: '입금 예금주', colSpan: 2 },
+      { key: 'paymentHolder',  label: '입금 예금주' },
     ],
   },
   {
@@ -90,14 +90,14 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     fields: [
       { key: 'autoDebitBank',    label: '출금 은행' },
       { key: 'autoDebitAccount', label: '출금 계좌번호' },
-      { key: 'autoDebitHolder',  label: '예금주', colSpan: 2 },
+      { key: 'autoDebitHolder',  label: '예금주' },
     ],
   },
   {
     title: '정비 · 서비스',
     icon: Wrench,
     fields: [
-      { key: 'maintenanceProduct', label: '정비상품', placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 2 },
+      { key: 'maintenanceProduct', label: '정비상품', placeholder: '정비제외 / 엔진오일 연1회 등', colSpan: 3 },
       { key: 'engineOilService',   label: '엔진오일 서비스', type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
       { key: 'inspectionService',  label: '검사대행',         type: 'select', options: BOOLEAN_TRISTATE_OPTIONS },
     ],
@@ -106,7 +106,7 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     title: '보험',
     icon: ShieldCheck,
     fields: [
-      { key: 'insurer',          label: '보험사', placeholder: '예: DB손해보험', colSpan: 2 },
+      { key: 'insurer',          label: '보험사', placeholder: '예: DB손해보험' },
       { key: 'deductibleMin',    label: '자차 면책금 최소 (만원)', type: 'number' },
       { key: 'deductibleMax',    label: '자차 면책금 최대 (만원)', type: 'number' },
       { key: 'deductibleRate',   label: '자차 면책 비율 (0.2 = 20%)', type: 'number' },
@@ -126,14 +126,14 @@ const CONTRACT_OPTIONAL_SECTIONS: FieldSection[] = [
     title: '인수 옵션',
     icon: Receipt,
     fields: [
-      { key: 'purchaseOptionAmount', label: '만기 인수가격', placeholder: '만기협의 / 숫자', colSpan: 2 },
+      { key: 'purchaseOptionAmount', label: '만기 인수가격', placeholder: '만기협의 / 숫자' },
     ],
   },
   {
     title: '특약사항',
     icon: NotePencil,
     fields: [
-      { key: 'specialTerms', label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 2 },
+      { key: 'specialTerms', label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 3 },
     ],
   },
 ];
