@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { PencilSimple, Copy, Trash, PaperPlaneTilt, User, Car, ClipboardText, Truck, CreditCard, Wrench, ShieldCheck, NotePencil } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Trash, PaperPlaneTilt, User, Car, ClipboardText, Truck, CreditCard, Wrench, ShieldCheck, NotePencil, Paperclip, FileText, IdentificationCard, UploadSimple } from '@phosphor-icons/react';
+import { fileToDataUrl } from '@/lib/image-compress';
+import type { Asset } from '@/lib/sample-assets';
+import type { InsurancePolicy } from '@/lib/sample-insurance';
 import { PageShell } from '@/components/layout/page-shell';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useCustomerStore } from '@/lib/use-customer-store';
+import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { findCustomerMatch, type Customer } from '@/lib/sample-customers';
 import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
@@ -17,7 +21,6 @@ import { EntityFormDialog, type FieldSection, type EntityDialogMode } from '@/co
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { JpkTable, type JpkColumn, type JpkTableApi } from '@/components/shared/jpk-table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { FileText } from '@phosphor-icons/react';
 import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextDateScopedCode, nextCompanyScopedCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
@@ -53,30 +56,32 @@ const CONTRACT_BASE_SECTIONS: FieldSection[] = [
       { key: 'companyCode', label: '회사코드',  required: true, readOnly: true },
       { key: 'contractNo',  label: '계약번호',  readOnly: true },
       { key: 'plate',       label: '차량번호',  required: true },
+      // ↓ 매칭 자산에서 derived (readOnly) — 손님페이지·등록증과 동기
+      { key: 'assetVehicleClass', label: '차종 (자산)',   readOnly: true },
+      { key: 'assetVehicleName',  label: '차명 (자산)',   readOnly: true },
+      { key: 'assetModelName',    label: '모델명 (자산)', readOnly: true },
+      { key: 'assetManufactureDate', label: '제작연월 (자산)', readOnly: true },
+      { key: 'assetExteriorColor', label: '외부색상 (자산)', readOnly: true },
+      { key: 'assetVin',          label: '차대번호 (자산)', readOnly: true, colSpan: 2 },
     ],
   },
   {
     title: '계약 조건 · 기간',
     icon: ClipboardText,
     fields: [
+      { key: 'contractDate',             label: '계약일',                  type: 'date' },
       { key: 'startDate',                label: '시작일',                  type: 'date', required: true },
       { key: 'endDate',                  label: '만기일',                  type: 'date', required: true },
       { key: 'monthlyAmount',            label: '월 청구액 (원)',          type: 'number' },
       { key: 'deposit',                  label: '보증금 (원)',             type: 'number' },
+      { key: 'advancePayment',           label: '선수금 (원)',             type: 'number' },
+      { key: 'purchaseOptionAmount',     label: '만기 인수가격',           placeholder: '만기협의 / 숫자' },
       { key: 'initialMileageKm',         label: '인수 시점 주행거리 (km)', type: 'number' },
       { key: 'driverScope',              label: '운전자 범위',             type: 'select', options: ['누구나운전', '가족한정', '임직원한정', '1인지정'] },
       { key: 'driverAgeLimit',           label: '연령 제한',               placeholder: '예: 만 26세 이상' },
       { key: 'mileageLimitKm',           label: '연간 주행 한도 (km)',     type: 'number', placeholder: '0=무제한' },
       { key: 'excessMileageFeeKr',       label: '초과 km당 (국산, 원)',    type: 'number' },
       { key: 'excessMileageFeeForeign',  label: '초과 km당 (수입, 원)',    type: 'number' },
-    ],
-  },
-  {
-    title: '인도 · 반납',
-    icon: Truck,
-    fields: [
-      { key: 'deliveryAddress', label: '인도 장소', colSpan: 3 },
-      { key: 'returnAddress',   label: '반납 장소', colSpan: 3 },
     ],
   },
   {
@@ -113,13 +118,20 @@ const CONTRACT_BASE_SECTIONS: FieldSection[] = [
     ],
   },
   {
-    title: '기타 약정 (승계 · 인수옵션 · 특약)',
+    title: '인도 · 반납',
+    icon: Truck,
+    fields: [
+      { key: 'deliveryAddress', label: '인도 장소' },
+      { key: 'returnAddress',   label: '반납 장소' },
+    ],
+  },
+  {
+    title: '기타 약정 (승계 · 특약)',
     icon: NotePencil,
     fields: [
       { key: 'predecessorName',      label: '양도인 이름' },
       { key: 'predecessorPhone',     label: '양도인 연락처' },
       { key: 'succeededAt',          label: '승계일자',         type: 'date' },
-      { key: 'purchaseOptionAmount', label: '만기 인수가격',    placeholder: '만기협의 / 숫자' },
       { key: 'specialTerms',         label: '특약사항 (개행 보존)', type: 'textarea', colSpan: 3 },
     ],
   },
@@ -155,9 +167,16 @@ export default function ContractListPage() {
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
   const audit = useAuditStamp();
   const [companies] = useCompanyStore();
+  const [insurances] = useInsuranceStore();
   const selectedCompany = useMemo(
     () => (selected ? companies.find((c) => c.code === selected.companyCode) ?? null : null),
     [companies, selected],
+  );
+  const matchedInsurance = useMemo(
+    () => (selected
+      ? insurances.find((p) => !p.deletedAt && p.carNumber === selected.plate && (!p.companyCode || p.companyCode === selected.companyCode)) ?? null
+      : null),
+    [insurances, selected],
   );
 
   const totals = useMemo(() => {
@@ -279,8 +298,10 @@ export default function ContractListPage() {
       emergencyRelation: d.emergencyRelation?.trim() || undefined,
       startDate,
       endDate,
+      contractDate: d.contractDate?.trim() || undefined,
       monthlyAmount,
       deposit: Number(d.deposit) || 0,
+      advancePayment: numOpt(d.advancePayment),
       status: '운행중',
       driverScope:    d.driverScope?.trim() || undefined,
       driverAgeLimit: d.driverAgeLimit?.trim() || undefined,
@@ -439,10 +460,22 @@ export default function ContractListPage() {
 
   const boolToOpt = (b: boolean | undefined): string => b === true ? '가입' : b === false ? '미가입' : '';
   const numToOpt = (n: number | undefined): string => (typeof n === 'number' && Number.isFinite(n)) ? String(n) : '';
+  // 매칭 자산 (계약 차량 정보 derived 표시 + 첨부 등록증 미리보기용)
+  const matchedAsset = useMemo(
+    () => (selected ? assets.find((a) => a.plate === selected.plate && a.companyCode === selected.companyCode) ?? null : null),
+    [assets, selected],
+  );
   const editInitial: Record<string, string> = selected ? {
     companyCode: selected.companyCode,
     contractNo: selected.contractNo,
     plate: selected.plate,
+    // 자산 derived (readOnly 표시) — 손님페이지·등록증과 동기화
+    assetVehicleClass:    matchedAsset?.vehicleClass ?? '',
+    assetVehicleName:     matchedAsset?.vehicleName ?? '',
+    assetModelName:       matchedAsset?.modelName ?? matchedAsset?.detailModel ?? '',
+    assetManufactureDate: matchedAsset?.manufactureDate ?? '',
+    assetExteriorColor:   matchedAsset?.exteriorColor ?? '',
+    assetVin:             matchedAsset?.vin ?? '',
     customerName: selected.customerName,
     customerKind: selected.customerKind,
     customerIdent: selected.customerIdent,
@@ -452,10 +485,12 @@ export default function ContractListPage() {
     customerAddress:   selected.customerAddress ?? '',
     emergencyPhone:    selected.emergencyPhone ?? '',
     emergencyRelation: selected.emergencyRelation ?? '',
+    contractDate:  selected.contractDate ?? '',
     startDate: selected.startDate,
     endDate: selected.endDate,
     monthlyAmount: String(selected.monthlyAmount),
     deposit: String(selected.deposit ?? 0),
+    advancePayment: numToOpt(selected.advancePayment),
     driverScope:    selected.driverScope ?? '',
     driverAgeLimit: selected.driverAgeLimit ?? '',
     mileageLimitKm: selected.mileageLimitKm ? String(selected.mileageLimitKm) : '',
@@ -500,6 +535,20 @@ export default function ContractListPage() {
     if (!selected) return;
     setEditMode(mode);
     setEditOpen(true);
+  }
+
+  /** 계약서 PDF/이미지 첨부 — 즉시 저장 (저장 버튼 누르지 않아도 반영) */
+  async function handleContractFileUpload(file: File) {
+    if (!selected) return;
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const updated: Contract = { ...selected, fileDataUrl: dataUrl, fileName: file.name, ...audit.update() };
+      setContracts((prev) => prev.map((c) => (c.id === selected.id ? updated : c)));
+      setSelected(updated);
+      audit.log({ action: 'update', entityType: 'contract', entityId: selected.id, label: `${selected.contractNo} 계약서 첨부 — ${file.name}` });
+    } catch (e) {
+      alert(`첨부 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   function buildCtxItems(): ContextMenuItem[] {
@@ -574,7 +623,16 @@ export default function ContractListPage() {
         title={editMode === 'view' ? `계약 상세 — ${selected?.contractNo ?? ''}` : `계약 수정 — ${selected?.contractNo ?? ''}`}
         mode={editMode}
         sections={CONTRACT_EDIT_SECTIONS} initial={editInitial}
-        submitLabel="저장" onSubmit={handleUpdate} />
+        submitLabel="저장" onSubmit={handleUpdate}
+        extraContent={selected ? (
+          <ContractDocsPanel
+            contract={selected}
+            asset={matchedAsset}
+            insurance={matchedInsurance}
+            onContractFileUpload={handleContractFileUpload}
+          />
+        ) : undefined}
+      />
       <EntityFormDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}
         title="계약 복사 (스펙 복제)" mode="duplicate"
         sections={CONTRACT_DUPLICATE_SECTIONS} initial={dupInitial}
@@ -582,6 +640,130 @@ export default function ContractListPage() {
       <SmsSendDialog open={smsOpen} onOpenChange={setSmsOpen}
         contract={selected} company={selectedCompany} />
     </>
+  );
+}
+
+/**
+ * 계약 상세 첨부 문서 패널 — 손님페이지(/customer/[plate]) 와 동일 데이터 노출.
+ *  · 계약서 — Contract.fileDataUrl (업로드 가능)
+ *  · 등록증 — 매칭 Asset.fileDataUrl (read-only)
+ *  · 보험증권 — 매칭 InsurancePolicy.fileDataUrl (read-only)
+ */
+function ContractDocsPanel({
+  contract, asset, insurance, onContractFileUpload,
+}: {
+  contract: Contract;
+  asset: Asset | null;
+  insurance: InsurancePolicy | null;
+  onContractFileUpload: (file: File) => void | Promise<void>;
+}) {
+  return (
+    <div className="form-section">
+      <div className="form-section-title">
+        <Paperclip size={13} weight="bold" />
+        <span>첨부 문서 (손님페이지 동기)</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        <DocCard
+          icon={<FileText size={14} weight="bold" />}
+          title="계약서"
+          fileUrl={contract.fileDataUrl}
+          fileName={contract.fileName}
+          subtitle={contract.fileName ? undefined : '미첨부'}
+          onUpload={onContractFileUpload}
+        />
+        <DocCard
+          icon={<IdentificationCard size={14} weight="bold" />}
+          title="등록증"
+          fileUrl={asset?.fileDataUrl}
+          fileName={asset?.fileName}
+          subtitle={asset ? (asset.fileDataUrl ? '자산 등록 시 첨부됨' : '미첨부 — 자산에서 등록') : '매칭 자산 없음'}
+        />
+        <DocCard
+          icon={<ShieldCheck size={14} weight="bold" />}
+          title="보험증권"
+          fileUrl={insurance?.fileDataUrl}
+          fileName={insurance?.fileName}
+          subtitle={
+            insurance
+              ? `${insurance.insurer ?? ''} ${insurance.policyNo ?? ''}`.trim() || (insurance.fileDataUrl ? '첨부됨' : '미첨부')
+              : '매칭 보험 없음'
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function DocCard({
+  icon, title, fileUrl, fileName, subtitle, onUpload,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  fileUrl?: string;
+  fileName?: string;
+  subtitle?: string;
+  onUpload?: (file: File) => void | Promise<void>;
+}) {
+  const isImage = fileUrl?.startsWith('data:image/');
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 4,
+      padding: 10,
+      background: 'var(--bg-card)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+      minHeight: 200,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-medium)' }}>
+        {icon}<span>{title}</span>
+      </div>
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: fileUrl ? '#fff' : 'var(--bg-disabled, #f5f5f5)',
+        border: fileUrl ? '1px solid var(--border)' : '1px dashed var(--border)',
+        borderRadius: 4,
+        minHeight: 120,
+        overflow: 'hidden',
+      }}>
+        {fileUrl && isImage ? (
+          <img src={fileUrl} alt={title} style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'scale-down' }} />
+        ) : fileUrl ? (
+          <span className="text-weak text-xs" style={{ padding: 12 }}>PDF — 다운로드해서 보기</span>
+        ) : (
+          <span className="text-weak text-xs" style={{ padding: 12 }}>없음</span>
+        )}
+      </div>
+      <div className="text-weak text-xs" style={{ minHeight: 16 }}>{subtitle ?? fileName ?? ''}</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {fileUrl && (
+          <a className="btn btn-sm" href={fileUrl} download={fileName ?? `${title}.bin`}>
+            다운로드
+          </a>
+        )}
+        {onUpload && (
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            <UploadSimple size={12} weight="bold" />
+            <span>{fileUrl ? '교체' : '첨부'}</span>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onUpload(f);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        )}
+      </div>
+    </div>
   );
 }
 

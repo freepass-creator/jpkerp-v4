@@ -44,8 +44,10 @@ export type Contract = {
 
   startDate: string;             // 계약 시작일
   endDate: string;               // 만기일
+  contractDate?: string;         // 계약일 (서류 작성일 — startDate 와 다를 수 있음)
   monthlyAmount: number;         // 월 대여료
   deposit: number;               // 보증금 (없으면 0)
+  advancePayment?: number;       // 선수금 (계약 시점 일시 납입)
   status: ContractStatus;
   events: ScheduleEvent[];
 

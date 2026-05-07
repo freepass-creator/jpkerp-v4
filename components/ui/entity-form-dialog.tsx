@@ -64,6 +64,8 @@ type Props = {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   submitLabel?: string;
   onSubmit: (data: Record<string, string>) => void;
+  /** 섹션 외 추가 콘텐츠 (첨부 문서 미리보기/업로드 등) — 섹션 뒤·footer 앞에 렌더 */
+  extraContent?: React.ReactNode;
 };
 
 export function EntityFormDialog({
@@ -77,6 +79,7 @@ export function EntityFormDialog({
   size = 'lg',
   submitLabel,
   onSubmit,
+  extraContent,
 }: Props) {
   const [data, setData] = useState<Record<string, string>>(initial);
   const [currentMode, setCurrentMode] = useState<EntityDialogMode>(mode);
@@ -156,6 +159,7 @@ export function EntityFormDialog({
               </div>
             </div>
           ))}
+          {extraContent}
         </fieldset>
 
         <DialogFooter>
@@ -202,6 +206,22 @@ export function EntityFormDialog({
   );
 }
 
+/** "850000" → "850,000" / "" → "" / "-" → "-" / 비숫자 그대로 보존 */
+function formatNumberDisplay(s: string): string {
+  if (!s) return '';
+  if (s === '-') return s;
+  const cleaned = s.replace(/,/g, '');
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return s;
+  return n.toLocaleString('ko-KR');
+}
+
+/** 사용자 입력에서 숫자(+선두 마이너스)만 남김 */
+function stripNonDigit(s: string): string {
+  const sign = s.startsWith('-') ? '-' : '';
+  return sign + s.replace(/[^\d]/g, '');
+}
+
 function Field({ f, value, onChange }: { f: FieldDef; value: string; onChange: (v: string) => void }) {
   const span = f.colSpan === 4 ? 'col-span-4' : f.colSpan === 3 ? 'col-span-3' : f.colSpan === 2 ? 'col-span-2' : '';
   const lockedStyle = f.readOnly
@@ -236,9 +256,22 @@ function Field({ f, value, onChange }: { f: FieldDef; value: string; onChange: (
           title={lockedTitle}
           style={lockedStyle}
         />
+      ) : f.type === 'number' ? (
+        // 천단위 콤마 표시 — 입력은 숫자/콤마 자유, 저장은 콤마 제거된 raw 숫자(string)
+        <input
+          type="text"
+          inputMode="numeric"
+          className="input w-full"
+          value={formatNumberDisplay(value)}
+          onChange={(e) => !f.readOnly && onChange(stripNonDigit(e.target.value))}
+          placeholder={f.placeholder}
+          readOnly={f.readOnly}
+          title={lockedTitle}
+          style={lockedStyle}
+        />
       ) : (
         <input
-          type={f.type === 'number' || f.type === 'date' ? f.type : 'text'}
+          type={f.type === 'date' ? 'date' : 'text'}
           className="input w-full"
           value={value}
           onChange={(e) => !f.readOnly && onChange(e.target.value)}
