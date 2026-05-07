@@ -638,37 +638,141 @@ function ContractGrid({
 }) {
   const tableRef = useRef<JpkTableApi<Contract> | null>(null);
 
-  const columns = useMemo<JpkColumn<Contract>[]>(() => [
-    { headerName: '회사', field: 'companyCode', width: 80, filterable: true,
-      cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
-    { headerName: '차량번호', field: 'plate', width: 110, filterable: true,
-      cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
-    { headerName: '계약번호', field: 'contractNo', width: 130, filterable: true,
-      cellRenderer: ({ value }) => <span className="mono text-medium">{value as string}</span> },
-    { headerName: '고객코드', field: 'customerCode', width: 110, filterable: true,
-      cellRenderer: ({ value }) => <span className="mono text-medium">{(value as string) || '-'}</span> },
-    { headerName: '고객명', field: 'customerName', width: 130, filterable: true },
-    { headerName: '고객 신분', field: 'customerKind', width: 90, filterable: true,
-      cellRenderer: ({ value }) => <span className="dim">{(value as string) ?? '-'}</span> },
-    { headerName: '연락처', field: 'customerPhone', width: 130,
-      cellRenderer: ({ value }) => <span className="mono dim">{(value as string) || '-'}</span> },
-    { headerName: '시작일', field: 'startDate', width: 110, filterType: 'date' },
-    { headerName: '만기일', field: 'endDate', width: 110, filterType: 'date' },
-    { headerName: '월 청구액', field: 'monthlyAmount', width: 110, align: 'right', filterType: 'range',
-      filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
-      valueFormatter: ({ value }) => (value as number)?.toLocaleString('ko-KR') ?? '0' },
-    { headerName: '보증금', field: 'deposit', width: 110, align: 'right', filterType: 'range',
-      filterStep: 1000000, filterUnit: 10000, filterUnitLabel: '만원',
-      valueFormatter: ({ value }) => value ? (value as number).toLocaleString('ko-KR') : '-' },
-    { headerName: '상태', field: 'status', width: 90, filterable: true,
-      cellRenderer: ({ value }) => (
-        <span className={cn('badge', value === '운행중' ? 'badge-green' : value === '만기' ? 'badge-orange' : '')}>
-          {value as string}
-        </span>
-      ) },
-    { headerName: '추가', field: 'driverScope', width: 90, sortable: false,
-      cellRenderer: ({ data }) => <ExtendedInfoCell contract={data} /> },
-  ], []);
+  const columns = useMemo<JpkColumn<Contract>[]>(() => {
+    const dimText = (v: unknown) => <span className="dim">{(v as string) || '-'}</span>;
+    const monoDim = (v: unknown) => <span className="mono dim">{(v as string) || '-'}</span>;
+    const truncateDim = (v: unknown) => <span className="dim truncate">{(v as string) || '-'}</span>;
+    const numFmt = ({ value }: { value: unknown }) =>
+      value && Number.isFinite(value) ? (value as number).toLocaleString('ko-KR') : '-';
+    const boolBadge = (v: unknown) =>
+      v === true ? <span className="dim">가입</span>
+      : v === false ? <span className="dim">미가입</span>
+      : <span className="text-muted">-</span>;
+
+    return [
+      /* ── 식별 ── */
+      { headerName: '회사', field: 'companyCode', width: 80, filterable: true,
+        cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
+      { headerName: '차량번호', field: 'plate', width: 110, filterable: true,
+        cellRenderer: ({ value }) => <span className="plate">{value as string}</span> },
+      { headerName: '계약번호', field: 'contractNo', width: 130, filterable: true,
+        cellRenderer: ({ value }) => <span className="mono text-medium">{value as string}</span> },
+      { headerName: '상태', field: 'status', width: 80, filterable: true,
+        cellRenderer: ({ value }) => (
+          <span className={cn('badge', value === '운행중' ? 'badge-green' : value === '만기' ? 'badge-orange' : '')}>
+            {value as string}
+          </span>
+        ) },
+
+      /* ── 임차인 기본 ── */
+      { headerName: '고객코드', field: 'customerCode', width: 110, filterable: true,
+        cellRenderer: ({ value }) => <span className="mono text-medium">{(value as string) || '-'}</span> },
+      { headerName: '고객명', field: 'customerName', width: 130, filterable: true },
+      { headerName: '신분', field: 'customerKind', width: 80, filterable: true,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '고객등록번호', field: 'customerIdent', width: 130,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '연락처', field: 'customerPhone', width: 130,
+        cellRenderer: ({ value }) => monoDim(value) },
+
+      /* ── 임차인 상세 ── */
+      { headerName: '면허번호', field: 'customerLicenseNo', width: 130,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '이메일', field: 'customerEmail', width: 180,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '실거주지', field: 'customerAddress', width: 220,
+        cellRenderer: ({ value }) => truncateDim(value) },
+      { headerName: '비상연락처', field: 'emergencyPhone', width: 120,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '비상관계', field: 'emergencyRelation', width: 80,
+        cellRenderer: ({ value }) => dimText(value) },
+
+      /* ── 기간/금액 ── */
+      { headerName: '시작일', field: 'startDate', width: 110, filterType: 'date' },
+      { headerName: '만기일', field: 'endDate', width: 110, filterType: 'date' },
+      { headerName: '월 청구액', field: 'monthlyAmount', width: 110, align: 'right', filterType: 'range',
+        filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
+        valueFormatter: ({ value }) => (value as number)?.toLocaleString('ko-KR') ?? '0' },
+      { headerName: '보증금', field: 'deposit', width: 110, align: 'right', filterType: 'range',
+        filterStep: 1000000, filterUnit: 10000, filterUnitLabel: '만원',
+        valueFormatter: ({ value }) => value ? (value as number).toLocaleString('ko-KR') : '-' },
+
+      /* ── 운전 조건 ── */
+      { headerName: '운전자 범위', field: 'driverScope', width: 110, filterable: true,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '연령 제한', field: 'driverAgeLimit', width: 110,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '주행한도(km)', field: 'mileageLimitKm', width: 110, align: 'right',
+        valueFormatter: numFmt },
+      { headerName: '초과km 국산', field: 'excessMileageFeeKr', width: 100, align: 'right',
+        valueFormatter: numFmt },
+      { headerName: '초과km 수입', field: 'excessMileageFeeForeign', width: 100, align: 'right',
+        valueFormatter: numFmt },
+      { headerName: '인수 km', field: 'initialMileageKm', width: 100, align: 'right',
+        valueFormatter: numFmt },
+
+      /* ── 인도/반납 ── */
+      { headerName: '인도장소', field: 'deliveryAddress', width: 220,
+        cellRenderer: ({ value }) => truncateDim(value) },
+      { headerName: '반납장소', field: 'returnAddress', width: 220,
+        cellRenderer: ({ value }) => truncateDim(value) },
+
+      /* ── 결제 ── */
+      { headerName: '결제방법', field: 'paymentMethod', width: 100, filterable: true,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '결제일', field: 'paymentDay', width: 70, align: 'right',
+        valueFormatter: ({ value }) => value ? `${value}일` : '-' },
+      { headerName: '입금은행', field: 'paymentBank', width: 100,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '입금계좌', field: 'paymentAccount', width: 150,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '입금예금주', field: 'paymentHolder', width: 110,
+        cellRenderer: ({ value }) => dimText(value) },
+
+      /* ── 자동이체(CMS) ── */
+      { headerName: '출금은행', field: 'autoDebitBank', width: 100,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '출금계좌', field: 'autoDebitAccount', width: 150,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '출금예금주', field: 'autoDebitHolder', width: 110,
+        cellRenderer: ({ value }) => dimText(value) },
+
+      /* ── 정비/서비스 ── */
+      { headerName: '정비상품', field: 'maintenanceProduct', width: 150,
+        cellRenderer: ({ value }) => truncateDim(value) },
+      { headerName: '엔진오일', field: 'engineOilService', width: 80, filterable: true,
+        cellRenderer: ({ value }) => boolBadge(value) },
+      { headerName: '검사대행', field: 'inspectionService', width: 80, filterable: true,
+        cellRenderer: ({ value }) => boolBadge(value) },
+
+      /* ── 보험 ── */
+      { headerName: '보험사', field: 'insurer', width: 130, filterable: true,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '면책 최소(만원)', field: 'deductibleMin', width: 110, align: 'right',
+        valueFormatter: numFmt },
+      { headerName: '면책 최대(만원)', field: 'deductibleMax', width: 110, align: 'right',
+        valueFormatter: numFmt },
+      { headerName: '면책 비율', field: 'deductibleRate', width: 80, align: 'right',
+        valueFormatter: ({ value }) => value ? `${(((value as number) * 100)).toFixed(0)}%` : '-' },
+
+      /* ── 승계 ── */
+      { headerName: '양도인', field: 'predecessorName', width: 100,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '양도인 연락처', field: 'predecessorPhone', width: 130,
+        cellRenderer: ({ value }) => monoDim(value) },
+      { headerName: '승계일자', field: 'succeededAt', width: 110, filterType: 'date' },
+
+      /* ── 인수옵션 / 특약 ── */
+      { headerName: '만기 인수가격', field: 'purchaseOptionAmount', width: 130,
+        cellRenderer: ({ value }) => dimText(value) },
+      { headerName: '특약사항', field: 'specialTerms', width: 220,
+        cellRenderer: ({ value }) => truncateDim(value) },
+
+      /* ── 기타 인디케이터 ── */
+      { headerName: '추가', field: 'extras', width: 90, sortable: false,
+        cellRenderer: ({ data }) => <ExtendedInfoCell contract={data} /> },
+    ];
+  }, []);
 
   const getRowId = useCallback((c: Contract) => c.id, []);
   const handleRowContextMenu = useCallback((c: Contract, _i: number, ev: React.MouseEvent) => {
