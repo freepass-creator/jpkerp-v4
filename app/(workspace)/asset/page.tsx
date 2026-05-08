@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Download, FileXls, Trash, PencilSimple, Copy, Plus } from '@phosphor-icons/react';
+import { Download, FileXls, Trash, PencilSimple, Copy, Plus, ShoppingCart } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { AssetGrid } from '@/components/asset/asset-grid';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -184,6 +184,9 @@ export default function AssetListPage() {
         }
         footerRight={
           <>
+            <Link className="btn" href="/purchase" title="신차 구매부터 인도까지 흐름 진행 — 차량구매 페이지로">
+              <ShoppingCart size={14} weight="bold" /> 차량구매
+            </Link>
             <button className="btn">
               <FileXls size={14} weight="bold" /> 엑셀
             </button>

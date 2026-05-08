@@ -1,6 +1,88 @@
-import type { AuditFields } from './audit-fields';
+import type { AuditFields, AuditActor } from './audit-fields';
 
 export type AssetStatus = '등록예정' | '대기' | '운행중' | '정비' | '매각';
+
+/**
+ * 차량 구매 흐름 — 신차 구매부터 고객인도까지 8단계 메타데이터.
+ *
+ *  1. 구매결정          decide        — flow 시작 (다이얼로그)
+ *  2. 생산일정확정      productionConfirm
+ *  3. 증차신청          apply
+ *  4. 차량출고(입고)    intake        — 우리가 차량을 받는 시점
+ *  5. 상품화·차량등록   productize    — 등록증 발급 + 블박/선팅/번호판 등 묶음
+ *  6. 1차 해피콜        happyCall1    — 고객 진행상황 안내·일정조율
+ *  7. 2차 해피콜        happyCall2    — 고객 인도일정 최종 확정
+ *  8. 고객인도          deliver       — 출고 event 완료 + 운행중 전환
+ *
+ * 구매결정 시점에 자산이 placeholder plate (`구매-YYMM-NNN`) + status='등록예정' 으로
+ * 즉시 push 되고, 5단계(상품화·등록)에서 placeholder 가 실제 plate 로 교체된다.
+ */
+export type ProductizationItem = {
+  key: string;            // '블박' | '선팅' | '번호판' | 자유 텍스트
+  required?: boolean;     // 회사 정책상 필수 (false 면 옵션)
+  doneAt?: string;
+  doneBy?: AuditActor;
+  note?: string;
+};
+
+export type PurchaseFlow = {
+  /* 1 — 구매결정 */
+  decidedAt: string;
+  decidedBy: AuditActor;
+  matchedContractId?: string;
+
+  vehicleSpecMemo?: string;
+  exteriorColor?: string;
+  expectedIntakeDate?: string;
+  decisionNote?: string;
+
+  /* 2 — 생산일정확정 (제조사로부터 생산·출고 일정 통보 받음) */
+  productionConfirmAt?: string;
+  productionConfirmBy?: AuditActor;
+  expectedProductionDate?: string;   // 제조사 예상 출고일
+
+  /* 3 — 증차신청 (관할 구청·VAN) */
+  applicationNo?: string;
+  applicationDoneAt?: string;
+  applicationDoneBy?: AuditActor;
+
+  /* 4 — 차량출고(입고) — 차량 도착 */
+  intakeAt?: string;
+  intakeBy?: AuditActor;
+  intakeLocation?: string;
+
+  /* 5 — 상품화·차량등록 (등록증 발급 + 블박/선팅/번호판 등) */
+  registeredAt?: string;
+  registeredBy?: AuditActor;
+  productizationItems?: ProductizationItem[];
+  productizationCompletedAt?: string;   // 모든 required item 완료 시점
+
+  /* 6 — 1차 해피콜 */
+  happyCall1At?: string;
+  happyCall1By?: AuditActor;
+  happyCall1Note?: string;
+
+  /* 7 — 2차 해피콜 */
+  happyCall2At?: string;
+  happyCall2By?: AuditActor;
+  happyCall2Note?: string;
+
+  /* 8 — 고객인도 */
+  /** 고객 출고예정일 — 1차/2차 해피콜에서 협의·확정. D-2 SMS 알람 트리거. */
+  expectedDeliveryDate?: string;
+  deliveredAt?: string;
+  deliveredBy?: AuditActor;
+
+  /** 흐름 종료 — 인도 완료(매칭) 또는 입고 마감(선도). */
+  closedAt?: string;
+};
+
+/** 회사 기본 상품화 항목 — 신규 구매 시 자동 채움. 추후 회사별 설정으로 분리 가능. */
+export const DEFAULT_PRODUCTIZATION_ITEMS: ProductizationItem[] = [
+  { key: '블박', required: true },
+  { key: '선팅', required: true },
+  { key: '번호판', required: true },
+];
 
 /**
  * 자산(차량) 데이터 모델 — 자동차등록증 ① ~ ㉟ 전 항목 + 헤더/푸터 + 부가.
@@ -82,6 +164,9 @@ export type Asset = {
 
   /* ─── 운영 상태 ─── */
   status: AssetStatus;
+
+  /** 구매 흐름 메타. 차량구매 다이얼로그로 시작된 자산만 가짐. */
+  purchase?: PurchaseFlow;
 
   /* ─── 등록증 원본 (OCR 한 첫 페이지를 이미지 dataUrl 로 보관) ─── */
   /** 등록증 이미지 dataUrl. insurance/contract.fileDataUrl 와 동일 키 (규격 통일). */

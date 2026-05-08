@@ -7,6 +7,7 @@ import { useAssetStore } from './use-asset-store';
 
 export const ASSET_SUBTABS: SubTab[] = [
   { href: '/asset',            label: '차량등록현황' },
+  { href: '/asset/purchase',   label: '차량구매' },
   { href: '/asset/insurance',  label: '보험내역' },
   { href: '/asset/loan',       label: '할부스케줄' },
   { href: '/asset/inspection', label: '검사내역' },

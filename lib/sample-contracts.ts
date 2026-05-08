@@ -1,4 +1,4 @@
-import type { AuditFields } from './audit-fields';
+import type { AuditFields, AuditActor } from './audit-fields';
 
 export type ContractStatus = '운행중' | '대기' | '만기' | '해지';
 export type ScheduleType = '출고' | '수납' | '엔진오일' | '검사' | '정비' | '보험' | '반납' | '기타';
@@ -10,6 +10,7 @@ export type ScheduleEvent = {
   cycle?: number;       // 회차 (수납만 의미)
   dueDate: string;      // 예정일
   doneDate?: string;    // 실시일
+  doneBy?: AuditActor;  // 완료처리 담당자 — 출고/반납 핸드오프 추적
   amount?: number;      // 금액 (수납만)
   status: ScheduleStatus;
   note?: string;

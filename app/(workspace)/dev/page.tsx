@@ -124,42 +124,8 @@ function DevPage() {
     return unsub;
   }, [section]);
 
-  // 수납생성 다이얼로그
+  // 수납생성 다이얼로그 (단건 마이그레이션)
   const [receiptOpen, setReceiptOpen] = useState(false);
-
-  /** 일괄 수납생성 — 모든 계약, dueDate ≤ today 인 예정 수납회차 → 완료 자동 처리. */
-  function bulkSeedReceipts() {
-    if (contracts.length === 0) { alert('계약 없음 — 먼저 계약을 등록하세요.'); return; }
-    const today = todayStr();
-    let calcChanged = 0;
-    let calcCycles = 0;
-    for (const c of contracts) {
-      if (c.deletedAt) continue;
-      let here = 0;
-      for (const e of c.events) {
-        if (e.type === '수납' && e.status === '예정' && e.dueDate <= today) here++;
-      }
-      if (here > 0) { calcChanged++; calcCycles += here; }
-    }
-    if (calcCycles === 0) { alert('처리할 회차 없음 — 모든 미수가 이미 완료 상태'); return; }
-    if (!confirm(
-      `일괄 수납생성\n\n· 영향 계약: ${calcChanged}건\n· 자동수납 회차: ${calcCycles}회차\n\n`
-      + `오늘(${today}) 기준 dueDate ≤ today 인 예정 회차를 모두 완료(doneDate=dueDate)로 전환합니다.\n계속할까요?`,
-    )) return;
-    setContracts((prev) => prev.map((c) => {
-      if (c.deletedAt) return c;
-      let modified = false;
-      const events = c.events.map((e) => {
-        if (e.type === '수납' && e.status === '예정' && e.dueDate <= today) {
-          modified = true;
-          return { ...e, status: '완료' as const, doneDate: e.dueDate };
-        }
-        return e;
-      });
-      return modified ? { ...c, events } : c;
-    }));
-    alert(`완료 — ${calcChanged}건 계약 / ${calcCycles}회차 자동수납`);
-  }
 
   /** 출고생성 — 모든 계약 출고완료 + 자산 운행중. */
   function seedDeliveries() {
@@ -259,9 +225,6 @@ function DevPage() {
             <button className="btn btn-sm" onClick={() => setReceiptOpen(true)} title="단건 — 고객 정보 + 미수 회차 입력 → events 재구성">
               <CurrencyKrw size={13} weight="bold" /> 수납생성
             </button>
-            <button className="btn btn-sm" onClick={bulkSeedReceipts} title="전체 — 오늘 기준 dueDate 도래분 자동 완료처리">
-              <CurrencyKrw size={13} weight="bold" /> 일괄수납
-            </button>
             <button className="btn btn-sm" onClick={seedDeliveries} title="모든 계약 출고완료 + 자산 운행중">
               <Truck size={13} weight="bold" /> 출고생성
             </button>
@@ -292,7 +255,7 @@ function DevPage() {
     >
       {section === 'inspect' && <InspectSection rows={deleteRows} />}
       {section === 'import' && <ImportSection />}
-      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onBulkReceipt={bulkSeedReceipts} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
+      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
       {section === 'other' && <OtherSection nodes={otherNodes} />}
     </PageShell>
 
@@ -468,10 +431,9 @@ function ImportSection() {
 
 /* ─── 시드·시뮬레이션 섹션 ─── */
 function SeedSection({
-  onReceiptOpen, onBulkReceipt, onSeedDeliveries, contractsCount,
+  onReceiptOpen, onSeedDeliveries, contractsCount,
 }: {
   onReceiptOpen: () => void;
-  onBulkReceipt: () => void;
   onSeedDeliveries: () => void;
   contractsCount: number;
 }) {
@@ -493,19 +455,13 @@ function SeedSection({
       </div>
 
       <div className="dev-card">
-        <div className="dev-card-title">일괄 수납생성 — 오늘 기준 자동</div>
+        <div className="dev-card-title">일괄 마이그레이션</div>
         <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
-          모든 계약을 일괄로 처리. 각 계약의 수납 회차 중 <strong>dueDate ≤ 오늘</strong> + <strong>예정</strong> 상태인 것을
-          모두 완료(doneDate = dueDate)로 자동 전환.
-          <br />· 실행 후 미수 = 0 (모든 도래분 자동 수납)
-          <br />· 미래 회차는 그대로 예정 유지
+          계약 + 출고여부 + 현재미수까지 한 번에 처리.
+          → <strong>데이터 일괄등록</strong> 탭에서 양식 다운로드 → 엑셀 편집 → 업로드.
+          <br />· 출고여부=예 → 매칭 자산 운행중 전환
+          <br />· 현재미수 → ledger 시드 push (부분납부 자동 표현)
         </p>
-        <button className="btn" onClick={onBulkReceipt} disabled={contractsCount === 0}>
-          <CurrencyKrw size={14} weight="bold" /> 일괄 수납생성 실행
-        </button>
-        {contractsCount === 0 && (
-          <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
-        )}
       </div>
 
       <div className="dev-card">
