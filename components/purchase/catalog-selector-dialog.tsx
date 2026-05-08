@@ -31,7 +31,15 @@ type IndexEntry = {
 type CatalogIndex = Record<string, IndexEntry>;
 
 type OptionMeta = { name: string; category: string; is_package?: boolean };
-type TrimMeta = { slug?: string; price?: { base?: number }; basic?: string[]; name_en?: string };
+type SelectGroup = { codes: string[]; price?: number; name?: string };
+type TrimMeta = {
+  slug?: string;
+  price?: { base?: number };
+  basic?: string[];
+  select?: string[];
+  select_groups?: SelectGroup[];     // 트림별 선택 패키지 묶음 (정확)
+  name_en?: string;
+};
 
 type CatalogDetail = {
   catalog_id: string;
@@ -51,8 +59,11 @@ export type CatalogSelection = {
   modelRoot?: string;
   trim?: string;
   year?: string;
-  options?: string[];           // 선택된 옵션의 한글 라벨
-  optionCodes?: string[];       // 옵션 코드 (CN06xxx 등)
+  /** 사용자가 추가 선택한 옵션 라벨 (트림 기본옵션은 트림 자체에 함의되므로 미포함). */
+  options?: string[];
+  optionCodes?: string[];
+  /** 카탈로그에 없는 항목 — 사용자 직접입력 (줄바꿈 구분). */
+  customOptions?: string[];
   catalogId: string;
   basePrice?: number;
 };
@@ -99,11 +110,17 @@ export function CatalogSelectorDialog({
   const [indexLoading, setIndexLoading] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
 
-  // 선택 상태
+  // 차량 종류 — 신차(현재생산) / 중고(단종 포함 전체)
+  const [scope, setScope] = useState<'new' | 'used'>('new');
+
+  // 선택 상태 — 4단계 (제조사 → 모델 → 세부모델 → 세부트림)
   const [maker, setMaker] = useState<string>('');
-  const [catalogId, setCatalogId] = useState<string>('');
+  const [modelRoot, setModelRoot] = useState<string>('');     // 모델 — 같은 차종군 (예: 아반떼)
+  const [catalogId, setCatalogId] = useState<string>('');     // 세부모델 — 세대/특수 (예: 아반떼 N CN7)
   const [trimName, setTrimName] = useState<string>('');
-  const [extraCodes, setExtraCodes] = useState<Set<string>>(new Set());
+  // 선택된 패키지의 인덱스 (트림.select_groups 기준). 인덱스 사용해서 같은 trim 안에서 패키지 단위 토글.
+  const [pickedPkgIdx, setPickedPkgIdx] = useState<Set<number>>(new Set());
+  const [customRaw, setCustomRaw] = useState<string>('');      // 직접입력 — 줄바꿈 구분
 
   // 선택 catalog 의 detail
   const [detail, setDetail] = useState<CatalogDetail | null>(null);
@@ -113,7 +130,9 @@ export function CatalogSelectorDialog({
   // 다이얼로그 열릴 때 _index 한번만 fetch
   useEffect(() => {
     if (!open) return;
-    setMaker(''); setCatalogId(''); setTrimName(''); setExtraCodes(new Set());
+    setScope('new');
+    setMaker(''); setModelRoot(''); setCatalogId(''); setTrimName('');
+    setPickedPkgIdx(new Set()); setCustomRaw('');
     setDetail(null); setDetailError(null);
     if (indexCache) { setIndex(indexCache); return; }
     setIndexLoading(true); setIndexError(null);
@@ -127,39 +146,105 @@ export function CatalogSelectorDialog({
   useEffect(() => {
     if (!catalogId) { setDetail(null); return; }
     const cached = detailCache.get(catalogId);
-    if (cached) { setDetail(cached); setTrimName(''); setExtraCodes(new Set()); return; }
+    if (cached) { setDetail(cached); setTrimName(''); setPickedPkgIdx(new Set()); return; }
     setDetailLoading(true); setDetailError(null);
     fetchDetail(catalogId)
-      .then((j) => { setDetail(j); setTrimName(''); setExtraCodes(new Set()); })
+      .then((j) => { setDetail(j); setTrimName(''); setPickedPkgIdx(new Set()); })
       .catch((e) => { setDetailError(String(e?.message ?? e)); setDetail(null); })
       .finally(() => setDetailLoading(false));
   }, [catalogId]);
 
-  // 메이커 목록 (한국 → 수입 순으로 정렬)
+  // 신차 = 현재 생산중. 중고 = 단종 포함이지만 10년 이내만.
+  function isInProduction(v: IndexEntry): boolean {
+    const y = (v.year_end ?? '').trim();
+    if (y === '' || y === '현재') return true;
+    const n = Number(y);
+    if (Number.isFinite(n)) return n >= new Date().getFullYear();
+    return false;
+  }
+  function within10y(v: IndexEntry): boolean {
+    const cutoff = new Date().getFullYear() - 10;
+    // year_start 또는 year_end 중 하나라도 cutoff 이상이면 통과
+    const ys = Number((v.year_start ?? '').trim());
+    if (Number.isFinite(ys) && ys >= cutoff) return true;
+    const ye = (v.year_end ?? '').trim();
+    if (ye === '현재') return true;
+    const yen = Number(ye);
+    if (Number.isFinite(yen) && yen >= cutoff) return true;
+    // 연식 정보가 없으면 일단 포함 (데이터 누락 대비)
+    return !v.year_start && !v.year_end;
+  }
+
+  const inScope = useMemo(() => {
+    if (!index) return [] as IndexEntry[];
+    const all = Object.values(index);
+    if (scope === 'new') return all.filter(isInProduction);
+    return all.filter(within10y);
+  }, [index, scope]);
+
+  // 제조사 인기순 — 한국 렌터카 운영 기준
+  const MAKER_POPULARITY = [
+    '현대', '기아', '제네시스', 'KGM', '쉐보레', '르노',
+    'BMW', '벤츠', '폭스바겐', '아우디', '미니', '볼보',
+    '포르쉐', '테슬라', '랜드로버', '지프', '혼다', '포드', '마세라티',
+  ];
   const makers = useMemo(() => {
-    if (!index) return [] as string[];
     const set = new Set<string>();
-    for (const v of Object.values(index)) set.add(v.maker);
+    for (const v of inScope) set.add(v.maker);
     const all = Array.from(set);
-    const KR_ORDER = ['현대', '기아', '제네시스', 'KGM', '쉐보레', '르노'];
     all.sort((a, b) => {
-      const ai = KR_ORDER.indexOf(a);
-      const bi = KR_ORDER.indexOf(b);
+      const ai = MAKER_POPULARITY.indexOf(a);
+      const bi = MAKER_POPULARITY.indexOf(b);
       if (ai >= 0 && bi >= 0) return ai - bi;
       if (ai >= 0) return -1;
       if (bi >= 0) return 1;
       return a.localeCompare(b, 'ko');
     });
     return all;
-  }, [index]);
+  }, [inScope]);
 
-  // 선택 메이커의 catalog 목록
+  // 모델(model_root) 인기순 — 같은 메이커 내 catalog 갯수 많을수록 인기
+  // (세대 분리·페이스리프트 등으로 모델당 catalog 갯수가 인기도와 비례)
+  const modelRoots = useMemo(() => {
+    if (!maker) return [] as string[];
+    const counts = new Map<string, number>();
+    for (const v of inScope) {
+      if (v.maker !== maker || !v.model_root) continue;
+      counts.set(v.model_root, (counts.get(v.model_root) ?? 0) + 1);
+    }
+    const list = Array.from(counts.entries());
+    list.sort((a, b) => {
+      if (a[1] !== b[1]) return b[1] - a[1];   // catalog 갯수 desc
+      return a[0].localeCompare(b[0], 'ko');
+    });
+    return list.map(([m]) => m);
+  }, [inScope, maker]);
+
+  // 세부모델 — 연식 최신순 (year_start desc)
   const catalogs = useMemo(() => {
-    if (!index || !maker) return [] as IndexEntry[];
-    const list = Object.values(index).filter((v) => v.maker === maker);
-    list.sort((a, b) => a.title.localeCompare(b.title, 'ko'));
+    if (!maker || !modelRoot) return [] as IndexEntry[];
+    const list = inScope.filter((v) => v.maker === maker && v.model_root === modelRoot);
+    list.sort((a, b) => {
+      const ay = a.year_start ?? '';
+      const by = b.year_start ?? '';
+      if (ay !== by) return by.localeCompare(ay);
+      return a.title.localeCompare(b.title, 'ko');
+    });
     return list;
-  }, [index, maker]);
+  }, [inScope, maker, modelRoot]);
+
+  // 세부트림 — 상위→하위 (price.base desc). 가격 없으면 끝으로.
+  const trimEntries = useMemo(() => {
+    if (!detail?.trims) return [] as Array<[string, TrimMeta]>;
+    const list = Object.entries(detail.trims);
+    list.sort((a, b) => {
+      const pa = a[1]?.price?.base ?? -1;
+      const pb = b[1]?.price?.base ?? -1;
+      if (pa !== pb) return pb - pa;
+      return a[0].localeCompare(b[0], 'ko');
+    });
+    return list;
+  }, [detail]);
 
   // 선택된 trim 의 basic 옵션 코드 set
   const basicCodes = useMemo(() => {
@@ -168,21 +253,10 @@ export function CatalogSelectorDialog({
     return new Set<string>(t?.basic ?? []);
   }, [detail, trimName]);
 
-  // 선택된 옵션 코드 (basic + extra)
-  const selectedCodes = useMemo(() => {
-    const s = new Set(basicCodes);
-    for (const c of extraCodes) s.add(c);
-    return s;
-  }, [basicCodes, extraCodes]);
-
-  function toggleExtra(code: string) {
-    const next = new Set(extraCodes);
-    if (basicCodes.has(code)) {
-      // basic 은 끄지 못함 (필수 표시)
-      return;
-    }
-    if (next.has(code)) next.delete(code); else next.add(code);
-    setExtraCodes(next);
+  function togglePkg(idx: number) {
+    const next = new Set(pickedPkgIdx);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    setPickedPkgIdx(next);
   }
 
   function confirm() {
@@ -192,70 +266,95 @@ export function CatalogSelectorDialog({
     }
     const entry = index[catalogId];
     const trim = trimName ? detail.trims?.[trimName] : undefined;
-    const codeArr = Array.from(selectedCodes);
-    const labels: string[] = [];
-    for (const c of codeArr) {
-      const o = detail.options?.[c];
-      if (o) labels.push(o.name);
-    }
+    // 패키지 단위 → 옵션 코드 합집합 + 패키지 이름들을 options 라벨로 사용
+    const codeArr = pickedSummary.codes;
     const sel: CatalogSelection = {
       maker: detail.maker,
       model: detail.title || entry?.title,
       modelRoot: detail.model_root || entry?.model_root,
       trim: trimName || undefined,
       year: detail.year_end || entry?.year_end || undefined,
-      options: labels,
-      optionCodes: codeArr,
+      options: pickedSummary.names.length > 0 ? pickedSummary.names : undefined,
+      optionCodes: codeArr.length > 0 ? codeArr : undefined,
+      customOptions: customOptions.length > 0 ? customOptions : undefined,
       catalogId,
       basePrice: trim?.price?.base,
     };
     onPick(sel);
   }
 
-  // 옵션 카테고리별 그룹 (선택된 catalog 의 categories 키 순서 유지)
-  const optionGroups = useMemo(() => {
-    if (!detail) return [] as Array<{ category: string; codes: string[] }>;
-    const groups: Array<{ category: string; codes: string[] }> = [];
-    if (detail.categories) {
-      for (const [cat, codes] of Object.entries(detail.categories)) {
-        groups.push({ category: cat, codes });
-      }
-    } else if (detail.options) {
-      // categories 없으면 options 의 category 필드로 그룹화
-      const byCat = new Map<string, string[]>();
-      for (const [code, meta] of Object.entries(detail.options)) {
-        const list = byCat.get(meta.category) ?? [];
-        list.push(code);
-        byCat.set(meta.category, list);
-      }
-      for (const [cat, codes] of byCat.entries()) groups.push({ category: cat, codes });
+  // 트림의 select_groups (패키지 묶음) — freepasserp3 카탈로그가 정확한 데이터 제공.
+  const selectGroups: SelectGroup[] = useMemo(() => {
+    if (!detail || !trimName) return [];
+    return detail.trims?.[trimName]?.select_groups ?? [];
+  }, [detail, trimName]);
+
+  // 선택 패키지의 가격 합 + 옵션 코드 합집합
+  const pickedSummary = useMemo(() => {
+    let priceTotal = 0;
+    const codes = new Set<string>();
+    const names: string[] = [];
+    for (const idx of pickedPkgIdx) {
+      const g = selectGroups[idx];
+      if (!g) continue;
+      priceTotal += g.price ?? 0;
+      if (g.name) names.push(g.name);
+      for (const c of g.codes) codes.add(c);
     }
-    return groups;
-  }, [detail]);
+    return { priceTotal, codes: Array.from(codes), names };
+  }, [pickedPkgIdx, selectGroups]);
+
+  // 직접입력 파싱 — 줄바꿈 구분, 공백·빈 줄 제거
+  const customOptions = useMemo(() => {
+    return customRaw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  }, [customRaw]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="차종 카탈로그 선택" size="xl">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '75vh' }}>
-          <div className="text-weak text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
-            freepasserp3 차종 매트릭스 데이터 직접 fetch (CORS 허용). 메이커 → 모델 → 세부트림 → 옵션 순으로 선택.
-            <a
-              href={`${DATA_BASE}/_index.json`}
-              target="_blank"
-              rel="noreferrer"
-              className="dim"
-              style={{ marginLeft: 8 }}
-              title="원본 데이터"
-            >
-              <ArrowSquareOut size={11} weight="bold" /> 원본
-            </a>
+          {/* 신차 / 중고 토글 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="chip-group">
+              <button
+                type="button"
+                className={'chip' + (scope === 'new' ? ' active' : '')}
+                onClick={() => { setScope('new'); setMaker(''); setModelRoot(''); setCatalogId(''); }}
+              >
+                신차 (현재 생산중)
+              </button>
+              <button
+                type="button"
+                className={'chip' + (scope === 'used' ? ' active' : '')}
+                onClick={() => { setScope('used'); setMaker(''); setModelRoot(''); setCatalogId(''); }}
+              >
+                중고 (10년 이내)
+              </button>
+            </div>
+            <span className="text-weak text-xs" style={{ marginLeft: 'auto' }}>
+              freepasserp3 매트릭스 데이터
+              <a
+                href={`${DATA_BASE}/_index.json`}
+                target="_blank"
+                rel="noreferrer"
+                className="dim"
+                style={{ marginLeft: 6 }}
+              >
+                <ArrowSquareOut size={11} weight="bold" /> 원본
+              </a>
+            </span>
           </div>
 
-          {/* 1·2·3 단계: 메이커 / 모델 / 트림 */}
+          {/* 1·2·3·4 단계: 제조사 / 모델 / 세부모델 / 세부트림 */}
           <div className="form-grid">
             <label className="block">
-              <span className="label">메이커 *</span>
-              <select className="input w-full" value={maker} onChange={(e) => { setMaker(e.target.value); setCatalogId(''); }} disabled={!index}>
+              <span className="label">제조사 *</span>
+              <select
+                className="input w-full"
+                value={maker}
+                onChange={(e) => { setMaker(e.target.value); setModelRoot(''); setCatalogId(''); }}
+                disabled={!index}
+              >
                 <option value="">{indexLoading ? '로딩 중…' : '선택'}</option>
                 {makers.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -263,108 +362,197 @@ export function CatalogSelectorDialog({
             </label>
             <label className="block">
               <span className="label">모델 *</span>
-              <select className="input w-full" value={catalogId} onChange={(e) => setCatalogId(e.target.value)} disabled={!maker}>
+              <select
+                className="input w-full"
+                value={modelRoot}
+                onChange={(e) => { setModelRoot(e.target.value); setCatalogId(''); }}
+                disabled={!maker}
+              >
+                <option value="">선택</option>
+                {modelRoots.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">세부모델 *</span>
+              <select
+                className="input w-full"
+                value={catalogId}
+                onChange={(e) => setCatalogId(e.target.value)}
+                disabled={!modelRoot}
+              >
                 <option value="">선택</option>
                 {catalogs.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.title} {c.year_start ? `(${c.year_start}~${c.year_end ?? '현재'})` : ''}
+                    {c.title}{c.year_start ? ` (${c.year_start}~${c.year_end ?? '현재'})` : ''}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="block col-span-2">
-              <span className="label">세부트림</span>
-              <select className="input w-full" value={trimName} onChange={(e) => { setTrimName(e.target.value); setExtraCodes(new Set()); }} disabled={!detail}>
-                <option value="">{detailLoading ? '로딩 중…' : '선택 (옵션)'}</option>
-                {detail?.trims && Object.entries(detail.trims).map(([name, t]) => (
-                  <option key={name} value={name}>
-                    {name}{t?.price?.base ? ` — ₩${t.price.base.toLocaleString('ko-KR')}` : ''}
-                  </option>
-                ))}
-              </select>
-              {detailError && <span className="text-red text-xs">에러: {detailError}</span>}
             </label>
           </div>
 
-          {/* 4 단계: 옵션 체크박스 — 카테고리별 그룹 */}
-          {detail && trimName && (
-            <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 4, padding: 10 }}>
-              <div className="text-xs" style={{ marginBottom: 6 }}>
-                <strong>옵션 — 트림 기본은 ☑ 자동 체크 (해제 불가) / 추가 항목은 자유 체크</strong>
+          {/* 세부트림 — 카드 리스트로 펼침 (상위→하위 순). 클릭 = 선택 */}
+          {detail && (
+            <div>
+              <div className="label" style={{ marginBottom: 4 }}>
+                세부트림 * <span className="text-weak text-xs">(상위→하위 순, 클릭하여 선택)</span>
+                {detailError && <span className="text-red text-xs" style={{ marginLeft: 6 }}>에러: {detailError}</span>}
               </div>
-              {optionGroups.length === 0 ? (
-                <div className="text-weak text-xs">옵션 데이터 없음</div>
-              ) : (
-                optionGroups.map(({ category, codes }) => (
-                  <div key={category} style={{ marginBottom: 8 }}>
-                    <div className="text-weak text-xs" style={{ marginBottom: 4, fontWeight: 600 }}>
-                      {category} <span className="dim">({codes.length})</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
-                      {codes.map((code) => {
-                        const meta = detail.options?.[code];
-                        if (!meta) return null;
-                        const isBasic = basicCodes.has(code);
-                        const isChecked = selectedCodes.has(code);
-                        return (
-                          <label
-                            key={code}
-                            className="text-xs"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              padding: 4,
-                              background: isBasic ? 'var(--success-green-bg, #e7f5ea)' : isChecked ? 'var(--brand-soft, #eef2fb)' : 'transparent',
-                              borderRadius: 3,
-                              cursor: isBasic ? 'default' : 'pointer',
-                              opacity: isBasic ? 0.85 : 1,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={isBasic}
-                              onChange={() => toggleExtra(code)}
-                            />
-                            <span>{meta.name}</span>
-                            {isBasic && <span className="dim" style={{ fontSize: 10 }}>(기본)</span>}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
+              {detailLoading && <div className="text-weak text-xs">로딩 중…</div>}
+              {!detailLoading && trimEntries.length === 0 && (
+                <div className="text-weak text-xs">트림 데이터 없음</div>
               )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflow: 'auto' }}>
+                {trimEntries.map(([name, t]) => {
+                  const selected = trimName === name;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => { setTrimName(name); setPickedPkgIdx(new Set()); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        background: selected ? 'var(--brand-soft, #eef2fb)' : 'var(--bg-card)',
+                        border: `1px solid ${selected ? 'var(--brand)' : 'var(--border)'}`,
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: 12,
+                      }}
+                    >
+                      <input type="radio" checked={selected} readOnly />
+                      <span style={{ flex: 1 }}>{name}</span>
+                      {t?.price?.base ? (
+                        <span className={selected ? '' : 'text-weak'} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          ₩{t.price.base.toLocaleString('ko-KR')}
+                        </span>
+                      ) : (
+                        <span className="dim">-</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* 요약 */}
-          {catalogId && detail && (
-            <div className="text-xs" style={{
-              padding: 8,
-              background: 'var(--success-green-bg, #e7f5ea)',
-              border: '1px solid var(--success-green, #2a9d3a)',
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
-              <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
-              <span>
-                <strong>{detail.maker} · {detail.title}</strong>
-                {trimName && <> · {trimName}</>}
-                {selectedCodes.size > 0 && <> · 옵션 {selectedCodes.size}개 (기본 {basicCodes.size} + 추가 {extraCodes.size})</>}
-              </span>
+          {/* 옵션 영역 — 트림.select_groups 의 패키지를 카드로 노출 + 직접입력 */}
+          {detail && trimName && (
+            <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 4, padding: 10 }}>
+              <div className="text-xs" style={{ marginBottom: 6 }}>
+                <strong>선택 패키지</strong>
+                {selectGroups.length > 0 ? (
+                  <span className="text-weak" style={{ marginLeft: 6 }}>· 추가할 패키지만 체크 (가격은 옵션가)</span>
+                ) : (
+                  <span className="text-weak" style={{ marginLeft: 6 }}>· 트림에 패키지 데이터 없음 — 직접입력으로 추가하세요</span>
+                )}
+              </div>
+
+              {selectGroups.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                  {selectGroups.map((g, idx) => {
+                    const checked = pickedPkgIdx.has(idx);
+                    const optNames = g.codes
+                      .map((c) => detail.options?.[c]?.name)
+                      .filter((n): n is string => !!n);
+                    return (
+                      <label
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          padding: 8,
+                          background: checked ? 'var(--brand-soft, #eef2fb)' : 'var(--bg-card)',
+                          border: `1px solid ${checked ? 'var(--brand)' : 'var(--border)'}`,
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: 12,
+                        }}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => togglePkg(idx)} style={{ marginTop: 2 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <strong>{g.name || `패키지 ${idx + 1}`}</strong>
+                            {typeof g.price === 'number' && g.price > 0 && (
+                              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                +₩{g.price.toLocaleString('ko-KR')}
+                              </span>
+                            )}
+                          </div>
+                          {optNames.length > 0 && (
+                            <div className="text-weak" style={{ fontSize: 11, marginTop: 2 }}>
+                              포함: {optNames.join(' / ')}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 직접입력 — select_groups 유무 관계없이 항상 노출 */}
+              <div style={{ paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+                <div className="text-weak text-xs" style={{ marginBottom: 4, fontWeight: 600 }}>
+                  직접입력 <span className="dim">(카탈로그에 없는 항목 — 줄당 1개)</span>
+                </div>
+                <textarea
+                  className="input w-full"
+                  rows={3}
+                  style={{ fontSize: 12 }}
+                  value={customRaw}
+                  onChange={(e) => setCustomRaw(e.target.value)}
+                  placeholder={'예) 하이패스 단말기\n예) 차량용 청소기\n예) 후방카메라 외부장착'}
+                />
+              </div>
             </div>
           )}
+
+          {/* 요약 — 기본가 + 패키지 합계 */}
+          {catalogId && detail && (() => {
+            const basePrice = trimName ? detail.trims?.[trimName]?.price?.base ?? 0 : 0;
+            const grandTotal = basePrice + pickedSummary.priceTotal;
+            const fmt = (n: number) => `₩${n.toLocaleString('ko-KR')}`;
+            return (
+              <div className="text-xs" style={{
+                padding: 10,
+                background: 'var(--success-green-bg, #e7f5ea)',
+                border: '1px solid var(--success-green, #2a9d3a)',
+                borderRadius: 4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
+                  <strong>{detail.maker} · {detail.title}</strong>
+                  {trimName && <> · {trimName}</>}
+                </div>
+                {trimName && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontVariantNumeric: 'tabular-nums' }}>
+                    <div className="text-weak">
+                      기본가 {basePrice > 0 ? fmt(basePrice) : '-'}
+                      {pickedSummary.priceTotal > 0 && <> + 패키지 {pickedPkgIdx.size}개 {fmt(pickedSummary.priceTotal)}</>}
+                      {customOptions.length > 0 && <> · 직접입력 {customOptions.length}개</>}
+                    </div>
+                    {grandTotal > 0 && (
+                      <div>
+                        <span className="dim" style={{ marginRight: 6 }}>합계</span>
+                        <strong style={{ fontSize: 14 }}>{fmt(grandTotal)}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {!catalogId && index && !indexLoading && (
             <div className="text-xs text-weak" style={{
               padding: 8, background: 'var(--bg-stripe)', border: '1px dashed var(--border)', borderRadius: 4,
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              <MagnifyingGlass size={14} weight="bold" /> 메이커 → 모델 순으로 선택해주세요. (총 {Object.keys(index).length}개 catalog)
+              <MagnifyingGlass size={14} weight="bold" /> 제조사 → 모델 → 세부모델 → 세부트림 순으로 선택. (총 {Object.keys(index).length}개 catalog)
             </div>
           )}
 
