@@ -711,7 +711,8 @@ input[type="checkbox"], input[type="radio"] {
   border-right: 1px solid var(--border-soft);
   padding: var(--cell-padding);
   text-align: left;
-  font-family: var(--font-mono);
+  /* 본문과 동일 폰트 — 사용자 선택한 폰트 따라감. mono 필요한 셀은 .mono 클래스로 별도 지정. */
+  font-family: inherit;
   font-weight: var(--font-weight-medium);
   color: var(--text-sub);
   position: sticky; top: 0;

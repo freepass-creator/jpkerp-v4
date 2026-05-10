@@ -39,10 +39,34 @@ export type Settings = {
 
 const DEFAULTS: Settings = {
   theme: 'light',
-  fontFamily: 'pretendard',
+  fontFamily: 'system',     // 시스템 폰트 기본 — 강제 웹폰트 로드 X
   fontSize: 12,
   density: 'compact',
 };
+
+/** 폰트별 CDN 링크 — 사용자 선택 시 동적 로드. mono/system 은 시스템 기본이라 로드 X. */
+const FONT_HREFS: Partial<Record<FontFamily, string>> = {
+  pretendard:     'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css',
+  spoqa:          'https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e44dba80f88abec6cdfe1b5b6e7b5dd9/css/SpoqaHanSansNeo.css',
+  noto:           'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap',
+  nanum:          'https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap',
+  'nanum-square': 'https://fonts.googleapis.com/css2?family=Nanum+Square+Round:wght@400;700&display=swap',
+  'ibm-plex':     'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap',
+  gowun:          'https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap',
+};
+const loadedFonts = new Set<FontFamily>();
+function ensureFontLoaded(family: FontFamily) {
+  if (typeof document === 'undefined') return;
+  if (loadedFonts.has(family)) return;
+  const href = FONT_HREFS[family];
+  if (!href) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  link.dataset.fontFamily = family;
+  document.head.appendChild(link);
+  loadedFonts.add(family);
+}
 
 const STORAGE_KEY = 'jpkerp-v4:settings';
 
@@ -122,7 +146,8 @@ function apply(s: Settings) {
   const dark = s.theme === 'dark' || (s.theme === 'auto' && systemPrefersDark());
   root.dataset.theme = dark ? 'dark' : 'light';
 
-  // font
+  // font — 선택된 폰트만 동적 로드 (system/mono 는 OS 폰트라 로드 X)
+  ensureFontLoaded(s.fontFamily);
   const stack = FONT_STACKS[s.fontFamily];
   root.style.setProperty('--font', stack.font);
   root.style.setProperty('--font-mono', stack.mono);
