@@ -100,6 +100,55 @@ export function applyReceiptMatch(
   };
 }
 
+/**
+ * 일괄 자동 매칭 — 매칭 안된 입금 entry 들에 대해 최고 점수 후보가 임계치 이상이면 자동 매칭.
+ *
+ *  - 입금만 (deposit > 0)
+ *  - 이미 matched 된 건 skip
+ *  - 같은 회차에 여러 ledger 가 매칭되지 않도록 사용된 eventId 추적
+ *  - threshold 기본 3.5 = name 일치(1.0×2) + 금액 일치(1×1.5) — 두 조건 모두 일치해야 자동
+ *
+ * @returns 자동 매칭된 결과 배열. UI 에서 batch apply 용.
+ */
+export type AutoMatchResult = {
+  ledger: LedgerEntry;
+  candidate: ReceiptCandidate;
+  ledgerPatch: Partial<LedgerEntry>;
+  eventPatch: { contractId: string; id: string; status: ScheduleEvent['status']; doneDate: string };
+};
+
+export function autoMatchAll(
+  ledgers: readonly LedgerEntry[],
+  contracts: readonly Contract[],
+  threshold = 3.5,
+): AutoMatchResult[] {
+  const out: AutoMatchResult[] = [];
+  const usedEventIds = new Set<string>();
+
+  // 매칭 안된 입금만 (matchedContract 있으면 이미 처리됨)
+  const targets = ledgers.filter(
+    (l) => (l.deposit ?? 0) > 0 && !l.matchedContract,
+  );
+
+  for (const ledger of targets) {
+    const cands = findReceiptCandidates(ledger, contracts);
+    if (cands.length === 0) continue;
+    const top = cands.find((c) => !usedEventIds.has(c.event.id));
+    if (!top) continue;
+    if (top.score < threshold) continue;
+
+    const { ledgerPatch, eventPatch } = applyReceiptMatch(ledger, top);
+    usedEventIds.add(top.event.id);
+    out.push({
+      ledger,
+      candidate: top,
+      ledgerPatch,
+      eventPatch: { contractId: top.contract.id, ...eventPatch },
+    });
+  }
+  return out;
+}
+
 /** 매칭 해제 — 회차 상태를 도래분이면 '지연' 미도래면 '예정' 으로 복원. doneDate 제거. */
 export function reverseReceiptMatch(
   ledger: LedgerEntry,

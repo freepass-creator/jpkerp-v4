@@ -13,8 +13,9 @@ import {
 } from '@/lib/sample-finance';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useContractStore } from '@/lib/use-contract-store';
+import type { ScheduleEvent } from '@/lib/sample-contracts';
 import { useAuditStamp } from '@/lib/audit-fields';
-import { applyReceiptMatch, reverseReceiptMatch, type ReceiptCandidate } from '@/lib/receipt-match';
+import { applyReceiptMatch, reverseReceiptMatch, autoMatchAll, type ReceiptCandidate } from '@/lib/receipt-match';
 import { JpkTable, type JpkColumn } from '@/components/shared/jpk-table';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
@@ -110,6 +111,59 @@ export default function FinanceDailyPage() {
       after: { eventStatus: '완료', doneDate: eventPatch.doneDate, ledgerId: matchTarget.id },
     });
     setMatchTarget(null);
+  }
+
+  /**
+   * 일괄 자동매칭 — 매칭 안된 입금에 대해 고정확도 후보 (이름+금액 일치) 일괄 적용.
+   * confirm 후 ledger + contract.events 양쪽 patch.
+   */
+  function handleAutoMatchAll() {
+    const results = autoMatchAll(entries, contracts);
+    if (results.length === 0) {
+      alert('자동 매칭 가능한 항목이 없습니다.\n(이름·금액 모두 일치하는 미매칭 입금이 없음)');
+      return;
+    }
+    const preview = results.slice(0, 10).map((r) =>
+      `· ${r.ledger.txDate.slice(0, 10)} ${r.ledger.deposit?.toLocaleString('ko-KR')}원 → ${r.candidate.contract.contractNo} ${r.candidate.event.cycle}회차`,
+    ).join('\n');
+    const more = results.length > 10 ? `\n... 외 ${results.length - 10}건` : '';
+    if (!confirm(`자동 매칭 ${results.length}건 일괄 적용:\n\n${preview}${more}\n\n진행할까요?`)) return;
+
+    // ledger 일괄 patch
+    const ledgerPatchById = new Map<string, Partial<LedgerEntry>>();
+    for (const r of results) ledgerPatchById.set(r.ledger.id, r.ledgerPatch);
+    setEntries((p) => p.map((e) => {
+      const patch = ledgerPatchById.get(e.id);
+      return patch ? { ...e, ...patch } : e;
+    }));
+
+    // contract.events 일괄 patch
+    const eventPatchByContract = new Map<string, Map<string, { status: ScheduleEvent['status']; doneDate: string }>>();
+    for (const r of results) {
+      const cMap = eventPatchByContract.get(r.eventPatch.contractId) ?? new Map();
+      cMap.set(r.eventPatch.id, { status: r.eventPatch.status, doneDate: r.eventPatch.doneDate });
+      eventPatchByContract.set(r.eventPatch.contractId, cMap);
+    }
+    setContracts((prev) => prev.map((c) => {
+      const eMap = eventPatchByContract.get(c.id);
+      if (!eMap) return c;
+      return {
+        ...c,
+        events: c.events.map((ev) => {
+          const p = eMap.get(ev.id);
+          return p ? { ...ev, status: p.status, doneDate: p.doneDate } : ev;
+        }),
+      };
+    }));
+
+    audit.log({
+      action: 'update',
+      entityType: 'contract',
+      entityId: 'batch',
+      label: `자동매칭 일괄 ${results.length}건`,
+      after: { count: results.length },
+    });
+    alert(`${results.length}건 자동 매칭 완료.`);
   }
 
   function handleReverse() {
@@ -310,7 +364,11 @@ export default function FinanceDailyPage() {
         </>
       }
       footerRight={
-        view === 'summary' ? (
+        view === 'match' ? (
+          <button className="btn btn-primary" onClick={handleAutoMatchAll} title="이름·금액 일치하는 미매칭 입금 일괄 매칭">
+            자동매칭
+          </button>
+        ) : (
           <button className="btn" onClick={() => exportToExcel({
             title: '자금일보',
             subtitle: `기준일 ${new Date().toLocaleDateString('ko-KR')}`,
@@ -328,7 +386,7 @@ export default function FinanceDailyPage() {
             rows: filteredDaily as unknown as Record<string, unknown>[],
             fileName: `자금일보-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`,
           })}>엑셀 (세무사 공유용)</button>
-        ) : null
+        )
       }
     >
       {view === 'match' ? (
