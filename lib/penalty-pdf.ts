@@ -137,9 +137,17 @@ async function buildCasePdf(
   const ctx = buildContext(items, staff, opts);
   const confirmations = items.map((item, i) => buildConfirmationPayload(item, ctx, i));
 
+  // Firebase ID token 첨부 (서버 requireAuth 통과)
+  const { getFirebaseAuth } = await import('@/lib/firebase/client');
+  const user = getFirebaseAuth().currentUser;
+  const idToken = user ? await user.getIdToken() : '';
+
   const res = await fetch('/api/penalty/pdf', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
     body: JSON.stringify({ items, ctx, confirmations }),
   });
 

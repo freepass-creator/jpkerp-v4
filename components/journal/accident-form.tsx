@@ -1,6 +1,7 @@
 'use client';
 
 import { PlaceField } from './place-field';
+import { MoneyInput } from './money-input';
 import { useFavorites } from '@/lib/use-locations';
 import { cn } from '@/lib/cn';
 import { Plus, X } from '@phosphor-icons/react';
@@ -223,17 +224,3 @@ function InsurerField({ label, namespace, value, onChange }: { label: string; na
   );
 }
 
-function MoneyInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const display = value ? Number(value).toLocaleString('ko-KR') : '';
-  return (
-    <input
-      className="input w-full mono"
-      type="text"
-      inputMode="numeric"
-      value={display}
-      onChange={(e) => onChange(e.target.value.replace(/[^\d-]/g, ''))}
-      placeholder="0"
-      style={{ textAlign: 'right' }}
-    />
-  );
-}

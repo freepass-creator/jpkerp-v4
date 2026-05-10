@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Browser } from 'puppeteer-core';
 import { PDFDocument } from 'pdf-lib';
+import { requireAuth } from '@/lib/api-auth';
 import {
   renderOfficialPageHtml,
   renderConfirmationHtml,
@@ -251,6 +252,10 @@ async function buildBundlePdf(req: BuildRequest): Promise<Uint8Array> {
 /* ────────────────── POST handler ────────────────── */
 
 export async function POST(req: NextRequest) {
+  // 인증 — Firebase ID token 검증 (직원만 호출 가능)
+  const actor = await requireAuth();
+  if (actor instanceof NextResponse) return actor;
+
   try {
     const body = (await req.json()) as BuildRequest;
     if (!body.items || body.items.length === 0) {

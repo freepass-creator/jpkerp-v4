@@ -14,6 +14,7 @@ const PenaltyRegisterDialog = dynamic(
 );
 import { exportToExcel } from '@/lib/excel-export';
 import { PERIODS, type Period, periodRange, isInRange } from '@/lib/period-filter';
+import { useAuth } from '@/lib/use-auth';
 
 /**
  * 과태료 변경부과 — 처리중 / 처리완료 두 단계로 분리.
@@ -21,15 +22,13 @@ import { PERIODS, type Period, periodRange, isInRange } from '@/lib/period-filte
  *  - 처리완료: 변경부과 PDF 다운로드한 이력 (회사 도장 + 임대차계약 사실확인서 묶음)
  */
 
-// TODO: 로그인 staff 레코드에서 실제 값 가져오도록 교체.
-//       현재는 PDF 발급담당자 footer 표기용 placeholder.
-const PLACEHOLDER_STAFF = {
+// PDF footer 발급담당자 정보 — 로그인 user 의 displayName/email 을 우선 사용.
+// 부서·직책·연락처는 staff 마스터(미구현)가 추가되면 그쪽에서 가져올 예정.
+const STAFF_DEFAULTS = {
   department: '경영지원본부 총무팀',
-  name: '담당자',
   title: '',
   phone: '02-0000-0000',
   fax: '',
-  email: 'staff@jpkmobility.com',
 };
 
 const CHECK_COL_WIDTH = 36;
@@ -61,6 +60,14 @@ const PENALTY_FIELDS: FieldDef[] = [
 type Phase = 'in-progress' | 'completed';
 
 export default function PenaltyPage() {
+  const { user } = useAuth();
+  // PDF footer 발급담당자 — 로그인 user 우선
+  const STAFF = useMemo(() => ({
+    ...STAFF_DEFAULTS,
+    name: user?.displayName ?? user?.email?.split('@')[0] ?? '담당자',
+    email: user?.email ?? '',
+  }), [user?.displayName, user?.email]);
+
   const [items, setItems] = useState<PenaltyWorkItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
@@ -180,7 +187,7 @@ export default function PenaltyPage() {
     setBusy(true);
     setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(targets, PLACEHOLDER_STAFF, {
+      await downloadPenaltyZip(targets, STAFF, {
         onProgress: (done, total) => setPdfProgress({ done, total }),
       });
       // 처리중 → 처리완료 자동 전환
@@ -209,7 +216,7 @@ export default function PenaltyPage() {
     setBusy(true);
     setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(target, PLACEHOLDER_STAFF, {
+      await downloadPenaltyZip(target, STAFF, {
         onProgress: (done, total) => setPdfProgress({ done, total }),
       });
       const now = new Date().toISOString();
@@ -230,7 +237,7 @@ export default function PenaltyPage() {
     setBusy(true);
     setPdfProgress({ done: 0, total: 0 });
     try {
-      await downloadPenaltyZip(completedFiltered, PLACEHOLDER_STAFF, {
+      await downloadPenaltyZip(completedFiltered, STAFF, {
         onProgress: (done, total) => setPdfProgress({ done, total }),
       });
     } finally {
@@ -242,7 +249,7 @@ export default function PenaltyPage() {
   async function handlePreview(item: PenaltyWorkItem) {
     // 회사 매칭 안된 경우 PDF 본문에 "회사명없음" 으로 표기 (서버 templates 가 처리).
     // 임의로 defaultCompany 채우지 말 것.
-    await previewPenaltyItem(item, PLACEHOLDER_STAFF);
+    await previewPenaltyItem(item, STAFF);
   }
 
   function handleSaveEdit(d: Record<string, string>) {

@@ -4,6 +4,7 @@ import { useMemo, type Ref } from 'react';
 import { ItemTable, type ItemRow } from './item-table';
 import { EvidenceUploader, type EvidenceUploaderHandle } from './evidence-uploader';
 import { PlaceField } from './place-field';
+import { MoneyInput } from './money-input';
 import { cn } from '@/lib/cn';
 
 /**
@@ -299,21 +300,3 @@ export function PcForm({ data, setData, uploaderRef }: Props) {
   );
 }
 
-/** 금액 입력 — 천원단위 콤마 자동, 숫자만 저장 (string) */
-function MoneyInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const display = value ? Number(value).toLocaleString('ko-KR') : '';
-  return (
-    <input
-      className="input w-full mono"
-      type="text"
-      inputMode="numeric"
-      value={display}
-      onChange={(e) => {
-        const n = e.target.value.replace(/[^\d-]/g, '');
-        onChange(n);
-      }}
-      placeholder="0"
-      style={{ textAlign: 'right' }}
-    />
-  );
-}

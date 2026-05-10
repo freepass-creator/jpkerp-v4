@@ -18,6 +18,7 @@ import { AccidentForm } from '@/components/journal/accident-form';
 import { IgnitionForm, type IgnitionFormHandle } from '@/components/journal/ignition-form';
 import type { EvidenceUploaderHandle } from '@/components/journal/evidence-uploader';
 import { genId } from '@/lib/ids';
+import { useAuditStamp } from '@/lib/audit-fields';
 import { cn } from '@/lib/cn';
 
 /**
@@ -306,6 +307,7 @@ function PlatePicker({
 
 export default function JournalPage() {
   const [entries, setEntries] = useJournalStore();
+  const audit = useAuditStamp();
   const [kind, setKind] = useState<JournalKind>('contact');
   const [atDate, setAtDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [atTime, setAtTime] = useState<string>(() => {
@@ -510,6 +512,7 @@ export default function JournalPage() {
       at: at || atDate,
       staff: '담당자',
       data: merged,
+      ...audit.create(),
     };
     setEntries([next, ...entries]);
     reset();
@@ -701,6 +704,7 @@ export default function JournalPage() {
                       at,
                       staff: '담당자',
                       data: { plate: p, action, reason, status: '처리완료' },
+                      ...audit.create(),
                     };
                     setEntries([entry, ...entries]);
                   }}
