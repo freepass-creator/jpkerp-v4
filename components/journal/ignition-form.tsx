@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
-import { Lock, LockOpen } from '@phosphor-icons/react';
+import { X } from '@phosphor-icons/react';
 import type { Contract } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import type { JournalEntry } from '@/lib/sample-journal';
@@ -31,7 +31,7 @@ interface Row {
   isLocked: boolean;       // 잠금 중 (entry.action === '시동잠금')
   reason: string;          // 잠금 중이면 entry.reason / 미납 후보면 '미납 (Nd)'
   at: string;              // 잠금 중이면 lockedAt / 미납 후보면 ''
-  source: 'locked' | 'overdue';
+  source: 'locked' | 'overdue' | 'manual';
 }
 
 /**
@@ -44,6 +44,11 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
   const [showAdd, setShowAdd] = useState(false);
   const [addPlate, setAddPlate] = useState('');
   const [addReason, setAddReason] = useState('검사미이행');
+  /** 세션 동안 list 에 유지할 plate (해제했어도 즉시 재제어 가능하도록).
+   *  ✕ 버튼으로 dismiss 시 제거. 페이지 reload 면 초기화. */
+  const [stickyPlates, setStickyPlates] = useState<Set<string>>(new Set());
+  /** ✕ 로 dismiss 한 plate — 해당 차량을 list 에서 명시적으로 숨김 */
+  const [dismissedPlates, setDismissedPlates] = useState<Set<string>>(new Set());
 
   useImperativeHandle(ref, () => ({
     startAdd: () => setShowAdd(true),
@@ -79,6 +84,7 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
     // 1) 잠금 중인 차량 (계약 없어도 표시)
     for (const [plate, ev] of latestByPlate) {
       if (ev.action !== '시동잠금') continue;
+      if (dismissedPlates.has(plate)) continue;
       list.push({
         plate,
         asset: assetMap.get(plate) ?? null,
@@ -96,6 +102,7 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
       if (c.deletedAt) continue;
       if (c.status !== '운행중' || !c.plate) continue;
       if (seen.has(c.plate)) continue;
+      if (dismissedPlates.has(c.plate)) continue;
       let maxOverdue = 0;
       for (const ev of c.events ?? []) {
         if (ev.type !== '수납') continue;
@@ -114,14 +121,32 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
           at: '',
           source: 'overdue',
         });
+        seen.add(c.plate);
       }
+    }
+
+    // 3) sticky — 잠금 안 됐고 미납도 아니지만 세션 중 토글한 차량 (해제 직후 재제어 가능하도록)
+    for (const plate of stickyPlates) {
+      if (seen.has(plate)) continue;
+      if (dismissedPlates.has(plate)) continue;
+      const ev = latestByPlate.get(plate);
+      list.push({
+        plate,
+        asset: assetMap.get(plate) ?? null,
+        contract: activeContractMap.get(plate) ?? null,
+        isLocked: ev?.action === '시동잠금',
+        reason: ev?.reason || '—',
+        at: ev?.date ?? '',
+        source: 'manual',
+      });
+      seen.add(plate);
     }
 
     return list.sort((a, b) => {
       if (a.isLocked !== b.isLocked) return a.isLocked ? -1 : 1;
       return b.at.localeCompare(a.at);
     });
-  }, [contracts, assets, entries, today]);
+  }, [contracts, assets, entries, today, stickyPlates, dismissedPlates]);
 
   const lockedCount = rows.filter((r) => r.isLocked).length;
 
@@ -129,16 +154,27 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
     const plate = addPlate.trim();
     if (!plate) return;
     onAction({ plate, action: '시동잠금', reason: addReason });
+    setStickyPlates((s) => new Set(s).add(plate));
     setAddPlate('');
     setShowAdd(false);
   }
 
-  function lockOverdue(r: Row) {
-    onAction({ plate: r.plate, action: '시동잠금', reason: '미납' });
+  function toggleRow(r: Row) {
+    if (r.isLocked) {
+      onAction({ plate: r.plate, action: '시동해제', reason: '납부완료' });
+    } else {
+      const reason = r.source === 'overdue' ? '미납' : (r.reason !== '—' ? r.reason : '검사미이행');
+      onAction({ plate: r.plate, action: '시동잠금', reason });
+    }
+    // 토글 후에도 row 유지 — 즉시 재토글 가능
+    setStickyPlates((s) => new Set(s).add(r.plate));
   }
 
-  function unlock(r: Row) {
-    onAction({ plate: r.plate, action: '시동해제', reason: '납부완료' });
+  function dismissRow(plate: string) {
+    setDismissedPlates((s) => new Set(s).add(plate));
+    setStickyPlates((s) => {
+      const n = new Set(s); n.delete(plate); return n;
+    });
   }
 
   return (
@@ -177,8 +213,8 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
               <th>모델 · 고객</th>
               <th>사유</th>
               <th className="center">잠근 시각</th>
-              <th className="center">상태</th>
-              <th className="center" style={{ width: 60 }}></th>
+              <th className="center" style={{ width: 70 }}>제어</th>
+              <th className="center" style={{ width: 36 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -199,19 +235,30 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
                       <span style={{ color: 'var(--text-weak)', marginLeft: 6 }}>· {r.contract.customerName}</span>
                     )}
                   </td>
-                  <td className={cn(r.source === 'overdue' && 'alert')}>{r.reason}</td>
+                  <td className={cn(r.source === 'overdue' && !r.isLocked && 'alert')}>{r.reason}</td>
                   <td className="center mono dim">{r.at || '—'}</td>
                   <td className="center">
-                    {r.isLocked
-                      ? <Lock size={14} weight="fill" style={{ color: 'var(--alert-red-text)' }} />
-                      : <LockOpen size={14} style={{ color: 'var(--text-weak)' }} />}
+                    <button
+                      type="button"
+                      className={cn('toggle-switch', r.isLocked && 'on')}
+                      onClick={() => toggleRow(r)}
+                      aria-pressed={r.isLocked}
+                      title={r.isLocked ? '시동해제' : '시동제어'}
+                    >
+                      <span className="track" />
+                      <span className="dot" />
+                    </button>
                   </td>
                   <td className="center">
-                    {r.isLocked ? (
-                      <button type="button" className="btn" onClick={() => unlock(r)}>해제</button>
-                    ) : (
-                      <button type="button" className="btn btn-primary" onClick={() => lockOverdue(r)}>제어</button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => dismissRow(r.plate)}
+                      title="목록에서 제거 (해당 차량 시동제어 대상에서 벗어남)"
+                      style={{ width: 24, padding: 0 }}
+                    >
+                      <X size={11} weight="bold" />
+                    </button>
                   </td>
                 </tr>
               ))

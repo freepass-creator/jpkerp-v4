@@ -674,6 +674,37 @@ input[type="checkbox"], input[type="radio"] {
 }
 .panel-head .panel-head-right { margin-left: auto; }
 
+/* 토글 스위치 — 둥근 트랙 + 슬라이딩 dot. 시동제어 등 on/off 액션용. */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  background: transparent;
+  vertical-align: middle;
+}
+.toggle-switch .track {
+  position: absolute; inset: 0;
+  background: var(--border-strong);
+  border-radius: 10px;
+  transition: background 120ms;
+}
+.toggle-switch .dot {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  transition: transform 120ms;
+}
+.toggle-switch.on .track { background: var(--alert-red-text); }
+.toggle-switch.on .dot { transform: translateX(16px); }
+.toggle-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .table thead th {
   background: var(--bg-header);
   border-bottom: 1px solid var(--border-strong);
