@@ -532,7 +532,8 @@ export default function JournalPage() {
               title={KIND_HINT[k]}
             >
               {KIND_LABEL[k]}
-              {counts[k] > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>{counts[k]}</span>}
+              {/* 시동제어는 누적 카운트 의미 없음 (잠금/해제 토글이라) — 숫자 숨김 */}
+              {k !== 'ignition' && counts[k] > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>{counts[k]}</span>}
             </button>
           ))}
         </div>

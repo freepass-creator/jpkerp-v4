@@ -143,22 +143,9 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
 
   return (
     <div className="block" style={{ gridColumn: 'span 4' }}>
-      <div className="panel-head" style={{ border: '1px solid var(--border)', borderBottom: 'none' }}>
-        <Lock size={14} weight="fill" style={{ color: 'var(--alert-red-text)' }} />
-        <span>제어 중 <strong style={{ color: 'var(--alert-red-text)' }}>{lockedCount}</strong>대 · 미납 후보 <strong>{rows.length - lockedCount}</strong>대</span>
-      </div>
-
       {/* 인라인 추가 폼 — footer +추가 버튼 (검사미이행/계약위반/연락두절/기타) */}
       {showAdd && (
-        <div style={{
-          display: 'flex', gap: 4,
-          padding: '8px 12px',
-          background: 'var(--bg-card)',
-          borderLeft: '1px solid var(--border)',
-          borderRight: '1px solid var(--border)',
-          borderBottom: '1px solid var(--border-strong)',
-          alignItems: 'center',
-        }}>
+        <div className="filterbar" style={{ gap: 4 }}>
           <span style={{ fontSize: 12, color: 'var(--text-sub)' }}>미납 외 사유 잠금</span>
           <input
             className="input mono"
@@ -181,33 +168,28 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
         </div>
       )}
 
-      {rows.length === 0 ? (
-        <div style={{
-          padding: 32, textAlign: 'center',
-          color: 'var(--text-weak)', fontSize: 12,
-          border: '1px solid var(--border)', borderTop: 'none',
-        }}>
-          시동제어 대상 차량 없음
-          <div style={{ marginTop: 4, fontSize: 11 }}>
-            미납 3일 이상이면 자동 후보 / +추가로 검사미이행·계약위반 등 잠금
-          </div>
-        </div>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="center" style={{ width: 32 }}>#</th>
+              <th>차량번호</th>
+              <th>모델 · 고객</th>
+              <th>사유</th>
+              <th className="center">잠근 시각</th>
+              <th className="center">상태</th>
+              <th className="center" style={{ width: 60 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
               <tr>
-                <th className="center" style={{ width: 32 }}>#</th>
-                <th>차량번호</th>
-                <th>모델 · 고객</th>
-                <th>사유</th>
-                <th className="center">잠근 시각</th>
-                <th className="center">상태</th>
-                <th className="center" style={{ width: 60 }}></th>
+                <td colSpan={7} className="center dim" style={{ padding: '24px 0' }}>
+                  시동제어 대상 차량 없음 — 미납 3일+ 자동 후보 / +추가로 검사·계약위반 등 잠금
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, idx) => (
+            ) : (
+              rows.map((r, idx) => (
                 <tr key={r.plate}>
                   <td className="center dim mono">{idx + 1}</td>
                   <td className="plate"><strong>{r.plate}</strong></td>
@@ -232,11 +214,11 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 });
