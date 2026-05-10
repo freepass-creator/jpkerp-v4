@@ -14,48 +14,36 @@ export interface IgnitionFormHandle {
 }
 
 const OVERDUE_AUTO_DAYS = 3;
-const REASONS_OTHER = ['검사미이행', '계약위반', '연락두절', '기타'];
-const ALL_REASONS = ['미납', ...REASONS_OTHER];
+/** 신규 등록 가능 사유 — 미납은 자동 후보라서 수동 등록에선 제외 */
+const MANUAL_REASONS = ['검사미이행', '계약위반', '연락두절', '기타'];
 
 interface Props {
   contracts: readonly Contract[];
   assets: readonly Asset[];
   entries: readonly JournalEntry[];
-  /** 시동 잠금/해제 — 새 journal entry 생성 (kind=ignition) */
   onAction: (params: { plate: string; action: '시동잠금' | '시동해제'; reason: string }) => void;
 }
 
 interface Row {
-  contract: Contract | null;
   plate: string;
+  contract: Contract | null;
   asset: Asset | null;
-  unpaidAmount: number;
-  maxOverdueDays: number;
-  isLocked: boolean;
-  lastIgnitionDate: string;
-  lastIgnitionReason: string;
-  /** 자동(미납) / 수동 / 잠금 중 — 정렬·표시용 */
-  source: 'overdue' | 'locked' | 'manual';
-}
-
-/** 미납 경과 일수 — today 기준으로 dueDate 가 며칠 지났는지 (양수). */
-function daysOverdue(today: string, dueDate: string): number {
-  return daysFromTo(dueDate, today);
+  isLocked: boolean;       // 잠금 중 (entry.action === '시동잠금')
+  reason: string;          // 잠금 중이면 entry.reason / 미납 후보면 '미납 (Nd)'
+  at: string;              // 잠금 중이면 lockedAt / 미납 후보면 ''
+  source: 'locked' | 'overdue';
 }
 
 /**
- * 시동제어 — v3 ignition-form 의 핵심 로직 포팅.
- *  - 미납 OVERDUE_AUTO_DAYS+ 일 차량 자동 후보
- *  - 현재 잠금 중인 차량
- *  - 수동 추가 차량 (검사미이행·계약위반 등 미납 외 사유)
- *  → 행마다 [제어/해제] 토글
+ * 시동제어 — 잠금 중 차량 + 미납 3일+ 자동 후보를 한 목록에.
+ *  - 미납은 자동으로 계속 노출 (잠그기 전이라도 후보로)
+ *  - 검사미이행·계약위반·연락두절·기타는 +추가 버튼으로 직접 잠금
+ *  - 잠금 중 → [해제] / 후보 → [제어]
  */
 export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function IgnitionForm({ contracts, assets, entries, onAction }, ref) {
-  const [reasonMap, setReasonMap] = useState<Record<string, string>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [addPlate, setAddPlate] = useState('');
   const [addReason, setAddReason] = useState('검사미이행');
-  const [manualPlates, setManualPlates] = useState<Set<string>>(new Set());
 
   useImperativeHandle(ref, () => ({
     startAdd: () => setShowAdd(true),
@@ -63,158 +51,107 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // 차량별 가장 최근 ignition entry 의 action/reason
-  const ignitionMap = useMemo(() => {
-    const m = new Map<string, { date: string; action: string; reason: string }>();
+  const rows = useMemo<Row[]>(() => {
+    // 차량별 가장 최근 ignition entry
+    const latestByPlate = new Map<string, { date: string; action: string; reason: string }>();
     for (const e of entries) {
       if (e.kind !== 'ignition') continue;
       const p = e.data?.plate;
       if (!p) continue;
-      const cur = m.get(p);
+      const cur = latestByPlate.get(p);
       if (!cur || e.at > cur.date) {
-        m.set(p, { date: e.at, action: e.data?.action ?? '', reason: e.data?.reason ?? '' });
+        latestByPlate.set(p, { date: e.at, action: e.data?.action ?? '', reason: e.data?.reason ?? '' });
       }
     }
-    return m;
-  }, [entries]);
 
-  const rows = useMemo<Row[]>(() => {
     const assetMap = new Map<string, Asset>();
     for (const a of assets) if (a.plate) assetMap.set(a.plate, a);
+    const activeContractMap = new Map<string, Contract>();
+    for (const c of contracts) {
+      if (c.deletedAt) continue;
+      if (c.status !== '운행중' || !c.plate) continue;
+      activeContractMap.set(c.plate, c);
+    }
 
     const list: Row[] = [];
     const seen = new Set<string>();
 
-    function pushFromContract(c: Contract, source: Row['source']) {
-      if (!c.plate || seen.has(c.plate)) return;
-      // 미납 — events 의 수납·지연/예정 + 과거 dueDate 누적
-      let unpaidAmount = 0;
-      let maxOverdueDays = 0;
+    // 1) 잠금 중인 차량 (계약 없어도 표시)
+    for (const [plate, ev] of latestByPlate) {
+      if (ev.action !== '시동잠금') continue;
+      list.push({
+        plate,
+        asset: assetMap.get(plate) ?? null,
+        contract: activeContractMap.get(plate) ?? null,
+        isLocked: true,
+        reason: ev.reason || '미납',
+        at: ev.date,
+        source: 'locked',
+      });
+      seen.add(plate);
+    }
+
+    // 2) 미납 3일+ 자동 후보 — 운행중 계약 + events.수납 미납
+    for (const c of contracts) {
+      if (c.deletedAt) continue;
+      if (c.status !== '운행중' || !c.plate) continue;
+      if (seen.has(c.plate)) continue;
+      let maxOverdue = 0;
       for (const ev of c.events ?? []) {
         if (ev.type !== '수납') continue;
         if (ev.status === '완료' || ev.status === '취소') continue;
         if (!ev.dueDate || ev.dueDate >= today) continue;
-        unpaidAmount += ev.amount ?? 0;
-        const d = daysOverdue(today, ev.dueDate);
-        if (d > maxOverdueDays) maxOverdueDays = d;
+        const d = daysFromTo(ev.dueDate, today);
+        if (d > maxOverdue) maxOverdue = d;
       }
-      const ign = ignitionMap.get(c.plate);
-      const isLocked = ign?.action === '시동잠금';
-      list.push({
-        contract: c,
-        plate: c.plate,
-        asset: assetMap.get(c.plate) ?? null,
-        unpaidAmount,
-        maxOverdueDays,
-        isLocked,
-        lastIgnitionDate: ign?.date ?? '',
-        lastIgnitionReason: ign?.reason ?? '',
-        source,
-      });
-      seen.add(c.plate);
-    }
-
-    // 1) 잠금 중인 모든 차량 (계약 없어도)
-    for (const [plate, ev] of ignitionMap) {
-      if (ev.action !== '시동잠금') continue;
-      const c = contracts.find((x) => x.plate === plate) ?? null;
-      if (c) {
-        pushFromContract(c, 'locked');
-      } else {
+      if (maxOverdue >= OVERDUE_AUTO_DAYS) {
         list.push({
-          contract: null,
-          plate,
-          asset: assetMap.get(plate) ?? null,
-          unpaidAmount: 0,
-          maxOverdueDays: 0,
-          isLocked: true,
-          lastIgnitionDate: ev.date,
-          lastIgnitionReason: ev.reason,
-          source: 'locked',
-        });
-        seen.add(plate);
-      }
-    }
-
-    // 2) 운행중 계약 중 미납 OVERDUE_AUTO_DAYS+ 자동 후보
-    for (const c of contracts) {
-      if (c.status !== '운행중') continue;
-      if (!c.plate) continue;
-      // 이미 잠금으로 추가됨
-      if (seen.has(c.plate)) continue;
-      // 미납 계산
-      let maxOverdueDays = 0;
-      for (const ev of c.events ?? []) {
-        if (ev.type !== '수납' || ev.status === '완료' || ev.status === '취소') continue;
-        if (!ev.dueDate || ev.dueDate >= today) continue;
-        const d = daysOverdue(today, ev.dueDate);
-        if (d > maxOverdueDays) maxOverdueDays = d;
-      }
-      if (maxOverdueDays >= OVERDUE_AUTO_DAYS) {
-        pushFromContract(c, 'overdue');
-      }
-    }
-
-    // 3) 수동 추가
-    for (const plate of manualPlates) {
-      if (seen.has(plate)) continue;
-      const c = contracts.find((x) => x.plate === plate);
-      if (c) {
-        pushFromContract(c, 'manual');
-      } else {
-        list.push({
-          contract: null,
-          plate,
-          asset: assetMap.get(plate) ?? null,
-          unpaidAmount: 0,
-          maxOverdueDays: 0,
+          plate: c.plate,
+          asset: assetMap.get(c.plate) ?? null,
+          contract: c,
           isLocked: false,
-          lastIgnitionDate: '',
-          lastIgnitionReason: '',
-          source: 'manual',
+          reason: `미납 (${maxOverdue}일)`,
+          at: '',
+          source: 'overdue',
         });
-        seen.add(plate);
       }
     }
 
-    // 정렬: 잠금 중 먼저, 다음 미납일 많은 순
     return list.sort((a, b) => {
       if (a.isLocked !== b.isLocked) return a.isLocked ? -1 : 1;
-      return b.maxOverdueDays - a.maxOverdueDays;
+      return b.at.localeCompare(a.at);
     });
-  }, [contracts, assets, ignitionMap, manualPlates, today]);
+  }, [contracts, assets, entries, today]);
 
   const lockedCount = rows.filter((r) => r.isLocked).length;
 
-  function toggle(r: Row) {
-    if (r.isLocked) {
-      onAction({ plate: r.plate, action: '시동해제', reason: '납부완료' });
-    } else {
-      const reason = reasonMap[r.plate] ?? (r.maxOverdueDays > 0 ? '미납' : '검사미이행');
-      onAction({ plate: r.plate, action: '시동잠금', reason });
-    }
-  }
-
   function commitAdd() {
-    const p = addPlate.trim();
-    if (!p) return;
-    setManualPlates((s) => new Set(s).add(p));
-    setReasonMap((m) => ({ ...m, [p]: addReason }));
+    const plate = addPlate.trim();
+    if (!plate) return;
+    onAction({ plate, action: '시동잠금', reason: addReason });
     setAddPlate('');
     setShowAdd(false);
+  }
+
+  function lockOverdue(r: Row) {
+    onAction({ plate: r.plate, action: '시동잠금', reason: '미납' });
+  }
+
+  function unlock(r: Row) {
+    onAction({ plate: r.plate, action: '시동해제', reason: '납부완료' });
   }
 
   return (
     <div className="block" style={{ gridColumn: 'span 4' }}>
       <div className="panel-head" style={{ border: '1px solid var(--border)', borderBottom: 'none' }}>
-        <span>총 <strong style={{ color: 'var(--text)' }}>{rows.length}</strong>대 · 제어 중 <strong style={{ color: 'var(--alert-red-text)' }}>{lockedCount}</strong>대 · 미납 자동(3일+) 포함</span>
+        <Lock size={14} weight="fill" style={{ color: 'var(--alert-red-text)' }} />
+        <span>제어 중 <strong style={{ color: 'var(--alert-red-text)' }}>{lockedCount}</strong>대 · 미납 후보 <strong>{rows.length - lockedCount}</strong>대</span>
       </div>
 
-      {/* 인라인 추가 폼 — footer +추가 버튼으로 펼침/접힘 */}
+      {/* 인라인 추가 폼 — footer +추가 버튼 (검사미이행/계약위반/연락두절/기타) */}
       {showAdd && (
         <div style={{
-          display: 'flex',
-          gap: 4,
+          display: 'flex', gap: 4,
           padding: '8px 12px',
           background: 'var(--bg-card)',
           borderLeft: '1px solid var(--border)',
@@ -222,7 +159,7 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
           borderBottom: '1px solid var(--border-strong)',
           alignItems: 'center',
         }}>
-          <span style={{ fontSize: 12, color: 'var(--text-sub)' }}>미납 외 사유 추가</span>
+          <span style={{ fontSize: 12, color: 'var(--text-sub)' }}>미납 외 사유 잠금</span>
           <input
             className="input mono"
             type="text"
@@ -237,25 +174,22 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
             value={addReason}
             onChange={(e) => setAddReason(e.target.value)}
           >
-            {REASONS_OTHER.map((r) => <option key={r} value={r}>{r}</option>)}
+            {MANUAL_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
-          <button type="button" className="btn btn-primary" onClick={commitAdd} disabled={!addPlate.trim()}>확인</button>
+          <button type="button" className="btn btn-primary" onClick={commitAdd} disabled={!addPlate.trim()}>제어</button>
           <button type="button" className="btn" onClick={() => { setShowAdd(false); setAddPlate(''); }}>취소</button>
         </div>
       )}
 
       {rows.length === 0 ? (
         <div style={{
-          padding: 32,
-          textAlign: 'center',
-          color: 'var(--text-weak)',
-          fontSize: 12,
-          border: '1px solid var(--border)',
-          borderTop: 'none',
+          padding: 32, textAlign: 'center',
+          color: 'var(--text-weak)', fontSize: 12,
+          border: '1px solid var(--border)', borderTop: 'none',
         }}>
           시동제어 대상 차량 없음
           <div style={{ marginTop: 4, fontSize: 11 }}>
-            미납 3일 이상이면 자동 표시 / +추가로 검사미이행·계약위반 등 수동 등록
+            미납 3일 이상이면 자동 후보 / +추가로 검사미이행·계약위반 등 잠금
           </div>
         </div>
       ) : (
@@ -265,12 +199,9 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
               <tr>
                 <th className="center" style={{ width: 32 }}>#</th>
                 <th>차량번호</th>
-                <th>모델</th>
-                <th>고객</th>
-                <th className="num">미납금액</th>
-                <th className="num">연체</th>
-                <th>제어 사유</th>
-                <th className="center">제어 시각</th>
+                <th>모델 · 고객</th>
+                <th>사유</th>
+                <th className="center">잠근 시각</th>
                 <th className="center">상태</th>
                 <th className="center" style={{ width: 60 }}></th>
               </tr>
@@ -280,41 +211,25 @@ export const IgnitionForm = forwardRef<IgnitionFormHandle, Props>(function Ignit
                 <tr key={r.plate}>
                   <td className="center dim mono">{idx + 1}</td>
                   <td className="plate"><strong>{r.plate}</strong></td>
-                  <td className="dim">{[r.asset?.maker, r.asset?.modelName].filter(Boolean).join(' ') || '—'}</td>
-                  <td>{r.contract?.customerName ?? <span className="dim">—</span>}</td>
-                  <td className={cn('num', r.unpaidAmount > 0 && 'alert')}>
-                    {r.unpaidAmount > 0 ? r.unpaidAmount.toLocaleString('ko-KR') : '—'}
-                  </td>
-                  <td className={cn('num', r.maxOverdueDays > 30 ? 'alert' : r.maxOverdueDays > 0 ? 'warn' : 'dim')}>
-                    {r.maxOverdueDays > 0 ? `${r.maxOverdueDays}일` : '—'}
-                  </td>
                   <td>
-                    {r.isLocked ? (
-                      <span className="dim">{r.lastIgnitionReason || '미납'}</span>
-                    ) : (
-                      <select
-                        className="input"
-                        value={reasonMap[r.plate] ?? (r.maxOverdueDays > 0 ? '미납' : '검사미이행')}
-                        onChange={(e) => setReasonMap((m) => ({ ...m, [r.plate]: e.target.value }))}
-                      >
-                        {ALL_REASONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                    <span>{[r.asset?.maker, r.asset?.modelName].filter(Boolean).join(' ') || '—'}</span>
+                    {r.contract?.customerName && (
+                      <span style={{ color: 'var(--text-weak)', marginLeft: 6 }}>· {r.contract.customerName}</span>
                     )}
                   </td>
-                  <td className="center mono dim">{r.lastIgnitionDate ? r.lastIgnitionDate.slice(5) : '—'}</td>
+                  <td className={cn(r.source === 'overdue' && 'alert')}>{r.reason}</td>
+                  <td className="center mono dim">{r.at || '—'}</td>
                   <td className="center">
                     {r.isLocked
                       ? <Lock size={14} weight="fill" style={{ color: 'var(--alert-red-text)' }} />
                       : <LockOpen size={14} style={{ color: 'var(--text-weak)' }} />}
                   </td>
                   <td className="center">
-                    <button
-                      type="button"
-                      className={cn('btn', !r.isLocked && 'btn-primary')}
-                      onClick={() => toggle(r)}
-                    >
-                      {r.isLocked ? '해제' : '제어'}
-                    </button>
+                    {r.isLocked ? (
+                      <button type="button" className="btn" onClick={() => unlock(r)}>해제</button>
+                    ) : (
+                      <button type="button" className="btn btn-primary" onClick={() => lockOverdue(r)}>제어</button>
+                    )}
                   </td>
                 </tr>
               ))}
