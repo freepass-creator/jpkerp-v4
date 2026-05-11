@@ -76,9 +76,9 @@ const FONT_STACKS: Record<FontFamily, { font: string; mono: string }> = {
     mono: "Consolas, 'GulimChe', '굴림체', 'Menlo', monospace",
   },
   pretendard: {
-    // Consolas 우선 → 영문/숫자/기호는 Consolas 글리프 (라틴), 한글은 Pretendard fallback
-    font: "Consolas, 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
-    mono: "Consolas, 'JetBrains Mono', 'Menlo', monospace",
+    // 영문·숫자·한글 모두 Pretendard 일관. 숫자 등폭은 font-feature-settings: 'tnum' 으로 처리.
+    font: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', Consolas, monospace",
   },
   noto: {
     font: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
