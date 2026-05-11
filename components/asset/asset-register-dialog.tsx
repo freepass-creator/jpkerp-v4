@@ -89,6 +89,13 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
     onOpenChange?.(v);
   };
 
+  // 기본 회사 — 모든 탭 공통. 새 OCR row / manual form / sheet 의 default 채움.
+  // 회사 1개만 등록돼있으면 자동 선택.
+  const activeCompanyList = companies.filter((c) => !c.deletedAt);
+  const [defaultCompanyCode, setDefaultCompanyCode] = useState(
+    activeCompanyList.length === 1 ? activeCompanyList[0].code : '',
+  );
+
   const ocr = useOcrBatch<AssetWorkItem>({
     docType: 'vehicle_reg',
     // PDF 는 client-side 에서 첫 페이지 JPEG (2.5x 스케일) 로 변환 후 전송.
@@ -101,7 +108,7 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
       return {
         id, fileName: file.name, _status: 'pending',
         data: {
-          companyCode: '', status: '대기' as const,
+          companyCode: defaultCompanyCode, status: '대기' as const,
           fileDataUrl, fileName: file.name,
         },
         _duplicate: null,
@@ -189,6 +196,23 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
               <Pencil size={14} className="mr-1.5 inline" /> 단건
             </TabsTrigger>
           </TabsList>
+
+          {/* 기본 회사 — 모든 탭 공통. 새 OCR row / manual / sheet 의 회사코드 default. 행별 override 가능. */}
+          <div className="form-grid" style={{ marginTop: 8 }}>
+            <label className="block col-span-2">
+              <span className="label">기본 회사</span>
+              <select
+                className="input w-full"
+                value={defaultCompanyCode}
+                onChange={(e) => setDefaultCompanyCode(e.target.value)}
+              >
+                <option value="">선택 (행마다 별도 지정 가능)</option>
+                {activeCompanyList.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code} · {c.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <TabsContent value="ocr">
             <div className="space-y-3">

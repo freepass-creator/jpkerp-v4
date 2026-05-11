@@ -236,12 +236,18 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
 
   const [tab, setTab] = useState<'ocr' | 'sheet' | 'manual'>('ocr');
 
+  // 기본 회사 — 모든 탭 공통. 새 OCR row / manual / sheet 의 default 채움.
+  const activeCompanyList = companies.filter((c) => !c.deletedAt);
+  const [defaultCompanyCode, setDefaultCompanyCode] = useState(
+    activeCompanyList.length === 1 ? activeCompanyList[0].code : '',
+  );
+
   /* OCR 다건 */
   const ocr = useOcrBatch<ContractWorkItem>({
     docType: 'rental_contract',
     createPlaceholder: (file, id) => ({
       id, fileName: file.name, _status: 'pending',
-      data: { ...EMPTY_DRAFT },
+      data: { ...EMPTY_DRAFT, companyCode: defaultCompanyCode },
     }),
     applyResult: (prev, raw) => ({ ...prev, data: { ...prev.data, ...mapContractOcr(raw, assets, companies) } }),
   });
@@ -308,6 +314,23 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
               <Pencil size={14} className="mr-1.5 inline" /> 단건
             </TabsTrigger>
           </TabsList>
+
+          {/* 기본 회사 — 모든 탭 공통. 새 OCR row / manual / sheet 의 회사코드 default. 행별 override 가능. */}
+          <div className="form-grid" style={{ marginTop: 8 }}>
+            <label className="block col-span-2">
+              <span className="label">기본 회사</span>
+              <select
+                className="input w-full"
+                value={defaultCompanyCode}
+                onChange={(e) => setDefaultCompanyCode(e.target.value)}
+              >
+                <option value="">선택 (행마다 별도 지정 가능)</option>
+                {activeCompanyList.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code} · {c.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           {/* ── OCR 다건 ── */}
           <TabsContent value="ocr">
