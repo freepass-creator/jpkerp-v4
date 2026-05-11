@@ -533,8 +533,8 @@ function CompanyForm({
           <>
             <Select label="은행" value={item.bank} options={BANK_OPTIONS} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, bank: v }))} colSpan={1} />
             <Input label="계좌번호" value={item.accountNo} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, accountNo: v }))} placeholder="110-123-456789" colSpan={2} />
-            <Input label="예금주 (다를 때)" value={item.holder ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, holder: v }))} colSpan={1} />
-            <Input label="용도/별칭" value={item.alias ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, alias: v }))} placeholder="운영비, 자동이체" colSpan={4} />
+            <Input label="계좌별명" value={item.alias ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, alias: v }))} placeholder="운영비, 자동이체 전용 등" colSpan={1} />
+            <Input label="예금주 (회사명과 다를 때만)" value={item.holder ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, holder: v }))} colSpan={4} />
           </>
         )}
       />

@@ -28,6 +28,7 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
   company:   '회사',
   insurance: '보험',
   journal:   '업무일지',
+  ledger:    '자금일보',
   auth:      '인증',
   system:    '시스템',
 };

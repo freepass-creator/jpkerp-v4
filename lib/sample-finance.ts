@@ -1,5 +1,7 @@
 /* 재무관리 — 각 sub-tab 데이터 타입. 실데이터는 사용자 입력으로 채움. 샘플 없음. */
 
+import type { AuditFields } from './audit-fields';
+
 export type LedgerMethod = '자동이체' | '카드' | '인터넷뱅킹' | '현금' | '무통장' | '기타';
 
 /** 계정과목 — 자금일보에서 입출 분류 (수납/지출 모듈로 자동 라우팅) */
@@ -27,9 +29,12 @@ export type LedgerEntry = {
   deposit?: number;
   withdraw?: number;
   balance: number;
-  memo: string;             // 적요
-  counterparty?: string;    // 상대 계좌·예금주
-  method: LedgerMethod;
+  /** 적요 — 통장 「적요」 컬럼 원문 (예: "BZ뱅크", "CMS 자동이체", "ATM출금"). 결제 채널 자유 텍스트. */
+  summary?: string;
+  /** 내용 — 통장 「내용」 컬럼 원문 (예: "정유라 (145가1796)"). 상대방/메모 식별 텍스트. */
+  memo: string;
+  counterparty?: string;    // 상대 계좌·예금주 (별도 컬럼 있을 때만 — 보통 memo 와 동일하게 처리)
+  method: LedgerMethod;     // 정규화 결제수단 (enum) — summary 에서 파생되거나 입력값
   subject?: AccountSubject; // 계정과목 (분류)
   matchedContract?: string; // 매칭 계약 (contractNo)
   matchedCycle?: number;    // 매칭 회차 번호 (1-based)
@@ -39,7 +44,9 @@ export type LedgerEntry = {
   uploadedAt?: string;
   /** 중복 검출 signature. {accountDigits|date|direction|amount|balance|counterparty} */
   txKey?: string;
-};
+  /** 소프트 삭제 — 잘못 올린 batch 정리용 (감사로그는 별도 보존). */
+  deletedAt?: string;
+} & AuditFields;
 
 export const SAMPLE_LEDGER: LedgerEntry[] = [];
 

@@ -23,6 +23,7 @@ import { activeAssets, type Asset, type AssetStatus } from '@/lib/sample-assets'
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { useConfirmWithEmail } from '@/lib/confirm-with-email';
 import { nextCompanyScopedCode } from '@/lib/code-gen';
 import { genId } from '@/lib/ids';
 import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
@@ -38,8 +39,10 @@ export default function AssetListPage() {
   const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
   const hasCompany = useMemo(() => allCompanies.some((c) => !c.deletedAt), [allCompanies]);
   const [selected, setSelected] = useState<Asset | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { search } = useTopbarSearch();
   const audit = useAuditStamp();
+  const confirmWithEmail = useConfirmWithEmail();
 
   // 조회/수정/복사 다이얼로그 상태
   const [editOpen, setEditOpen] = useState(false);
@@ -147,10 +150,32 @@ export default function AssetListPage() {
 
   function handleDelete() {
     if (!selected) return;
-    if (!confirm(`${selected.companyCode} ${selected.plate || selected.vehicleName} 자산을 삭제할까요? (자산코드는 영구 보존 — 재발급 안 됨)`)) return;
+    if (!confirmWithEmail(
+      '자산 삭제',
+      `${selected.companyCode} · ${selected.plate || selected.vehicleName}\n(자산코드는 영구 보존 — 재발급 안 됨)`,
+    )) return;
     setAssets((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...audit.delete() } : a));
     audit.log({ action: 'delete', entityType: 'asset', entityId: selected.id, label: selected.plate, before: selected });
     setSelected(null);
+  }
+
+  /** 선택 행 일괄 소프트삭제 — 본인 이메일 확인. */
+  function handleDeleteSelected() {
+    if (selectedIds.size === 0) { alert('선택된 행이 없습니다.'); return; }
+    const rows = assets.filter((a) => selectedIds.has(a.id));
+    const summary = rows.slice(0, 5).map((a) => `· ${a.companyCode} ${a.plate || a.vehicleName}`).join('\n')
+      + (rows.length > 5 ? `\n... 외 ${rows.length - 5}건` : '');
+    if (!confirmWithEmail(`자산 선택 ${selectedIds.size}건 삭제`, summary)) return;
+    const stamp = audit.delete();
+    setAssets((prev) => prev.map((a) => selectedIds.has(a.id) ? { ...a, ...stamp } : a));
+    audit.log({
+      action: 'delete', entityType: 'asset', entityId: 'batch',
+      label: `자산 일괄 삭제 ${selectedIds.size}건`,
+      after: { count: selectedIds.size, plates: rows.map((r) => r.plate) },
+    });
+    setSelectedIds(new Set());
+    setSelected(null);
+    alert(`${rows.length}건 삭제 완료.`);
   }
 
   return (
@@ -207,6 +232,15 @@ export default function AssetListPage() {
             <button className="btn" disabled={!selected} onClick={handleDelete}>
               <Trash size={14} weight="bold" /> 삭제
             </button>
+            <button
+              className="btn"
+              disabled={selectedIds.size === 0}
+              onClick={handleDeleteSelected}
+              title="체크박스로 선택한 자산 일괄 삭제 (본인 이메일 확인 후)"
+              style={{ color: selectedIds.size > 0 ? 'var(--alert-red, #dc2626)' : undefined }}
+            >
+              <Trash size={14} weight="bold" /> 선택 {selectedIds.size}건 삭제
+            </button>
             <AssetRegisterDialog
               onCreate={handleCreate}
               open={registerOpen}
@@ -245,6 +279,8 @@ export default function AssetListPage() {
               onRowDoubleClick={(a) => { setSelected(a); setEditMode('view'); setEditOpen(true); }}
               onRowContextMenu={(_a, x, y) => setCtxMenu({ open: true, x, y })}
               globalSearch={search}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
             />
           </div>
         )}

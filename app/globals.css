@@ -1240,6 +1240,18 @@ input[type="checkbox"], input[type="radio"] {
 .jpk-table tbody tr { background: var(--bg-card); }
 .jpk-table tbody tr:hover { background: var(--bg-hover); cursor: default; }
 .jpk-table tbody tr.is-selected { background: var(--bg-selected); }
+.jpk-table tbody tr.is-checked { background: color-mix(in srgb, var(--alert-red, #dc2626) 8%, transparent); }
+.jpk-table .jpk-th-checkbox,
+.jpk-table .jpk-td-checkbox {
+  padding: 0;
+  width: 36px;
+  text-align: center;
+}
+.jpk-table .jpk-th-checkbox input,
+.jpk-table .jpk-td-checkbox input {
+  margin: 0;
+  cursor: pointer;
+}
 .jpk-table-empty {
   padding: 24px 0 !important;
   text-align: center;

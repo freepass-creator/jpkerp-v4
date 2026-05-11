@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { PencilSimple, Copy, Plus, Link as LinkIcon } from '@phosphor-icons/react';
+import { PencilSimple, Copy, Plus, Link as LinkIcon, Trash } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { type LedgerEntry, type LedgerMethod } from '@/lib/sample-finance';
@@ -21,6 +21,7 @@ import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { useConfirmWithEmail } from '@/lib/confirm-with-email';
 import { applyReceiptMatch, reverseReceiptMatch, type ReceiptCandidate } from '@/lib/receipt-match';
 import { dedupAgainst } from '@/lib/ledger-dedup';
 import { exportToExcel } from '@/lib/excel-export';
@@ -42,10 +43,13 @@ const LEDGER_FIELDS: FieldDef[] = [
 const fmtNum = (v: unknown) => (typeof v === 'number' && v ? v.toLocaleString('ko-KR') : '');
 
 export default function FinanceLedgerPage() {
-  const [entries, setEntries] = useLedgerStore();
+  const [allEntries, setEntries] = useLedgerStore();
+  // 소프트삭제 행 제외 (자금일보와 동일 — RTDB 원본은 보존)
+  const entries = useMemo(() => allEntries.filter((e) => !e.deletedAt), [allEntries]);
   const [companies] = useCompanyStore();
   const [contracts, setContracts] = useContractStore();
   const audit = useAuditStamp();
+  const confirmWithEmail = useConfirmWithEmail();
   const [selected, setSelected] = useState<LedgerEntry | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -53,6 +57,7 @@ export default function FinanceLedgerPage() {
   const [matchOpen, setMatchOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
   const [filteredRows, setFilteredRows] = useState<readonly LedgerEntry[]>(entries);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const filteredCount = filteredRows.length;
   const tableRef = useRef<JpkTableApi<LedgerEntry> | null>(null);
 
@@ -90,7 +95,34 @@ export default function FinanceLedgerPage() {
     setEntries((p) => [{ ...fromForm(d), subject: undefined, matchedContract: undefined } as LedgerEntry, ...p]);
     setDuplicateOpen(false);
   };
-  // 삭제 기능은 개발도구(/dev) 에 일원화. 일반 페이지에서는 제공하지 않음.
+  /**
+   * 선택 행 일괄 소프트삭제 — 본인 이메일 입력 확인 후 진행.
+   * RTDB ledger/{id}/deletedAt 박힘 + audit_logs 푸시. 다른 사용자 onValue 로 실시간 반영.
+   */
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) {
+      alert('선택된 행이 없습니다. 좌측 체크박스로 삭제할 행을 선택하세요.');
+      return;
+    }
+    const selectedRows = entries.filter((e) => selectedIds.has(e.id));
+    const companies = [...new Set(selectedRows.map((e) => e.companyCode))];
+    const accounts = [...new Set(selectedRows.map((e) => e.account ?? '(미지정)'))];
+    const dates = selectedRows.map((e) => e.txDate.slice(0, 10)).sort();
+    const dateRange = dates.length > 0 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : '';
+    if (!confirmWithEmail(
+      `계좌내역 선택 ${selectedIds.size}건 삭제`,
+      `· 회사: ${companies.join(', ')}\n· 계좌: ${accounts.slice(0, 3).join(', ')}${accounts.length > 3 ? ` 외 ${accounts.length - 3}` : ''}\n· 기간: ${dateRange}`,
+    )) return;
+    const stamp = audit.delete();
+    setEntries((prev) => prev.map((e) => selectedIds.has(e.id) ? { ...e, ...stamp } : e));
+    audit.log({
+      action: 'delete', entityType: 'ledger', entityId: 'batch',
+      label: `계좌내역 일괄 삭제 ${selectedIds.size}건`,
+      after: { count: selectedIds.size, companies },
+    });
+    setSelectedIds(new Set());
+    alert(`${selectedRows.length}건 삭제 완료.`);
+  }, [selectedIds, entries, setEntries, audit, confirmWithEmail]);
 
   function handleMatch(candidate: ReceiptCandidate) {
     if (!selected) return;
@@ -234,6 +266,13 @@ export default function FinanceLedgerPage() {
           <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}><PencilSimple size={14} weight="bold" /> 수정</button>
           <button className="btn" disabled={!selected} onClick={() => setDuplicateOpen(true)}><Copy size={14} weight="bold" /> 복사</button>
           <button className="btn" disabled={matchDisabled} onClick={() => setMatchOpen(true)}><LinkIcon size={14} weight="bold" /> 수납 매칭</button>
+          <button
+            className="btn"
+            disabled={selectedIds.size === 0}
+            onClick={handleDeleteSelected}
+            title="체크박스로 선택한 행 일괄 삭제 (본인 이메일 확인 후)"
+            style={{ color: selectedIds.size > 0 ? 'var(--alert-red, #dc2626)' : undefined }}
+          ><Trash size={14} weight="bold" /> 선택 {selectedIds.size}건 삭제</button>
           <LedgerRegisterDialog
             open={registerOpen}
             onOpenChange={setRegisterOpen}
@@ -251,6 +290,9 @@ export default function FinanceLedgerPage() {
           onRowContextMenu={handleRowContextMenu}
           onFilteredChange={setFilteredRows}
           selectedKey={selected?.id ?? null}
+          selectable
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
       </PageShell>
       <ContextMenu open={ctxMenu.open} x={ctxMenu.x} y={ctxMenu.y}

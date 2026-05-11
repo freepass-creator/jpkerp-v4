@@ -31,6 +31,7 @@ export type AuditEntityType =
   | 'company'
   | 'insurance'
   | 'journal'
+  | 'ledger'
   | 'auth'
   | 'system';
 

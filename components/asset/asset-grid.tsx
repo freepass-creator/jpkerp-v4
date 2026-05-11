@@ -17,6 +17,9 @@ type Props = {
   storageKey?: string;
   /** 전역 검색 키워드 (topbar 검색에서 받음) */
   globalSearch?: string;
+  /** 멀티 선택 (체크박스 컬럼 + 선택삭제 연동용) */
+  selectedIds?: ReadonlySet<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 };
 
 const numFmt = (v: unknown) =>
@@ -29,6 +32,7 @@ const numFmt = (v: unknown) =>
  */
 export function AssetGrid({
   assets, selectedId, onRowClick, onRowDoubleClick, onRowContextMenu, onFilteredChange, storageKey = 'asset.grid', globalSearch,
+  selectedIds, onSelectionChange,
 }: Props) {
   const tableRef = useRef<JpkTableApi<Asset> | null>(null);
 
@@ -129,6 +133,9 @@ export function AssetGrid({
       onRowContextMenu={handleRowContextMenu}
       onFilteredChange={onFilteredChange}
       globalSearch={globalSearch}
+      selectable={selectedIds !== undefined || onSelectionChange !== undefined}
+      selectedIds={selectedIds}
+      onSelectionChange={onSelectionChange}
     />
   );
 }

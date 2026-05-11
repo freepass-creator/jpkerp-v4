@@ -17,12 +17,14 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import type { Contract, ScheduleEvent } from '@/lib/sample-contracts';
 import type { Asset } from '@/lib/sample-assets';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { useConfirmWithEmail } from '@/lib/confirm-with-email';
 import { applyReceiptMatch, reverseReceiptMatch, autoMatchAll, type ReceiptCandidate } from '@/lib/receipt-match';
 import { JpkTable, type JpkColumn } from '@/components/shared/jpk-table';
 import { exportToExcel } from '@/lib/excel-export';
 import { cn } from '@/lib/cn';
 import { ReceiptMatchDialog } from '@/components/finance/receipt-match-dialog';
-import { Link as LinkIcon } from '@phosphor-icons/react';
+import { Link as LinkIcon, Trash } from '@phosphor-icons/react';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 
 /**
  * 자금일보 — 두 뷰:
@@ -73,9 +75,16 @@ type DailyRow = {
 
 export default function FinanceDailyPage() {
   const [view, setView] = useState<View>('match');
-  const [entries, setEntries] = useLedgerStore();
+  const [allEntries, setEntries] = useLedgerStore();
+  // 소프트삭제(deletedAt) 행 제외 — 자금일보·집계 모두에서
+  const entries = useMemo(() => allEntries.filter((e) => !e.deletedAt), [allEntries]);
   const [filteredEntries, setFilteredEntries] = useState<readonly LedgerEntry[]>(entries);
   const [filteredDaily, setFilteredDaily] = useState<readonly DailyRow[]>([]);
+  const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number; row: LedgerEntry | null }>({
+    open: false, x: 0, y: 0, row: null,
+  });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const confirmWithEmail = useConfirmWithEmail();
 
   const counts = useMemo(() => {
     const c = { unposted: 0, posted: 0, closed: 0 };
@@ -222,6 +231,51 @@ export default function FinanceDailyPage() {
   const getEntryId = useCallback((r: LedgerEntry) => r.id, []);
   const getDailyId = useCallback((r: DailyRow) => r.key, []);
 
+  /** 단건 소프트 삭제 — 우클릭 메뉴. */
+  const handleDeleteRow = useCallback((row: LedgerEntry) => {
+    const dateStr = row.txDate.slice(0, 16);
+    const amt = (row.deposit || row.withdraw || 0).toLocaleString('ko-KR');
+    const direction = row.deposit ? '입금' : '출금';
+    if (!confirmWithEmail(
+      '거래 삭제',
+      `${dateStr} · ${row.account ?? '계좌미지정'} · ${direction} ${amt}원\n${row.memo}`,
+    )) return;
+    setEntries((prev) => prev.map((e) => e.id === row.id ? { ...e, ...audit.delete() } : e));
+    audit.log({
+      action: 'delete', entityType: 'ledger', entityId: row.id,
+      label: `${dateStr} ${direction} ${amt} ${row.memo}`,
+      before: row,
+    });
+  }, [setEntries, audit, confirmWithEmail]);
+
+  /** 선택 행 일괄 삭제 — 체크박스 선택. */
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) {
+      alert('선택된 행이 없습니다. 좌측 체크박스로 삭제할 행을 선택하세요.');
+      return;
+    }
+    const selectedRows = entries.filter((e) => selectedIds.has(e.id));
+    const companies = [...new Set(selectedRows.map((e) => e.companyCode))];
+    const accounts = [...new Set(selectedRows.map((e) => e.account ?? '(미지정)'))];
+    const dates = selectedRows.map((e) => e.txDate.slice(0, 10)).sort();
+    const dateRange = dates.length > 0 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : '';
+
+    if (!confirmWithEmail(
+      `선택 ${selectedIds.size}건 삭제`,
+      `· 회사: ${companies.join(', ')}\n· 계좌: ${accounts.slice(0, 3).join(', ')}${accounts.length > 3 ? ` 외 ${accounts.length - 3}` : ''}\n· 기간: ${dateRange}`,
+    )) return;
+
+    const stamp = audit.delete();
+    setEntries((prev) => prev.map((e) => selectedIds.has(e.id) ? { ...e, ...stamp } : e));
+    audit.log({
+      action: 'delete', entityType: 'ledger', entityId: 'batch',
+      label: `자금일보 일괄 삭제 ${selectedIds.size}건`,
+      after: { count: selectedIds.size, companies },
+    });
+    setSelectedIds(new Set());
+    alert(`${selectedRows.length}건 삭제 완료.`);
+  }, [selectedIds, entries, setEntries, audit, confirmWithEmail]);
+
   /** 일자×회사 집계 */
   const daily = useMemo<DailyRow[]>(() => {
     const m = new Map<string, DailyRow & { _depo: Record<string, number>; _draw: Record<string, number> }>();
@@ -279,14 +333,12 @@ export default function FinanceDailyPage() {
     { headerName: '회사', field: 'companyCode', width: 70, filterable: true },
     { headerName: '계좌', field: 'account', width: 160, filterable: true },
     { headerName: '거래일시', field: 'txDate', width: 140, sort: 'desc', filterType: 'date' },
-    { headerName: '적요', field: 'method', width: 100 },
-    { headerName: '입금액', field: 'deposit', width: 110, align: 'right',
+    { headerName: '입금', field: 'deposit', width: 110, align: 'right',
       filterType: 'range', filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
       valueFormatter: ({ value }) => fmtNum(value) },
-    { headerName: '출금액', field: 'withdraw', width: 110, align: 'right',
+    { headerName: '출금', field: 'withdraw', width: 110, align: 'right',
       filterType: 'range', filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
       valueFormatter: ({ value }) => fmtNum(value) },
-    { headerName: '내용', field: 'memo', minWidth: 160, flex: 1 },
     { headerName: '잔액', field: 'balance', width: 120, align: 'right',
       valueFormatter: ({ value }) => fmtNum(value) },
     {
@@ -304,6 +356,19 @@ export default function FinanceDailyPage() {
           <option value="">- 선택 -</option>
           {applicableSubjects(data).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+      ),
+    },
+    {
+      headerName: '내용', field: 'memo', minWidth: 180, flex: 1,
+      cellRenderer: ({ data }) => (
+        <input
+          className="input"
+          value={data.memo ?? ''}
+          onChange={(ev) => updateEntry(data.id, { memo: ev.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="누가 / 무엇"
+          style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12, background: 'transparent' }}
+        />
       ),
     },
     {
@@ -430,9 +495,20 @@ export default function FinanceDailyPage() {
       }
       footerRight={
         view === 'match' ? (
-          <button className="btn btn-primary" onClick={handleAutoMatchAll} title="이름·금액 일치하는 미매칭 입금 일괄 매칭">
-            자동매칭
-          </button>
+          <>
+            <button
+              className="btn"
+              onClick={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+              title="체크박스로 선택한 행 일괄 삭제 (본인 이메일 확인 후)"
+              style={{ color: selectedIds.size > 0 ? 'var(--alert-red, #dc2626)' : undefined }}
+            >
+              <Trash size={14} weight="bold" /> 선택 {selectedIds.size}건 삭제
+            </button>
+            <button className="btn btn-primary" onClick={handleAutoMatchAll} title="이름·금액 일치하는 미매칭 입금 일괄 매칭">
+              자동매칭
+            </button>
+          </>
         ) : (
           <button className="btn" onClick={() => exportToExcel({
             title: '자금일보',
@@ -461,6 +537,10 @@ export default function FinanceDailyPage() {
           getRowId={getEntryId}
           storageKey="finance.daily.match"
           onFilteredChange={setFilteredEntries}
+          onRowContextMenu={(row, _i, ev) => setCtxMenu({ open: true, x: ev.clientX, y: ev.clientY, row })}
+          selectable
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
       ) : (
         <JpkTable<DailyRow>
@@ -471,6 +551,21 @@ export default function FinanceDailyPage() {
           onFilteredChange={setFilteredDaily}
         />
       )}
+
+      <ContextMenu
+        open={ctxMenu.open}
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        onClose={() => setCtxMenu({ open: false, x: 0, y: 0, row: null })}
+        items={ctxMenu.row ? ([
+          {
+            label: '삭제',
+            icon: <Trash size={12} weight="bold" />,
+            danger: true,
+            onClick: () => { if (ctxMenu.row) handleDeleteRow(ctxMenu.row); },
+          },
+        ] satisfies ContextMenuItem[]) : []}
+      />
 
       <ReceiptMatchDialog
         open={!!matchTarget}

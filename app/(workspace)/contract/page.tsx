@@ -25,6 +25,7 @@ import { useTopbarSearch } from '@/lib/use-topbar-search';
 import { nextDateScopedCode, nextCompanyScopedCode } from '@/lib/code-gen';
 import { ContractRegisterDialog } from '@/components/contract/contract-register-dialog';
 import { useAuditStamp } from '@/lib/audit-fields';
+import { useConfirmWithEmail } from '@/lib/confirm-with-email';
 import { genId } from '@/lib/ids';
 import { cn } from '@/lib/cn';
 
@@ -160,6 +161,8 @@ export default function ContractListPage() {
   const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
   const { search } = useTopbarSearch();
   const [selected, setSelected] = useState<Contract | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const confirmWithEmail = useConfirmWithEmail();
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<EntityDialogMode>('view');
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -452,10 +455,35 @@ export default function ContractListPage() {
 
   function handleDelete() {
     if (!selected) return;
-    if (!confirm(`${selected.contractNo} 계약을 삭제할까요? (계약번호는 영구 보존 — 재발급 안 됨)`)) return;
+    if (!confirmWithEmail(
+      '계약 삭제',
+      `${selected.contractNo} · ${selected.customerName} · ${selected.plate}\n(계약번호는 영구 보존 — 재발급 안 됨)`,
+    )) return;
     setContracts((prev) => prev.map((c) => c.id === selected.id ? { ...c, ...audit.delete() } : c));
     audit.log({ action: 'delete', entityType: 'contract', entityId: selected.id, label: selected.contractNo, before: selected });
     setSelected(null);
+  }
+
+  /** 선택 행 일괄 소프트삭제 — 본인 이메일 입력 확인. */
+  function handleDeleteSelected() {
+    if (selectedIds.size === 0) {
+      alert('선택된 행이 없습니다. 좌측 체크박스로 선택하세요.');
+      return;
+    }
+    const rows = contracts.filter((c) => selectedIds.has(c.id));
+    const summary = rows.slice(0, 5).map((c) => `· ${c.contractNo} ${c.plate} ${c.customerName}`).join('\n')
+      + (rows.length > 5 ? `\n... 외 ${rows.length - 5}건` : '');
+    if (!confirmWithEmail(`계약 선택 ${selectedIds.size}건 삭제`, summary)) return;
+    const stamp = audit.delete();
+    setContracts((prev) => prev.map((c) => selectedIds.has(c.id) ? { ...c, ...stamp } : c));
+    audit.log({
+      action: 'delete', entityType: 'contract', entityId: 'batch',
+      label: `계약 일괄 삭제 ${selectedIds.size}건`,
+      after: { count: selectedIds.size, contractNos: rows.map((r) => r.contractNo) },
+    });
+    setSelectedIds(new Set());
+    setSelected(null);
+    alert(`${rows.length}건 삭제 완료.`);
   }
 
   const boolToOpt = (b: boolean | undefined): string => b === true ? '가입' : b === false ? '미가입' : '';
@@ -592,6 +620,15 @@ export default function ContractListPage() {
             <button className="btn" disabled={!selected} onClick={handleDelete}>
               <Trash size={14} weight="bold" /> 삭제
             </button>
+            <button
+              className="btn"
+              disabled={selectedIds.size === 0}
+              onClick={handleDeleteSelected}
+              title="체크박스로 선택한 계약 일괄 삭제 (본인 이메일 확인 후)"
+              style={{ color: selectedIds.size > 0 ? 'var(--alert-red, #dc2626)' : undefined }}
+            >
+              <Trash size={14} weight="bold" /> 선택 {selectedIds.size}건 삭제
+            </button>
             <ContractRegisterDialog onCreate={handleCreate} />
           </>
         }
@@ -611,6 +648,8 @@ export default function ContractListPage() {
             onRowDoubleClick={(c) => { setSelected(c); setEditMode('view'); setEditOpen(true); }}
             onRowContextMenu={(c, x, y) => { setSelected(c); setCtxMenu({ open: true, x, y }); }}
             globalSearch={search}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
           />
         )}
       </PageShell>
@@ -805,6 +844,7 @@ function ExtendedInfoCell({ contract }: { contract: Contract }) {
 /** 계약현황 그리드 — JpkTable 기반. 컬럼 헤더 set/range/date 필터. */
 function ContractGrid({
   contracts, selectedId, onRowClick, onRowDoubleClick, onRowContextMenu, globalSearch,
+  selectedIds, onSelectionChange,
 }: {
   contracts: Contract[];
   selectedId?: string;
@@ -812,6 +852,8 @@ function ContractGrid({
   onRowDoubleClick?: (c: Contract) => void;
   onRowContextMenu: (c: Contract, x: number, y: number) => void;
   globalSearch?: string;
+  selectedIds?: ReadonlySet<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 }) {
   const tableRef = useRef<JpkTableApi<Contract> | null>(null);
 
@@ -969,6 +1011,9 @@ function ContractGrid({
       onRowDoubleClick={onRowDoubleClick ? (c) => onRowDoubleClick(c) : undefined}
       onRowContextMenu={handleRowContextMenu}
       globalSearch={globalSearch}
+      selectable
+      selectedIds={selectedIds}
+      onSelectionChange={onSelectionChange}
     />
   );
 }

@@ -67,6 +67,14 @@ interface JpkTableProps<T> {
   selectedKey?: string | null;
   /** 전역 텍스트 검색 — topbar 검색에서 받음. 컬럼 헤더 필터와 별개로 모든 셀 값 텍스트 매칭. */
   globalSearch?: string;
+  /**
+   * 체크박스 멀티 선택. true 면 첫 컬럼에 체크박스 + 헤더에 전체선택 체크박스 렌더.
+   * 헤더 체크박스는 「현재 필터된 행」기준 전체선택/해제 (보이지 않는 행은 영향 없음).
+   */
+  selectable?: boolean;
+  /** controlled 선택 ID set. 없으면 내부 state 관리. */
+  selectedIds?: ReadonlySet<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 }
 
 type SortState = { field: string; dir: 'asc' | 'desc' } | null;
@@ -95,9 +103,23 @@ function JpkTableInner<T>(
     columns, rows, getRowId, onRowClick, onRowDoubleClick, onRowContextMenu, onCountChange, onFilteredChange,
     className, storageKey, hideHeader, selectedKey: selectedKeyProp,
     globalSearch,
+    selectable, selectedIds: selectedIdsProp, onSelectionChange,
   }: JpkTableProps<T>,
   ref: React.Ref<JpkTableApi<T>>,
 ) {
+  const [selectedIdsInner, setSelectedIdsInner] = useState<Set<string>>(new Set());
+  const selectedIds = selectedIdsProp ?? selectedIdsInner;
+  const setSelectedIds = useCallback((updater: (prev: Set<string>) => Set<string>) => {
+    if (selectedIdsProp !== undefined) {
+      onSelectionChange?.(updater(new Set(selectedIdsProp)));
+    } else {
+      setSelectedIdsInner((prev) => {
+        const next = updater(prev);
+        onSelectionChange?.(next);
+        return next;
+      });
+    }
+  }, [selectedIdsProp, onSelectionChange]);
   const [sort, setSort] = useState<SortState>(() => {
     if (storageKey && typeof window !== 'undefined') {
       try {
@@ -339,8 +361,31 @@ function JpkTableInner<T>(
     setWidths((cur) => ({ ...cur, [f]: final }));
   }, [widths, columns]);
 
-  const totalFixed = columns.reduce((sum, c) => sum + (c.width ?? 0), 0);
+  const totalFixed = columns.reduce((sum, c) => sum + (c.width ?? 0), 0) + (selectable ? 36 : 0);
   const hasFlex = columns.some((c) => c.flex);
+
+  // 헤더 전체선택 — 현재 필터된(sortedRows) 행 기준
+  const filteredKeys = useMemo<string[]>(
+    () => sortedRows.map((row, i) => (getRowId ? getRowId(row, i) : String(i))),
+    [sortedRows, getRowId],
+  );
+  const allSelected = filteredKeys.length > 0 && filteredKeys.every((k) => selectedIds.has(k));
+  const someSelected = !allSelected && filteredKeys.some((k) => selectedIds.has(k));
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) filteredKeys.forEach((k) => next.delete(k));
+      else filteredKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }, [allSelected, filteredKeys, setSelectedIds]);
+  const toggleRow = useCallback((rowKey: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+      return next;
+    });
+  }, [setSelectedIds]);
 
   return (
     <div className={`jpk-table-host ${className ?? ''}`}>
@@ -351,12 +396,25 @@ function JpkTableInner<T>(
           style={hasFlex ? { width: '100%' } : { width: totalFixed }}
         >
           <colgroup>
+            {selectable && <col style={{ width: 36 }} />}
             {columns.map((c) => (
               <col key={`${c.headerName}-${String(c.field ?? '')}`} style={colStyle(c, widths)} />
             ))}
           </colgroup>
           {!hideHeader && <thead>
             <tr>
+              {selectable && (
+                <th className="jpk-th-checkbox align-center">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                    onChange={toggleAll}
+                    aria-label="전체선택"
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
+              )}
               {columns.map((c) => {
                 const f = c.field ? String(c.field) : '';
                 const active = sort?.field === f;
@@ -426,7 +484,7 @@ function JpkTableInner<T>(
           <tbody>
             {sortedRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="jpk-table-empty">데이터 없음</td>
+                <td colSpan={columns.length + (selectable ? 1 : 0)} className="jpk-table-empty">데이터 없음</td>
               </tr>
             ) : sortedRows.map((row, rowIndex) => {
               const rowKey = getRowId ? getRowId(row, rowIndex) : String(rowIndex);
@@ -442,6 +500,9 @@ function JpkTableInner<T>(
                   onRowDoubleClick={onRowDoubleClick}
                   onRowContextMenu={onRowContextMenu}
                   onSelectInternal={selectedKeyProp === undefined ? setSelectedKeyInner : undefined}
+                  selectable={selectable}
+                  isChecked={selectable ? selectedIds.has(rowKey) : false}
+                  onToggle={selectable ? () => toggleRow(rowKey) : undefined}
                 />
               );
             })}
@@ -468,11 +529,15 @@ type JpkTableRowProps<T> = {
   onRowDoubleClick?: (row: T, index: number) => void;
   onRowContextMenu?: (row: T, index: number, ev: React.MouseEvent) => void;
   onSelectInternal?: (key: string) => void;
+  selectable?: boolean;
+  isChecked?: boolean;
+  onToggle?: () => void;
 };
 
 function JpkTableRowInner<T>({
   row, rowKey, rowIndex, columns, isSelected,
   onRowClick, onRowDoubleClick, onRowContextMenu, onSelectInternal,
+  selectable, isChecked, onToggle,
 }: JpkTableRowProps<T>) {
   return (
     <tr
@@ -492,8 +557,19 @@ function JpkTableRowInner<T>({
         onSelectInternal?.(rowKey);
         onRowContextMenu(row, rowIndex, ev);
       } : undefined}
-      className={isSelected ? 'is-selected' : undefined}
+      className={[isSelected ? 'is-selected' : '', isChecked ? 'is-checked' : ''].filter(Boolean).join(' ') || undefined}
     >
+      {selectable && (
+        <td className="jpk-td-checkbox align-center" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={!!isChecked}
+            onChange={onToggle}
+            aria-label="선택"
+            style={{ cursor: 'pointer' }}
+          />
+        </td>
+      )}
       {columns.map((c) => {
         const value = readValue(c, row, rowIndex);
         const display = c.cellRenderer

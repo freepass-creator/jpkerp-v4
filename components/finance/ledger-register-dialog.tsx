@@ -315,7 +315,8 @@ function ManualForm({
   const [deposit, setDeposit] = useState('');
   const [withdraw, setWithdraw] = useState('');
   const [balance, setBalance] = useState('');
-  const [memo, setMemo] = useState('');
+  const [summary, setSummary] = useState('');   // 통장 「적요」 — BZ뱅크 등 자유 텍스트
+  const [memo, setMemo] = useState('');         // 통장 「내용」 — 정유라 (145가1796) 등
   const [counterparty, setCounterparty] = useState('');
   const [method, setMethod] = useState<LedgerMethod>('인터넷뱅킹');
   const [note, setNote] = useState('');
@@ -332,6 +333,7 @@ function ManualForm({
       deposit: deposit ? Number(deposit) : undefined,
       withdraw: withdraw ? Number(withdraw) : undefined,
       balance: Number(balance) || 0,
+      summary: summary.trim() || undefined,
       memo,
       counterparty: counterparty || undefined,
       method,
@@ -367,8 +369,12 @@ function ManualForm({
             </select>
           </label>
           <label className="block col-span-2">
-            <span className="label label-required">적요</span>
-            <input className="input w-full" value={memo} onChange={(e) => setMemo(e.target.value)} />
+            <span className="label">적요 (통장)</span>
+            <input className="input w-full" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="BZ뱅크, CMS 자동이체 등 (선택)" />
+          </label>
+          <label className="block col-span-2">
+            <span className="label label-required">내용 (통장)</span>
+            <input className="input w-full" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="홍길동 (145가1796) 등" />
           </label>
           <label className="block col-span-2">
             <span className="label">상대 계좌·예금주</span>

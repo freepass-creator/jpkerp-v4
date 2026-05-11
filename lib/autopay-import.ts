@@ -107,8 +107,11 @@ function rowsToEntries(rows: unknown[][], ctx: AutopayImportContext): AutopayImp
     const memberNo = cellToString(row[cols.memberNo]) || undefined;
     const noteCell = cellToString(row[cols.note]) || '';
 
-    // memo: 결제수단 + 손님 + 차량 (자금일보에서 한눈에)
-    const memoParts = [method === '자동이체' ? 'CMS 자동이체' : method, customerName];
+    // summary (자금일보 「적요」 컬럼): 결제 채널 표기 — 자동이체면 "CMS 자동이체", 그 외 enum 라벨
+    const summary = method === '자동이체' ? 'CMS 자동이체' : method;
+
+    // memo (자금일보 「내용」 컬럼): 손님 + 차량 (통장 「내용」과 동등한 식별 텍스트)
+    const memoParts = [customerName];
     if (plate) memoParts.push(`(${plate})`);
     const memo = memoParts.join(' ');
 
@@ -127,6 +130,7 @@ function rowsToEntries(rows: unknown[][], ctx: AutopayImportContext): AutopayImp
       deposit: amount,
       withdraw: 0,
       balance: 0,                       // 자동이체 batch 는 잔액 정보 없음
+      summary,
       memo,
       counterparty: customerName,
       method,

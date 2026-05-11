@@ -101,7 +101,7 @@
       📂 엑셀 파일 선택
       <input type="file" id="bankFile" accept=".xlsx,.xls,.csv" style="display: none;" onchange="loadBankFile(event)" />
     </label>
-    <button class="secondary" onclick="resetAccumulated()">누적 초기화</button>
+    <button class="secondary" onclick="resetAccumulated()" style="color:var(--alert-red);border-color:var(--alert-red)">🗑 전체 초기화</button>
     <span class="hint" id="bankInfo"></span>
   </div>
   <div id="loadedBatches" class="hint"></div>
@@ -192,12 +192,21 @@ function renderBatches() {
 }
 
 function resetAccumulated() {
-  if (accumulated.length === 0) return;
-  if (!confirm('누적된 ' + accumulated.length + '건 데이터를 모두 지울까요?')) return;
+  const count = accumulated.length;
+  const hasTextarea = document.getElementById('inputData').value.trim().length > 0;
+  if (count === 0 && !hasTextarea) {
+    alert('지울 데이터가 없습니다.');
+    return;
+  }
+  if (!confirm(`전체 초기화 — 업로드 ${count}건 + textarea + 학습 패턴 모두 지울까요?`)) return;
+  // 모든 in-memory 데이터 클리어
   accumulated.length = 0;
+  memoPatternCache.clear();
   document.getElementById('bankInfo').textContent = '';
   document.getElementById('loadedBatches').innerHTML = '';
   document.getElementById('results').innerHTML = '';
+  document.getElementById('inputData').value = '';
+  document.getElementById('parseInfo').textContent = '';
 }
 
 function parseBankRows(rows, ctx) {
@@ -414,8 +423,9 @@ function renderResults(entries) {
       </div>
       <div class="row" style="margin-top:8px">
         <button onclick="autoClassify()">패턴 자동 분류</button>
-        <span class="hint">동일 내용으로 한번 분류한 패턴을 모든 미분류 행에 일괄 적용</span>
+        <button class="secondary" onclick="resetAccumulated()" style="color:var(--alert-red);border-color:var(--alert-red);margin-left:auto">🗑 전체 초기화</button>
       </div>
+      <div class="hint" style="margin-top:4px">동일 내용 패턴 자동 적용 / 전체 초기화 = 업로드·학습·textarea 모두 클리어</div>
     </div>
 
     <div class="card">

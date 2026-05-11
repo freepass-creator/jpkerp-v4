@@ -33,15 +33,45 @@ export type BankImportResult = {
 
 const DETECT_KEYWORDS = ['거래일', '입금', '출금', '잔액'];
 
+/**
+ * 통장 컬럼 → LedgerEntry 매핑.
+ *
+ *   적요 (BZ뱅크 등 결제 채널 표기)  → summary
+ *   내용 (정유라 (145가1796) 등 거래 메모) → memo
+ *   메모 (사용자 별도 메모 컬럼)         → note
+ *
+ * 신한·국민 등 대부분 은행 export 는 「적요」+「내용」 2 컬럼 구조. 「상대계좌」 별도
+ * 컬럼은 거의 없어 counterparty 는 memo 와 동일하게 fallback (dedup signature 호환).
+ */
 const COLUMN_MAP = {
   txDate:       ['거래일시', '거래일자', '거래일'],
   deposit:      ['입금액', '입금'],
   withdraw:     ['출금액', '출금'],
   balance:      ['잔액', '거래후잔액'],
-  memo:         ['적요'],
-  counterparty: ['내용', '거래내용', '상대'],
-  note:         ['메모'],
+  summary:      ['적요'],
+  memo:         ['내용', '거래내용'],
+  counterparty: ['상대계좌', '상대'],
+  note:         ['메모', '비고'],
 };
+
+/**
+ * 적요 원문 → LedgerMethod enum 파생. 키워드 매칭 (대소문자 무시).
+ *
+ *   CMS / 자동      → 자동이체
+ *   카드 / BC / VISA → 카드
+ *   ATM             → 무통장
+ *   현금            → 현금
+ *   그 외           → 인터넷뱅킹 (대부분 인터넷·모바일뱅킹 이체)
+ */
+function deriveMethod(summary: string): import('./sample-finance').LedgerMethod {
+  const t = summary.trim().toUpperCase();
+  if (!t) return '인터넷뱅킹';
+  if (t.includes('CMS') || t.includes('자동')) return '자동이체';
+  if (t.includes('카드') || t.includes('BC') || t.includes('VISA') || t.includes('마스터')) return '카드';
+  if (t.includes('ATM') || t.includes('무통장')) return '무통장';
+  if (t.includes('현금')) return '현금';
+  return '인터넷뱅킹';
+}
 
 function rowsToEntries(rows: unknown[][], ctx: BankImportContext): BankImportResult {
   const headerIdx = detectHeaderRow(rows, DETECT_KEYWORDS, 3);
@@ -63,8 +93,9 @@ function rowsToEntries(rows: unknown[][], ctx: BankImportContext): BankImportRes
     if (!deposit && !withdraw) { skipped++; continue; }
 
     const balance = cellToNumber(row[cols.balance]) ?? 0;
-    const memo = cellToString(row[cols.memo]);
-    const counterparty = cellToString(row[cols.counterparty]);
+    const summary = cellToString(row[cols.summary]);   // 적요 (BZ뱅크 등)
+    const memo = cellToString(row[cols.memo]);         // 내용 (정유라 등)
+    const counterpartyCol = cellToString(row[cols.counterparty]);
     const note = cellToString(row[cols.note]);
 
     const entry: LedgerEntry = {
@@ -75,9 +106,10 @@ function rowsToEntries(rows: unknown[][], ctx: BankImportContext): BankImportRes
       deposit,
       withdraw,
       balance,
-      memo: memo || counterparty,
-      counterparty: counterparty || undefined,
-      method: '인터넷뱅킹',
+      summary: summary || undefined,
+      memo: memo || summary,                            // 내용 비어있으면 적요로 fallback
+      counterparty: counterpartyCol || memo || undefined,  // dedup signature 호환 — 내용을 상대 식별자로 사용
+      method: deriveMethod(summary),
       note: note || undefined,
       uploadedAt,
     };
