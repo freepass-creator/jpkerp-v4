@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash, PencilSimple, ArrowsClockwise } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, ArrowsClockwise, UploadSimple } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
 import { SAMPLE_AUTOPAY, type Autopay } from '@/lib/sample-finance';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
+import { AutopayImportDialog } from '@/components/finance/autopay-import-dialog';
+import { useLedgerStore } from '@/lib/use-ledger-store';
+import { useCompanyStore } from '@/lib/use-company-store';
 import { cn } from '@/lib/cn';
 
 const FIELDS: FieldDef[] = [
@@ -30,7 +33,10 @@ export default function FinanceAutopayPage() {
   const [selected, setSelected] = useState<Autopay | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0 });
+  const [, setLedger] = useLedgerStore();
+  const [companies] = useCompanyStore();
 
   const active = items.filter((a) => a.status === '활성');
   const monthly = active.reduce((s, a) => s + a.monthlyAmount, 0);
@@ -87,10 +93,12 @@ export default function FinanceAutopayPage() {
           <span className="stat-item">월 합계 <strong>₩{monthly.toLocaleString('ko-KR')}</strong></span>
         </>}
         footerRight={<>
-          <button className="btn">엑셀</button>
+          <button className="btn btn-primary" onClick={() => setImportOpen(true)} title="CMS·카드 결제 결과 엑셀 → 자금일보 자동 등록">
+            <UploadSimple size={14} weight="bold" /> 결과 엑셀 업로드
+          </button>
           <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}><PencilSimple size={14} weight="bold" /> 수정</button>
           <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
-          <button className="btn btn-primary" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 자동이체 등록</button>
+          <button className="btn" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 마스터 등록</button>
         </>}
       >
         {items.length === 0 ? (
@@ -140,6 +148,15 @@ export default function FinanceAutopayPage() {
       <EntityFormDialog open={editOpen} onOpenChange={setEditOpen}
         title="자동이체 수정" fields={FIELDS} initial={editInitial}
         submitLabel="수정" onSubmit={handleUpdate} />
+      <AutopayImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        companies={companies}
+        onCreate={(entries) => {
+          setLedger((prev) => [...prev, ...entries]);
+          alert(`자금일보에 ${entries.length}건 등록 완료. 재무관리 → 자금일보에서 매칭/분류 진행.`);
+        }}
+      />
     </>
   );
 }
