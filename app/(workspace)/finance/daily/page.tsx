@@ -13,7 +13,9 @@ import {
 } from '@/lib/sample-finance';
 import { useLedgerStore } from '@/lib/use-ledger-store';
 import { useContractStore } from '@/lib/use-contract-store';
-import type { ScheduleEvent } from '@/lib/sample-contracts';
+import { useAssetStore } from '@/lib/use-asset-store';
+import type { Contract, ScheduleEvent } from '@/lib/sample-contracts';
+import type { Asset } from '@/lib/sample-assets';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { applyReceiptMatch, reverseReceiptMatch, autoMatchAll, type ReceiptCandidate } from '@/lib/receipt-match';
 import { JpkTable, type JpkColumn } from '@/components/shared/jpk-table';
@@ -88,7 +90,33 @@ export default function FinanceDailyPage() {
   // 수납 매칭 모달 — 행에서 [매칭] 클릭 시 열림
   const [matchTarget, setMatchTarget] = useState<LedgerEntry | null>(null);
   const [contracts, setContracts] = useContractStore();
+  const [assets] = useAssetStore();
   const audit = useAuditStamp();
+
+  // 매칭 contractNo → contract + asset(plate 매칭) 빠른 lookup
+  const contractByNo = useMemo(() => {
+    const m = new Map<string, Contract>();
+    for (const c of contracts) if (!c.deletedAt) m.set(c.contractNo, c);
+    return m;
+  }, [contracts]);
+  const assetByPlate = useMemo(() => {
+    const m = new Map<string, Asset>();
+    for (const a of assets) if (!a.deletedAt) m.set(a.plate, a);
+    return m;
+  }, [assets]);
+
+  /** ledger entry 에 매칭된 계약·자산 정보 derive — 차량번호/임차인/세부차종 컬럼용. */
+  function matchedInfo(e: LedgerEntry): { plate: string; customer: string; model: string } {
+    if (!e.matchedContract) return { plate: '', customer: '', model: '' };
+    const c = contractByNo.get(e.matchedContract);
+    if (!c) return { plate: '', customer: '', model: '' };
+    const a = assetByPlate.get(c.plate);
+    return {
+      plate: c.plate,
+      customer: c.customerName,
+      model: a?.vehicleName ?? a?.purchase?.vehicleSpecMemo ?? '',
+    };
+  }
 
   function handleMatch(candidate: ReceiptCandidate) {
     if (!matchTarget) return;
@@ -229,19 +257,30 @@ export default function FinanceDailyPage() {
   }, [filteredDaily]);
 
   /* ─── 매칭 뷰 컬럼 ─── */
+  /**
+   * 자금일보 컬럼 — 한국식 자금일보 표준 레이아웃.
+   *
+   * 거래일시 · 적요(method) · 입금액 · 출금액 · 내용(memo) · 잔액 · 거래점(account)
+   * · 계정과목 · 차량번호 · 임차인 · 세부차종 · 비고(note) · 구분(매칭상태)
+   *
+   * 차량번호/임차인/세부차종은 matchedContract → contract → asset 으로 derive.
+   * 비고는 인라인 텍스트 편집.
+   */
   const matchColumns = useMemo<JpkColumn<LedgerEntry>[]>(() => [
-    { headerName: '회사', field: 'companyCode', width: 80 },
-    { headerName: '거래일시', field: 'txDate', width: 130, sort: 'desc', filterType: 'date' },
-    { headerName: '입금', field: 'deposit', width: 110, align: 'right',
+    { headerName: '거래일시', field: 'txDate', width: 140, sort: 'desc', filterType: 'date' },
+    { headerName: '적요', field: 'method', width: 100 },
+    { headerName: '입금액', field: 'deposit', width: 110, align: 'right',
       filterType: 'range', filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
       valueFormatter: ({ value }) => fmtNum(value) },
-    { headerName: '출금', field: 'withdraw', width: 110, align: 'right',
+    { headerName: '출금액', field: 'withdraw', width: 110, align: 'right',
       filterType: 'range', filterStep: 100000, filterUnit: 10000, filterUnitLabel: '만원',
       valueFormatter: ({ value }) => fmtNum(value) },
-    { headerName: '적요', field: 'memo', minWidth: 140, flex: 1 },
-    { headerName: '상대', field: 'counterparty', width: 160 },
+    { headerName: '내용', field: 'memo', minWidth: 160, flex: 1 },
+    { headerName: '잔액', field: 'balance', width: 120, align: 'right',
+      valueFormatter: ({ value }) => fmtNum(value) },
+    { headerName: '거래점', field: 'account', width: 130 },
     {
-      headerName: '계정과목', field: 'subject', width: 140, filterable: true,
+      headerName: '계정과목', field: 'subject', width: 130, filterable: true,
       cellRenderer: ({ data }) => (
         <select
           className="input"
@@ -258,24 +297,24 @@ export default function FinanceDailyPage() {
       ),
     },
     {
-      headerName: '매칭 계약·회차', field: 'matchedContract', width: 180, filterable: false,
+      headerName: '차량번호', width: 110, filterable: true,
+      valueGetter: ({ data }) => matchedInfo(data).plate,
       cellRenderer: ({ data }) => {
-        const isReceipt = !!data.deposit;
-        if (data.matchedContract) {
+        const info = matchedInfo(data);
+        if (info.plate) {
           return (
             <button
               type="button"
               className="btn btn-sm"
               onClick={(e) => { e.stopPropagation(); setMatchTarget(data); }}
               style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12 }}
-              title="매칭 정보 보기 / 해제"
+              title={`${data.matchedContract}${data.matchedCycle != null ? ` · ${data.matchedCycle}회` : ''} — 매칭 정보 / 해제`}
             >
-              <span className="mono">{data.matchedContract}</span>
-              {data.matchedCycle != null && <span className="dim ml-1">· {data.matchedCycle}회</span>}
+              <span className="mono">{info.plate}</span>
             </button>
           );
         }
-        if (!isReceipt) return <span className="text-weak" style={{ fontSize: 11 }}>-</span>;
+        if (!data.deposit) return <span className="text-weak" style={{ fontSize: 11 }}>-</span>;
         return (
           <button
             type="button"
@@ -290,11 +329,32 @@ export default function FinanceDailyPage() {
       },
     },
     {
-      headerName: '상태', width: 80, align: 'center',
+      headerName: '임차인', width: 110,
+      valueGetter: ({ data }) => matchedInfo(data).customer,
+    },
+    {
+      headerName: '세부차종', width: 130,
+      valueGetter: ({ data }) => matchedInfo(data).model,
+    },
+    {
+      headerName: '비고', field: 'note', minWidth: 140, flex: 1,
+      cellRenderer: ({ data }) => (
+        <input
+          className="input"
+          value={data.note ?? ''}
+          onChange={(ev) => updateEntry(data.id, { note: ev.target.value || undefined })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="-"
+          style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12, background: 'transparent' }}
+        />
+      ),
+    },
+    {
+      headerName: '구분', width: 80, align: 'center',
       valueGetter: ({ data }) => STATUS_LABEL[matchStatus(data)],
       cellStyle: ({ data }) => ({ color: STATUS_COLOR[matchStatus(data)], fontWeight: 500 }),
     },
-  ], []);
+  ], [contractByNo, assetByPlate, updateEntry]);
 
   /* ─── 집계 뷰 컬럼 ─── */
   const summaryColumns = useMemo<JpkColumn<DailyRow>[]>(() => [
