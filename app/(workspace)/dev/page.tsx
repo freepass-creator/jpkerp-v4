@@ -763,3 +763,4 @@ function ReceiptSeedDialog({
     </Dialog>
   );
 }
+
