@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, FileXls, Pencil, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { useRef, useState } from 'react';
+import { Upload, UploadSimple, DownloadSimple, FileXls, Pencil, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
@@ -17,6 +17,8 @@ import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
 import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
 import { fileToImageDataUrl, pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
+import { parseAssetExcel, ASSET_EXCEL_HEADERS, type AssetImportResult } from '@/lib/asset-import';
+import { todayStr } from '@/lib/date-utils';
 
 type DuplicateReason = 'plate' | 'vin' | null;
 type AssetWorkItem = OcrBatchItem & {
@@ -184,16 +186,19 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
       )}
 
       <DialogContent title="자산 등록 (자동차등록증 기준)" size="xl">
-        <Tabs defaultValue="ocr">
+        <Tabs defaultValue="excel">
           <TabsList>
-            <TabsTrigger value="ocr">
-              <Upload size={14} className="mr-1.5 inline" /> OCR
+            <TabsTrigger value="excel">
+              <FileXls size={14} className="mr-1.5 inline" /> 엑셀
             </TabsTrigger>
             <TabsTrigger value="sheet">
-              <FileXls size={14} className="mr-1.5 inline" /> 시트
+              <UploadSimple size={14} className="mr-1.5 inline" /> 시트
             </TabsTrigger>
             <TabsTrigger value="manual">
               <Pencil size={14} className="mr-1.5 inline" /> 단건
+            </TabsTrigger>
+            <TabsTrigger value="ocr">
+              <Upload size={14} className="mr-1.5 inline" /> OCR
             </TabsTrigger>
           </TabsList>
 
@@ -213,6 +218,28 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
               </select>
             </label>
           </div>
+
+          <TabsContent value="excel">
+            <AssetExcelTab
+              defaultCompanyCode={defaultCompanyCode}
+              onSubmit={(rows) => {
+                // 일괄 등록 — 회사별 자산코드 생성
+                const newCodes = new Set<string>();
+                for (const r of rows) {
+                  if (r.errors.length > 0 || !r.data.companyCode || !r.data.plate) continue;
+                  const allCodes = [...assets.map((a) => a.assetCode ?? ''), ...newCodes];
+                  const code = nextCompanyScopedCode('VH', r.data.companyCode, allCodes, { pad: 4 });
+                  newCodes.add(code);
+                  onCreate({
+                    ...r.data,
+                    assetCode: code,
+                    id: code,
+                  } as Asset);
+                }
+                setOpen(false);
+              }}
+            />
+          </TabsContent>
 
           <TabsContent value="ocr">
             <div className="space-y-3">
@@ -368,4 +395,149 @@ function AssetItemStatus({ item }: { item: AssetWorkItem }) {
     return <StatusBadge tone="orange" icon={<Warning size={11} weight="fill" />} title="등록된 회사와 매칭 실패">미매칭</StatusBadge>;
   }
   return <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>;
+}
+
+/* ─── 엑셀 일괄 등록 탭 ─── */
+function AssetExcelTab({
+  defaultCompanyCode, onSubmit,
+}: {
+  defaultCompanyCode: string;
+  onSubmit: (rows: { data: Partial<Asset>; errors: string[] }[]) => void;
+}) {
+  const [result, setResult] = useState<AssetImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function loadFile(file: File) {
+    setError(''); setBusy(true);
+    try {
+      const r = await parseAssetExcel(file, { defaultCompanyCode });
+      setResult(r);
+      if (!r.detected) setError('헤더(차량번호·차대번호·차명 등)를 찾지 못했습니다.');
+      else if (!r.rows.length) setError(`인식된 자산이 없습니다. (전체 ${r.total} / 건너뜀 ${r.skipped})`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadTemplate() {
+    setDownloading(true);
+    try {
+      const XLSX = await import('xlsx');
+      const aoa: (string | number)[][] = [
+        [...ASSET_EXCEL_HEADERS],
+        ['CP01', '12가1234', 'KMHE0000000000000', '쏘렌토 MQ4', '승용자동차', '자가용', '회사명 또는 소유자', '2024-01-15', '기아', '쏘렌토', '검정', '하이브리드'],
+      ];
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
+      sheet['!cols'] = ASSET_EXCEL_HEADERS.map((h) => ({ wch: h.length > 6 ? 16 : 12 }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, '자산');
+      XLSX.writeFile(wb, `자산_양식_${todayStr()}.xlsx`);
+    } catch (e) {
+      alert(`양식 다운로드 실패: ${(e as Error).message}`);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  const okCount = result?.rows.filter((r) => r.errors.length === 0).length ?? 0;
+  const errCount = result?.rows.filter((r) => r.errors.length > 0).length ?? 0;
+
+  return (
+    <div className="space-y-3" style={{ paddingTop: 8 }}>
+      <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
+        <strong>엑셀 일괄 등록</strong>
+        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 자산 작성 (자동차등록증 항목)
+        <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 차량번호 형식 검증
+        <br />· ③ 미리보기 후 [등록] — 회사별 자산코드 자동 부여
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
+          <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드'}
+        </button>
+        <span className="text-weak text-xs">컬럼: {ASSET_EXCEL_HEADERS.join(' · ')}</span>
+      </div>
+
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void loadFile(f); }}
+        onClick={() => fileRef.current?.click()}
+        style={{
+          border: '2px dashed var(--border)', borderRadius: 6, padding: 24, textAlign: 'center',
+          cursor: 'pointer', background: 'var(--bg-card)',
+        }}
+      >
+        <UploadSimple size={24} weight="bold" />
+        <div style={{ marginTop: 6 }}>{busy ? '읽는 중...' : '엑셀 파일을 드롭하거나 클릭하여 선택'}</div>
+        <div className="text-weak text-xs" style={{ marginTop: 4 }}>.xlsx / .xls / .csv</div>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFile(f); }} />
+      </div>
+
+      {error && (
+        <div style={{ color: 'var(--alert-red-text)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Warning size={14} weight="fill" /> {error}
+        </div>
+      )}
+
+      {result && result.rows.length > 0 && (
+        <>
+          <div className="text-xs" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--success-green-bg, #e7f5ea)', borderRadius: 4 }}>
+            <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
+            <span>
+              <strong>{result.rows.length}건</strong> · 등록 가능 <strong>{okCount}</strong>
+              {errCount > 0 && <> · 오류 <span className="text-red">{errCount}건 제외</span></>}
+              {result.skipped > 0 && <span className="dim"> · 건너뜀 {result.skipped}</span>}
+            </span>
+          </div>
+          <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid var(--border)' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 60 }}>상태</th>
+                  <th style={{ width: 80 }}>회사</th>
+                  <th style={{ width: 100 }}>차량</th>
+                  <th style={{ width: 160 }}>차대번호</th>
+                  <th>차명</th>
+                  <th>오류</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.slice(0, 30).map((r, i) => (
+                  <tr key={i}>
+                    <td>
+                      {r.errors.length > 0
+                        ? <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />}>오류</StatusBadge>
+                        : <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>}
+                    </td>
+                    <td className="mono">{r.data.companyCode || <span className="dim">-</span>}</td>
+                    <td className="mono">{r.data.plate || '-'}</td>
+                    <td className="mono text-xs">{r.data.vin || '-'}</td>
+                    <td>{r.data.vehicleName || '-'}</td>
+                    <td className="text-red text-xs">{r.errors.join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {result.rows.length > 30 && (
+              <div className="text-weak text-xs" style={{ padding: 6, textAlign: 'center' }}>... 외 {result.rows.length - 30}건</div>
+            )}
+          </div>
+        </>
+      )}
+
+      <button
+        className="btn btn-primary"
+        disabled={!result || okCount === 0 || busy}
+        onClick={() => result && onSubmit(result.rows)}
+      >
+        {okCount > 0 ? `${okCount}건 등록` : '등록'}
+      </button>
+    </div>
+  );
 }
