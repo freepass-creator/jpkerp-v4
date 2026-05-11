@@ -127,8 +127,16 @@ CP01	신한 110-490-539641	2026-03-30	1070000		대여료	자동이체	정유라"
 <script>
 const W = (n) => '₩' + (Math.round(n || 0)).toLocaleString('ko-KR');
 
+// 계정과목 옵션 — v4 sample-finance.ts 와 동일.
+const RECEIPT_SUBJECTS = ['대여료', '면책금', '위약금', '보증금환급', '기타수납'];
+const EXPENSE_SUBJECTS = ['정비', '보험료', '할부', '주유', '통행료', '식대', '카드대금', '세금', '수수료', '기타지출'];
+const INTERNAL_SUBJECTS = ['계좌이체', '환불', '미분류'];
+
+// memo 패턴 → 계정과목 학습 (같은 메모면 자동 분류)
+const memoPatternCache = new Map();
+
 // ─── 누적 데이터 — 여러 통장 업로드 시 합치기 ───
-const accumulated = []; // [{ company, account, deposit, withdraw, subject, matched }]
+const accumulated = []; // 각 entry 에 id (인덱스) 부여
 
 function loadBankFile(ev) {
   const file = ev.target.files[0];
@@ -342,23 +350,59 @@ function analyze() {
   renderResults(entries);
 }
 
-function renderResults(entries) {
-  // 거래처(예금주)별 집계 (상단 요약)
-  const groups = new Map();
-  let totalTx = 0, totalDep = 0, totalWd = 0;
-  for (const e of entries) {
-    const cp = (e.counterparty || e.memo || '(미상)').trim() || '(미상)';
-    let g = groups.get(cp);
-    if (!g) g = { counterparty: cp, txCount: 0, deposit: 0, withdraw: 0 };
-    g.txCount++;
-    g.deposit += e.deposit;
-    g.withdraw += e.withdraw;
-    groups.set(cp, g);
-    totalTx++; totalDep += e.deposit; totalWd += e.withdraw;
+function applySubject(entryIdx, subject) {
+  const e = accumulated[entryIdx];
+  if (!e) return;
+  e.subject = subject;
+  // 같은 memo 패턴 학습 — 다음 같은 내용 들어오면 자동 적용
+  if (e.memo) memoPatternCache.set(e.memo, subject);
+  // 미분류 동일 memo 도 같이 적용
+  let applied = 0;
+  for (const x of accumulated) {
+    if (!x.subject && x.memo === e.memo) { x.subject = subject; applied++; }
   }
-  const cpList = Array.from(groups.values()).sort((a, b) => b.deposit - a.deposit);
+  renderResults(accumulated);
+}
 
-  // 통계 + 거래처 요약 카드
+function autoClassify() {
+  // 학습된 패턴으로 모든 미분류 행 일괄 적용
+  let applied = 0;
+  for (const e of accumulated) {
+    if (!e.subject && e.memo) {
+      const guess = memoPatternCache.get(e.memo);
+      if (guess) { e.subject = guess; applied++; }
+    }
+  }
+  alert(`자동 분류 ${applied}건 적용`);
+  renderResults(accumulated);
+}
+
+function renderResults(entries) {
+  // 분류별 합계
+  const bySubject = new Map();
+  let totalTx = 0, totalDep = 0, totalWd = 0, unpostedDep = 0, unpostedWd = 0;
+  for (const e of entries) {
+    const subj = e.subject || '(미분류)';
+    const s = bySubject.get(subj) || { subject: subj, txCount: 0, deposit: 0, withdraw: 0 };
+    s.txCount++;
+    s.deposit += e.deposit;
+    s.withdraw += e.withdraw;
+    bySubject.set(subj, s);
+    totalTx++;
+    totalDep += e.deposit;
+    totalWd += e.withdraw;
+    if (!e.subject) {
+      unpostedDep += e.deposit;
+      unpostedWd += e.withdraw;
+    }
+  }
+  const subjectList = Array.from(bySubject.values()).sort((a, b) => {
+    if (a.subject === '(미분류)') return -1;
+    if (b.subject === '(미분류)') return 1;
+    return (b.deposit + b.withdraw) - (a.deposit + a.withdraw);
+  });
+
+  // 상단 통계
   let html = `
     <div class="card">
       <div class="stat-row">
@@ -366,8 +410,39 @@ function renderResults(entries) {
         <div class="stat"><span class="stat-label">입금합계</span> <span class="stat-value pos">${W(totalDep)}</span></div>
         <div class="stat"><span class="stat-label">출금합계</span> <span class="stat-value neg">${W(totalWd)}</span></div>
         <div class="stat"><span class="stat-label">차액</span> <span class="stat-value ${totalDep-totalWd>=0?'pos':'neg'}">${(totalDep-totalWd>=0?'+':'')}${W(totalDep-totalWd)}</span></div>
-        <div class="stat"><span class="stat-label">거래처</span> <span class="stat-value">${cpList.length}</span></div>
+        <div class="stat"><span class="stat-label">미분류</span> <span class="stat-value red">${unpostedDep+unpostedWd>0?W(unpostedDep+unpostedWd):'0'}</span></div>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button onclick="autoClassify()">패턴 자동 분류</button>
+        <span class="hint">동일 내용으로 한번 분류한 패턴을 모든 미분류 행에 일괄 적용</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin: 0 0 8px 0; font-size: 13px;">계정과목별 합계</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>계정과목</th>
+            <th class="num" style="width:60px">건수</th>
+            <th class="num" style="width:140px">입금합계</th>
+            <th class="num" style="width:140px">출금합계</th>
+          </tr>
+        </thead>
+        <tbody>`;
+  for (const s of subjectList) {
+    const isUn = s.subject === '(미분류)';
+    html += `
+      <tr>
+        <td class="${isUn?'red':''}"><strong>${s.subject}</strong></td>
+        <td class="num">${s.txCount}</td>
+        <td class="num ${s.deposit>0?'pos':''}">${s.deposit>0?W(s.deposit):'<span class="dim">-</span>'}</td>
+        <td class="num ${s.withdraw>0?'neg':''}">${s.withdraw>0?W(s.withdraw):'<span class="dim">-</span>'}</td>
+      </tr>`;
+  }
+  html += `
+        </tbody>
+      </table>
     </div>`;
 
   // 자금일보 형태 — per-transaction (시간순 정렬)
@@ -402,6 +477,14 @@ function renderResults(entries) {
     const status = subject && matched ? '<span style="color:var(--success)">마감</span>'
                  : subject ? '<span style="color:var(--alert-amber)">분개</span>'
                  : '<span style="color:var(--alert-red)">미분개</span>';
+    const accIdx = accumulated.indexOf(e);
+    // 입금 / 출금 / 둘 다 가능 — 상황별 옵션
+    const opts = e.deposit > 0
+      ? [...RECEIPT_SUBJECTS, ...INTERNAL_SUBJECTS]
+      : e.withdraw > 0
+        ? [...EXPENSE_SUBJECTS, ...INTERNAL_SUBJECTS]
+        : [...RECEIPT_SUBJECTS, ...EXPENSE_SUBJECTS, ...INTERNAL_SUBJECTS];
+    const optHtml = opts.map(s => `<option value="${s}" ${s===subject?'selected':''}>${s}</option>`).join('');
     html += `
       <tr>
         <td class="num dim">${idx + 1}</td>
@@ -412,7 +495,13 @@ function renderResults(entries) {
         <td><strong>${e.counterparty || '<span class="dim">-</span>'}</strong></td>
         <td class="num dim">${e.balance != null && e.balance !== '' ? W(e.balance) : '-'}</td>
         <td class="dim" style="font-size:11px">${e.branch || e.account || '-'}</td>
-        <td class="dim">${subject || '<span class="dim">-</span>'}</td>
+        <td>
+          <select onchange="applySubject(${accIdx}, this.value)"
+            style="width:100%;padding:2px 4px;font-size:11px;font-family:inherit;border:1px solid var(--border);border-radius:3px;${subject ? '' : 'background:#fef3c7;'}">
+            <option value="">${subject ? '— 분류 해제 —' : '- 선택 -'}</option>
+            ${optHtml}
+          </select>
+        </td>
         <td class="mono dim">${e.matchedPlate || '<span class="dim">-</span>'}</td>
         <td class="dim">${e.matchedCustomer || '<span class="dim">-</span>'}</td>
         <td class="dim">${e.matchedModel || '<span class="dim">-</span>'}</td>
@@ -425,30 +514,38 @@ function renderResults(entries) {
       </table>
     </div>`;
 
-  // 거래처별 요약 (collapsible)
+  // 메모 패턴별 집계 (collapsible) — 같은 통장 내용 (memo) 끼리 묶음
+  const byMemo = new Map();
+  for (const e of entries) {
+    const k = (e.memo || '(빈 내용)').trim() || '(빈 내용)';
+    const m = byMemo.get(k) || { memo: k, txCount: 0, deposit: 0, withdraw: 0, subject: '' };
+    m.txCount++; m.deposit += e.deposit; m.withdraw += e.withdraw;
+    if (e.subject && !m.subject) m.subject = e.subject;
+    byMemo.set(k, m);
+  }
+  const memoList = Array.from(byMemo.values()).sort((a, b) => (b.deposit + b.withdraw) - (a.deposit + a.withdraw));
   html += `
-    <details class="card" open>
-      <summary style="cursor:pointer;font-weight:500;font-size:13px;">📊 거래처별 집계 — 누가 보냈는지 (${cpList.length}건, 받은 돈 순)</summary>
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:500;font-size:13px;">📋 통장 내용별 집계 — 같은 패턴 묶음 (${memoList.length}건)</summary>
       <table style="margin-top:8px">
         <thead>
           <tr>
-            <th>거래처 (예금주)</th>
+            <th>통장 내용 (memo)</th>
             <th class="num" style="width:60px">건수</th>
-            <th class="num" style="width:140px">받은 돈</th>
-            <th class="num" style="width:140px">보낸 돈</th>
-            <th class="num" style="width:140px">차액</th>
+            <th class="num" style="width:140px">입금</th>
+            <th class="num" style="width:140px">출금</th>
+            <th style="width:120px">학습된 계정과목</th>
           </tr>
         </thead>
         <tbody>`;
-  for (const g of cpList) {
-    const net = g.deposit - g.withdraw;
+  for (const m of memoList) {
     html += `
       <tr>
-        <td><strong>${g.counterparty}</strong></td>
-        <td class="num">${g.txCount}</td>
-        <td class="num ${g.deposit>0?'pos':''}">${g.deposit>0 ? W(g.deposit) : '<span class="dim">-</span>'}</td>
-        <td class="num ${g.withdraw>0?'neg':''}">${g.withdraw>0 ? W(g.withdraw) : '<span class="dim">-</span>'}</td>
-        <td class="num ${net>=0?'pos':'neg'}">${net>=0?'+':''}${W(net)}</td>
+        <td><strong>${m.memo}</strong></td>
+        <td class="num">${m.txCount}</td>
+        <td class="num ${m.deposit>0?'pos':''}">${m.deposit>0?W(m.deposit):'<span class="dim">-</span>'}</td>
+        <td class="num ${m.withdraw>0?'neg':''}">${m.withdraw>0?W(m.withdraw):'<span class="dim">-</span>'}</td>
+        <td class="dim">${m.subject || '<span class="red">미분류</span>'}</td>
       </tr>`;
   }
   html += `
