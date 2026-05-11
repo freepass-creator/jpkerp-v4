@@ -267,6 +267,17 @@ export default function FinanceDailyPage() {
    * 비고는 인라인 텍스트 편집.
    */
   const matchColumns = useMemo<JpkColumn<LedgerEntry>[]>(() => [
+    {
+      headerName: '구분', width: 84, align: 'center', filterable: true,
+      valueGetter: ({ data }) => STATUS_LABEL[matchStatus(data)],
+      cellRenderer: ({ data }) => {
+        const s = matchStatus(data);
+        const cls = s === 'matched' ? 'badge-green' : s === 'classified' ? 'badge-orange' : 'badge-red';
+        return <span className={`badge ${cls}`}>{STATUS_LABEL[s]}</span>;
+      },
+    },
+    { headerName: '회사', field: 'companyCode', width: 70, filterable: true },
+    { headerName: '계좌', field: 'account', width: 160, filterable: true },
     { headerName: '거래일시', field: 'txDate', width: 140, sort: 'desc', filterType: 'date' },
     { headerName: '적요', field: 'method', width: 100 },
     { headerName: '입금액', field: 'deposit', width: 110, align: 'right',
@@ -278,7 +289,6 @@ export default function FinanceDailyPage() {
     { headerName: '내용', field: 'memo', minWidth: 160, flex: 1 },
     { headerName: '잔액', field: 'balance', width: 120, align: 'right',
       valueFormatter: ({ value }) => fmtNum(value) },
-    { headerName: '거래점', field: 'account', width: 130 },
     {
       headerName: '계정과목', field: 'subject', width: 130, filterable: true,
       cellRenderer: ({ data }) => (
@@ -348,11 +358,6 @@ export default function FinanceDailyPage() {
           style={{ width: '100%', height: 22, padding: '0 4px', fontSize: 12, background: 'transparent' }}
         />
       ),
-    },
-    {
-      headerName: '구분', width: 80, align: 'center',
-      valueGetter: ({ data }) => STATUS_LABEL[matchStatus(data)],
-      cellStyle: ({ data }) => ({ color: STATUS_COLOR[matchStatus(data)], fontWeight: 500 }),
     },
   ], [contractByNo, assetByPlate, updateEntry]);
 
