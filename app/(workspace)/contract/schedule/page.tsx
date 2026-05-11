@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { CaretRight } from '@phosphor-icons/react';
+import { CaretRight, Calendar } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
@@ -47,6 +48,14 @@ export default function ContractScheduleMasterPage() {
       }
       footerRight={<button className="btn">엑셀</button>}
     >
+      {summaries.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="계약 스케줄 없음"
+          description="계약 등록 시 출고·수납·검사·정비 회차가 자동 생성됩니다."
+          hint={<>① 계약관리 메뉴에서 계약 등록<br />② 시작일·만기일·월대여료 입력 시 회차 events 자동 생성<br />③ 행 클릭 → 계약별 상세 스케줄 + 회차 토글</>}
+        />
+      ) : (
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -99,6 +108,7 @@ export default function ContractScheduleMasterPage() {
           </tbody>
         </table>
       </div>
+      )}
     </PageShell>
   );
 }

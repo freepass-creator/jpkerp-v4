@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ShoppingCart, CheckCircle, Warning } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAssetStore } from '@/lib/use-asset-store';
 import { useContractStore } from '@/lib/use-contract-store';
 import { ASSET_SUBTABS, useAssetSubtabPending } from '@/lib/asset-subtabs';
@@ -77,9 +78,12 @@ export default function PurchaseListPage() {
     >
       <div style={{ padding: 12 }}>
         {rows.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 48 }} className="text-weak text-xs">
-            진행중인 차량구매 없음. 우측 하단 <strong>+ 차량구매</strong> 로 시작하세요.
-          </div>
+          <EmptyState
+            icon={ShoppingCart}
+            title="진행중인 차량구매 없음"
+            description="신차 구매부터 고객인도까지 8단계 흐름으로 진행됩니다."
+            hint={<>① 우측 하단 <strong>+ 차량구매</strong> 로 시작 (선도/계약매칭)<br />② 자산이 placeholder 차량번호로 즉시 push, 단계별 완료처리<br />③ 차량등록 단계에서 자동차등록증 발급 후 실제 plate 교체</>}
+          />
         ) : (
           <table className="table">
             <thead>
