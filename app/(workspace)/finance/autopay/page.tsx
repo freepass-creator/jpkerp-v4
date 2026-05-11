@@ -93,12 +93,11 @@ export default function FinanceAutopayPage() {
           <span className="stat-item">월 합계 <strong>₩{monthly.toLocaleString('ko-KR')}</strong></span>
         </>}
         footerRight={<>
-          <button className="btn btn-primary" onClick={() => setImportOpen(true)} title="CMS·카드 결제 결과 엑셀 → 자금일보 자동 등록">
-            <UploadSimple size={14} weight="bold" /> 결과 엑셀 업로드
-          </button>
           <button className="btn" disabled={!selected} onClick={() => setEditOpen(true)}><PencilSimple size={14} weight="bold" /> 수정</button>
           <button className="btn" disabled={!selected} onClick={handleDelete}><Trash size={14} weight="bold" /> 삭제</button>
-          <button className="btn" onClick={() => setRegisterOpen(true)}><Plus size={14} weight="bold" /> 마스터 등록</button>
+          <button className="btn btn-primary" onClick={() => setImportOpen(true)}>
+            <Plus size={14} weight="bold" /> 자동이체 등록
+          </button>
         </>}
       >
         {items.length === 0 ? (
