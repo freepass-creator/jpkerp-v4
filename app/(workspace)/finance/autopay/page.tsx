@@ -5,7 +5,8 @@ import { Plus, Trash, PencilSimple, ArrowsClockwise, UploadSimple } from '@phosp
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
-import { SAMPLE_AUTOPAY, type Autopay } from '@/lib/sample-finance';
+import { type Autopay } from '@/lib/sample-finance';
+import { useAutopayStore } from '@/lib/use-autopay-store';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { AutopayImportDialog } from '@/components/finance/autopay-import-dialog';
@@ -29,7 +30,8 @@ const FIELDS: FieldDef[] = [
 ];
 
 export default function FinanceAutopayPage() {
-  const [items, setItems] = useState<Autopay[]>(SAMPLE_AUTOPAY);
+  const [allItems, setItems] = useAutopayStore();
+  const items = allItems.filter((a) => !a.deletedAt);
   const [selected, setSelected] = useState<Autopay | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

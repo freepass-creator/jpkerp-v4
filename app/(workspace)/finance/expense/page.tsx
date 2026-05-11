@@ -5,7 +5,8 @@ import { Plus, Trash, PencilSimple, Copy, Receipt } from '@phosphor-icons/react'
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
-import { SAMPLE_EXPENSE, EXPENSE_SUBJECTS, type Expense } from '@/lib/sample-finance';
+import { EXPENSE_SUBJECTS, type Expense } from '@/lib/sample-finance';
+import { useExpenseStore } from '@/lib/use-expense-store';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { PERIODS, periodRange, isInRange, type Period } from '@/lib/period-filter';
@@ -29,7 +30,8 @@ const FIELDS: FieldDef[] = [
 ];
 
 export default function FinanceExpensePage() {
-  const [items, setItems] = useState<Expense[]>(SAMPLE_EXPENSE);
+  const [allItems, setItems] = useExpenseStore();
+  const items = useMemo(() => allItems.filter((e) => !e.deletedAt), [allItems]);
   const [selected, setSelected] = useState<Expense | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

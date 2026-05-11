@@ -5,7 +5,8 @@ import { Plus, Trash, PencilSimple, Copy, CreditCard } from '@phosphor-icons/rea
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
-import { SAMPLE_CARD, type CardUsage } from '@/lib/sample-finance';
+import { type CardUsage } from '@/lib/sample-finance';
+import { useCardStore } from '@/lib/use-card-store';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { cn } from '@/lib/cn';
@@ -26,7 +27,8 @@ const FIELDS: FieldDef[] = [
 ];
 
 export default function FinanceCardPage() {
-  const [items, setItems] = useState<CardUsage[]>(SAMPLE_CARD);
+  const [allItems, setItems] = useCardStore();
+  const items = allItems.filter((c) => !c.deletedAt);
   const [selected, setSelected] = useState<CardUsage | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

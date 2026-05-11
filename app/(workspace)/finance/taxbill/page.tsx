@@ -5,7 +5,8 @@ import { Plus, Trash, PencilSimple, FileText } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FINANCE_SUBTABS } from '@/lib/finance-subtabs';
-import { SAMPLE_TAXBILL, type Taxbill } from '@/lib/sample-finance';
+import { type Taxbill } from '@/lib/sample-finance';
+import { useTaxbillStore } from '@/lib/use-taxbill-store';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
 import { cn } from '@/lib/cn';
@@ -29,7 +30,8 @@ const FIELDS = (view: TaxbillView): FieldDef[] => [
 ];
 
 export default function FinanceTaxbillPage() {
-  const [items, setItems] = useState<Taxbill[]>(SAMPLE_TAXBILL);
+  const [allItems, setItems] = useTaxbillStore();
+  const items = useMemo(() => allItems.filter((t) => !t.deletedAt), [allItems]);
   const [view, setView] = useState<TaxbillView>('매출');
   const [selected, setSelected] = useState<Taxbill | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);

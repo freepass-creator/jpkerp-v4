@@ -64,7 +64,8 @@ export type Autopay = {
   endDate?: string;
   status: '활성' | '중지';
   note?: string;
-};
+  deletedAt?: string;
+} & AuditFields;
 
 export const SAMPLE_AUTOPAY: Autopay[] = [];
 
@@ -82,7 +83,8 @@ export type CardUsage = {
   matchedPlate?: string;
   matchedContract?: string;
   note?: string;
-};
+  deletedAt?: string;
+} & AuditFields;
 
 export const SAMPLE_CARD: CardUsage[] = [];
 
@@ -101,7 +103,8 @@ export type Expense = {
   payMethod: string;
   taxbillNo?: string;
   status: '확정' | '대기';
-};
+  deletedAt?: string;
+} & AuditFields;
 
 export const SAMPLE_EXPENSE: Expense[] = [];
 
@@ -120,6 +123,7 @@ export type Taxbill = {
   matchedTx?: string;        // 결제 매칭
   status: '발급' | '전송' | '예정';
   note?: string;
-};
+  deletedAt?: string;
+} & AuditFields;
 
 export const SAMPLE_TAXBILL: Taxbill[] = [];
