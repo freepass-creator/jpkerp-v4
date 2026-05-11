@@ -299,13 +299,13 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
             <TabsTrigger value="ocr">
-              <Upload size={14} className="mr-1.5 inline" /> 계약서 OCR (다건)
+              <Upload size={14} className="mr-1.5 inline" /> OCR
             </TabsTrigger>
             <TabsTrigger value="sheet">
-              <FileXls size={14} className="mr-1.5 inline" /> 시트 (다건)
+              <FileXls size={14} className="mr-1.5 inline" /> 시트
             </TabsTrigger>
             <TabsTrigger value="manual">
-              <Pencil size={14} className="mr-1.5 inline" /> 개별 입력
+              <Pencil size={14} className="mr-1.5 inline" /> 단건
             </TabsTrigger>
           </TabsList>
 

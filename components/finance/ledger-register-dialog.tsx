@@ -139,13 +139,13 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
         <Tabs defaultValue="excel">
           <TabsList>
             <TabsTrigger value="excel">
-              <UploadSimple size={14} className="mr-1.5 inline" /> 엑셀 업로드
-            </TabsTrigger>
-            <TabsTrigger value="manual">
-              <Pencil size={14} className="mr-1.5 inline" /> 개별 입력
+              <FileXls size={14} className="mr-1.5 inline" /> 엑셀
             </TabsTrigger>
             <TabsTrigger value="sheet">
-              <FileXls size={14} className="mr-1.5 inline" /> 시트 (다건)
+              <UploadSimple size={14} className="mr-1.5 inline" /> 시트
+            </TabsTrigger>
+            <TabsTrigger value="manual">
+              <Pencil size={14} className="mr-1.5 inline" /> 단건
             </TabsTrigger>
           </TabsList>
 

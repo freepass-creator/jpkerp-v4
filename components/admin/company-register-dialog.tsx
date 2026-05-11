@@ -346,13 +346,13 @@ export function CompanyRegisterDialog({ onCreate, onUpdate, initial, mode, exist
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'ocr' | 'manual')}>
             <TabsList>
               <TabsTrigger value="ocr">
-                <Upload size={14} className="mr-1.5 inline" /> 사업자등록증 OCR
-              </TabsTrigger>
-              <TabsTrigger value="manual">
-                <Pencil size={14} className="mr-1.5 inline" /> 개별 입력
+                <Upload size={14} className="mr-1.5 inline" /> OCR
               </TabsTrigger>
               <TabsTrigger value="sheet" disabled>
-                <FileXls size={14} className="mr-1.5 inline" /> 시트 (다건)
+                <FileXls size={14} className="mr-1.5 inline" /> 시트
+              </TabsTrigger>
+              <TabsTrigger value="manual">
+                <Pencil size={14} className="mr-1.5 inline" /> 단건
               </TabsTrigger>
             </TabsList>
 

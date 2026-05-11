@@ -180,13 +180,13 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
         <Tabs defaultValue="ocr">
           <TabsList>
             <TabsTrigger value="ocr">
-              <Upload size={14} className="mr-1.5 inline" /> 등록증 OCR
-            </TabsTrigger>
-            <TabsTrigger value="manual">
-              <Pencil size={14} className="mr-1.5 inline" /> 개별 입력
+              <Upload size={14} className="mr-1.5 inline" /> OCR
             </TabsTrigger>
             <TabsTrigger value="sheet">
-              <FileXls size={14} className="mr-1.5 inline" /> 시트 (다건)
+              <FileXls size={14} className="mr-1.5 inline" /> 시트
+            </TabsTrigger>
+            <TabsTrigger value="manual">
+              <Pencil size={14} className="mr-1.5 inline" /> 단건
             </TabsTrigger>
           </TabsList>
 
