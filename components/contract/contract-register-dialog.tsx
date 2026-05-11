@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise, FilePdf } from '@phosphor-icons/react';
+import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise, FilePdf, DownloadSimple, UploadSimple, FileArrowDown } from '@phosphor-icons/react';
+import { useRef } from 'react';
+import { parseContractExcel, CONTRACT_EXCEL_HEADERS, type ContractImportResult } from '@/lib/contract-import';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
@@ -234,7 +236,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
     onOpenChange?.(v);
   };
 
-  const [tab, setTab] = useState<'ocr' | 'sheet' | 'manual'>('ocr');
+  const [tab, setTab] = useState<'excel' | 'sheet' | 'manual' | 'ocr'>('excel');
 
   // 기본 회사 — 모든 탭 공통. 새 OCR row / manual / sheet 의 default 채움.
   const activeCompanyList = companies.filter((c) => !c.deletedAt);
@@ -266,7 +268,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
     ocr.reset();
     setSheetText('');
     setDraft(EMPTY_DRAFT);
-    setTab('ocr');
+    setTab('excel');
   }
 
   function handleClose(o: boolean) {
@@ -304,14 +306,17 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
       <DialogContent title="계약 등록" size="xl">
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
-            <TabsTrigger value="ocr">
-              <Upload size={14} className="mr-1.5 inline" /> OCR
+            <TabsTrigger value="excel">
+              <FileXls size={14} className="mr-1.5 inline" /> 엑셀
             </TabsTrigger>
             <TabsTrigger value="sheet">
               <FileXls size={14} className="mr-1.5 inline" /> 시트
             </TabsTrigger>
             <TabsTrigger value="manual">
               <Pencil size={14} className="mr-1.5 inline" /> 단건
+            </TabsTrigger>
+            <TabsTrigger value="ocr">
+              <Upload size={14} className="mr-1.5 inline" /> OCR (계약서 PDF)
             </TabsTrigger>
           </TabsList>
 
@@ -331,6 +336,17 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
               </select>
             </label>
           </div>
+
+          {/* ── 엑셀 일괄 등록 ── */}
+          <TabsContent value="excel">
+            <ContractExcelTab
+              defaultCompanyCode={defaultCompanyCode}
+              onSubmit={(rows) => {
+                rows.forEach((r) => onCreate(r.data as ContractDraft));
+                handleClose(false);
+              }}
+            />
+          </TabsContent>
 
           {/* ── OCR 다건 ── */}
           <TabsContent value="ocr">
@@ -895,6 +911,226 @@ function DriversEditor({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─────────────────── 엑셀 일괄 등록 탭 ───────────────────
+   양식 다운로드 → 사용자 작성 후 업로드 → 자동 헤더 검출 → 미리보기 표.
+   계좌내역과 동일 UX — 컬럼 & 체크박스 미리 준비된 표가 항상 보이고,
+   업로드 시 행이 채워짐. 체크박스로 등록할 행 선별 후 한 번에 [등록].
+*/
+function ContractExcelTab({
+  defaultCompanyCode, onSubmit,
+}: {
+  defaultCompanyCode: string;
+  onSubmit: (rows: { data: Partial<Contract>; errors: string[] }[]) => void;
+}) {
+  const [result, setResult] = useState<ContractImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setErr] = useState('');
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function loadFile(file: File) {
+    setErr(''); setBusy(true);
+    try {
+      const r = await parseContractExcel(file, { defaultCompanyCode });
+      setResult(r);
+      // 오류 없는 행은 기본 체크
+      const init = new Set<number>();
+      r.rows.forEach((row, i) => { if (row.errors.length === 0) init.add(i); });
+      setChecked(init);
+      if (!r.detected) setErr('헤더(차량번호·임차인·시작일 등)를 찾지 못했습니다. 양식을 그대로 사용하세요.');
+      else if (!r.rows.length) setErr(`인식된 계약이 없습니다. (전체 ${r.total} / 건너뜀 ${r.skipped})`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadTemplate() {
+    setDownloading(true);
+    try {
+      const XLSX = await import('xlsx');
+      const today = new Date().toISOString().slice(0, 10);
+      const aoa: (string | number)[][] = [
+        [...CONTRACT_EXCEL_HEADERS],
+        // 예시 한 행 — 흐릿한 placeholder. 사용자가 지우거나 위에 덮어 씀
+        [
+          'CP01', '', '12가1234',
+          '홍길동', '개인', '900101-1234567', '010-1234-5678',
+          today, '2027-12-31',
+          1100000, 0, 0,
+          '자동이체', 25,
+          '', '', '',
+          '', '',
+          '본인한정', '만 26세 이상', 30000,
+          '예시 행 — 작성 후 삭제',
+        ],
+      ];
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
+      sheet['!cols'] = CONTRACT_EXCEL_HEADERS.map((h) => ({ wch: h.length > 5 ? 14 : 10 }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, '계약');
+      XLSX.writeFile(wb, `계약_양식_${today.replace(/-/g, '')}.xlsx`);
+    } catch (e) {
+      alert(`양식 다운로드 실패: ${(e as Error).message}`);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  const allChecked = result && result.rows.length > 0 && checked.size === result.rows.length;
+  const someChecked = checked.size > 0 && !allChecked;
+  function toggleAll() {
+    if (!result) return;
+    if (allChecked) setChecked(new Set());
+    else setChecked(new Set(result.rows.map((_, i) => i)));
+  }
+  function toggleRow(i: number) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+  function commit() {
+    if (!result) return;
+    const selectedRows = [...checked].map((i) => result.rows[i]).filter(Boolean);
+    if (selectedRows.length === 0) {
+      alert('등록할 행을 체크박스로 선택하세요.');
+      return;
+    }
+    const bad = selectedRows.filter((r) => r.errors.length > 0);
+    if (bad.length > 0) {
+      if (!confirm(`오류 ${bad.length}건 포함됨 — 그래도 등록할까요?\n(오류 행은 등록 후 수정 필요)`)) return;
+    }
+    onSubmit(selectedRows);
+  }
+
+  const okCount = result?.rows.filter((r) => r.errors.length === 0).length ?? 0;
+  const errCount = result?.rows.filter((r) => r.errors.length > 0).length ?? 0;
+
+  return (
+    <div className="space-y-3" style={{ paddingTop: 8 }}>
+      <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
+        <strong>엑셀 일괄 등록</strong>
+        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 계약 작성 (예시 행 참고)
+        <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 필수항목 검증
+        <br />· ③ 미리보기에서 <strong>체크박스로 등록할 행 선별</strong> → [등록]
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
+          <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드'}
+        </button>
+        <span className="text-weak text-xs">컬럼: {CONTRACT_EXCEL_HEADERS.slice(0, 10).join(' · ')} … 외 {CONTRACT_EXCEL_HEADERS.length - 10}</span>
+      </div>
+
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void loadFile(f); }}
+        onClick={() => fileRef.current?.click()}
+        style={{
+          border: '2px dashed var(--border)', borderRadius: 6, padding: 24, textAlign: 'center',
+          cursor: 'pointer', background: 'var(--bg-card)',
+        }}
+      >
+        <UploadSimple size={24} weight="bold" />
+        <div style={{ marginTop: 6 }}>{busy ? '읽는 중...' : '② 엑셀 파일을 드롭하거나 클릭하여 선택'}</div>
+        <div className="text-weak text-xs" style={{ marginTop: 4 }}>.xlsx / .xls / .csv</div>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFile(f); }} />
+      </div>
+
+      {error && (
+        <div style={{ color: 'var(--alert-red-text)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Warning size={14} weight="fill" /> {error}
+        </div>
+      )}
+
+      {/* 미리보기 표 — 업로드 전엔 헤더 + 체크박스만 (계좌내역과 동일 패턴) */}
+      <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border)' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="center" style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={!!allChecked}
+                  ref={(el) => { if (el) el.indeterminate = !!someChecked; }}
+                  onChange={toggleAll}
+                  disabled={!result || result.rows.length === 0}
+                />
+              </th>
+              <th style={{ width: 60 }}>상태</th>
+              <th style={{ width: 70 }}>회사</th>
+              <th style={{ width: 100 }}>차량</th>
+              <th style={{ width: 100 }}>임차인</th>
+              <th style={{ width: 60 }}>신분</th>
+              <th style={{ width: 110 }}>등록번호</th>
+              <th style={{ width: 110 }}>연락처</th>
+              <th style={{ width: 95 }}>시작일</th>
+              <th style={{ width: 95 }}>만기일</th>
+              <th style={{ width: 90, textAlign: 'right' }}>월대여료</th>
+              <th>오류</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!result || result.rows.length === 0 ? (
+              <tr><td colSpan={12} className="jpk-table-empty">엑셀 업로드 시 행이 채워집니다.</td></tr>
+            ) : result.rows.slice(0, 100).map((r, i) => (
+              <tr key={i} className={checked.has(i) ? 'is-checked' : undefined}>
+                <td className="center" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={checked.has(i)} onChange={() => toggleRow(i)} />
+                </td>
+                <td>
+                  {r.errors.length > 0
+                    ? <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />}>오류</StatusBadge>
+                    : <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>}
+                </td>
+                <td className="mono">{r.data.companyCode || <span className="dim">-</span>}</td>
+                <td className="mono">{r.data.plate || '-'}</td>
+                <td>{r.data.customerName || '-'}</td>
+                <td className="dim">{r.data.customerKind || '-'}</td>
+                <td className="mono text-xs">{r.data.customerIdent || '-'}</td>
+                <td className="mono text-xs">{r.data.customerPhone || '-'}</td>
+                <td className="date">{r.data.startDate || '-'}</td>
+                <td className="date">{r.data.endDate || '-'}</td>
+                <td className="num">{r.data.monthlyAmount ? r.data.monthlyAmount.toLocaleString('ko-KR') : '-'}</td>
+                <td style={{ color: 'var(--alert-red-text)', fontSize: 11 }}>{r.errors.join(', ') || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {result && result.rows.length > 0 && (
+        <div className="text-xs" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--success-green-bg, #e7f5ea)', borderRadius: 4 }}>
+          <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
+          <span>
+            전체 <strong>{result.rows.length}</strong> · 선택 <strong>{checked.size}</strong>
+            · 정상 <strong>{okCount}</strong>
+            {errCount > 0 && <> · 오류 <span className="text-red">{errCount}</span></>}
+            {result.skipped > 0 && <span className="dim"> · 건너뜀 {result.skipped}</span>}
+          </span>
+        </div>
+      )}
+
+      <DialogFooter>
+        <DialogClose asChild><button className="btn">취소</button></DialogClose>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={commit}
+          disabled={!result || checked.size === 0}
+        >
+          <FileArrowDown size={14} weight="bold" /> 선택 {checked.size}건 등록
+        </button>
+      </DialogFooter>
     </div>
   );
 }
