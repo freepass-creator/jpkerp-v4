@@ -149,6 +149,15 @@ export function LedgerRegisterDialog({ onCreate, companies, open: openProp, onOp
             </TabsTrigger>
           </TabsList>
 
+          {/* 공통 컨텍스트 — 회사·계좌. 모든 탭에서 같은 위치, 탭 전환해도 유지. */}
+          <div style={{ marginTop: 8 }}>
+            <CtxRow
+              companies={activeList} selectedCompany={selectedCompany}
+              companyCode={companyCode} setCompanyCode={setCompanyCode}
+              account={account} setAccount={setAccount}
+            />
+          </div>
+
           {noCompanies && (
             <div className="alert alert-warn" style={{ marginTop: 8 }}>
               <Warning size={14} />
@@ -254,12 +263,6 @@ function ExcelStage({
 
   return (
     <div className="space-y-3">
-      <CtxRow
-        companies={companies} selectedCompany={selectedCompany}
-        companyCode={companyCode} setCompanyCode={setCompanyCode}
-        account={account} setAccount={setAccount}
-      />
-
       <label
         className={`dropzone block ${dragging ? 'dragging' : ''} ${busy ? 'busy' : ''}`}
         style={ctxLocked ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
@@ -339,11 +342,6 @@ function ManualForm({
 
   return (
     <div className="space-y-3">
-      <CtxRow
-        companies={companies} selectedCompany={selectedCompany}
-        companyCode={companyCode} setCompanyCode={setCompanyCode}
-        account={account} setAccount={setAccount}
-      />
       <fieldset disabled={ctxLocked} style={ctxLocked ? { opacity: 0.5 } : undefined}>
         <div className="form-grid">
           <label className="block col-span-2">
@@ -405,11 +403,6 @@ function SheetStage({
 }) {
   return (
     <div className="space-y-3">
-      <CtxRow
-        companies={companies} selectedCompany={selectedCompany}
-        companyCode={companyCode} setCompanyCode={setCompanyCode}
-        account={account} setAccount={setAccount}
-      />
       <textarea
         className="input w-full"
         rows={10}
