@@ -38,22 +38,22 @@ function applicableSubjects(e: LedgerEntry): readonly string[] {
   return ALL_SUBJECTS;
 }
 
-function matchStatus(e: LedgerEntry): 'unmatched' | 'classified' | 'matched' {
-  if (!e.subject) return 'unmatched';
-  if (!e.matchedContract) return 'classified';
-  return 'matched';
+function matchStatus(e: LedgerEntry): 'unposted' | 'posted' | 'closed' {
+  if (!e.subject) return 'unposted';          // 계정과목 미부여 → 미분개
+  if (!e.matchedContract) return 'posted';    // 계정과목 부여만 — 차량 매칭 없음 → 분개
+  return 'closed';                              // 계정과목 + 차량 매칭 → 마감
 }
 
 const STATUS_LABEL: Record<ReturnType<typeof matchStatus>, string> = {
-  unmatched: '미매칭',
-  classified: '분류완료',
-  matched: '매칭완료',
+  unposted: '미분개',
+  posted:   '분개',
+  closed:   '마감',
 };
 
 const STATUS_COLOR: Record<ReturnType<typeof matchStatus>, string> = {
-  unmatched: 'var(--text-weak)',
-  classified: 'var(--success, #10b981)',
-  matched: 'var(--brand)',
+  unposted: 'var(--text-weak)',
+  posted:   'var(--success, #10b981)',
+  closed:   'var(--brand)',
 };
 
 const fmtNum = (v: unknown) => (typeof v === 'number' && v ? v.toLocaleString('ko-KR') : '');
@@ -78,7 +78,7 @@ export default function FinanceDailyPage() {
   const [filteredDaily, setFilteredDaily] = useState<readonly DailyRow[]>([]);
 
   const counts = useMemo(() => {
-    const c = { unmatched: 0, classified: 0, matched: 0 };
+    const c = { unposted: 0, posted: 0, closed: 0 };
     for (const e of filteredEntries) c[matchStatus(e)]++;
     return c;
   }, [filteredEntries]);
@@ -272,7 +272,7 @@ export default function FinanceDailyPage() {
       valueGetter: ({ data }) => STATUS_LABEL[matchStatus(data)],
       cellRenderer: ({ data }) => {
         const s = matchStatus(data);
-        const cls = s === 'matched' ? 'badge-green' : s === 'classified' ? 'badge-orange' : 'badge-red';
+        const cls = s === 'closed' ? 'badge-green' : s === 'posted' ? 'badge-orange' : 'badge-red';
         return <span className={`badge ${cls}`}>{STATUS_LABEL[s]}</span>;
       },
     },
@@ -397,7 +397,7 @@ export default function FinanceDailyPage() {
               className={cn('chip', view === 'match' && 'active')}
               onClick={() => setView('match')}
             >
-              매칭 ({counts.unmatched + counts.classified} / {filteredEntries.length})
+              분개 ({counts.unposted + counts.posted} / {filteredEntries.length})
             </button>
             <button
               type="button"
@@ -413,9 +413,9 @@ export default function FinanceDailyPage() {
               <span className="stat-item">전체 <strong>{entries.length}</strong></span>
               <span className="stat-item">표시 <strong>{filteredEntries.length}</strong></span>
               <span className="stat-divider" />
-              <span className="stat-item" style={{ color: STATUS_COLOR.unmatched }}>미매칭 <strong>{counts.unmatched}</strong></span>
-              <span className="stat-item" style={{ color: STATUS_COLOR.classified }}>분류 <strong>{counts.classified}</strong></span>
-              <span className="stat-item" style={{ color: STATUS_COLOR.matched }}>매칭 <strong>{counts.matched}</strong></span>
+              <span className="stat-item" style={{ color: STATUS_COLOR.unposted }}>미분개 <strong>{counts.unposted}</strong></span>
+              <span className="stat-item" style={{ color: STATUS_COLOR.posted }}>분개 <strong>{counts.posted}</strong></span>
+              <span className="stat-item" style={{ color: STATUS_COLOR.closed }}>마감 <strong>{counts.closed}</strong></span>
             </>
           ) : (
             <>
