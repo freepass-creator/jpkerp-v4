@@ -6,6 +6,7 @@
 <title>가수금 점검 — 회사·계좌별 입출금 집계</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css" />
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
     --brand: #1B2A4A;
@@ -88,18 +89,33 @@
 </p>
 
 <div class="card">
-  <label>계좌 거래내역 (TSV / 엑셀 영역 복사)</label>
-  <p class="hint">
-    헤더 자동 검출 — 다음 컬럼명 중 하나라도 포함되면 인식:
-    <strong>회사·회사코드</strong>, <strong>계좌</strong>, <strong>거래일·거래일시</strong>,
-    <strong>입금·입금액</strong>, <strong>출금·출금액</strong>, <strong>계정과목·계정</strong>,
-    <strong>적요</strong>, <strong>상대·내용·거래처</strong>
+  <h3 style="margin: 0 0 8px 0; font-size: 13px;">① 엑셀 업로드 (은행 거래내역)</h3>
+  <p class="hint" style="margin-bottom: 10px;">
+    신한·국민·하나·우리 등 모든 은행 엑셀 가능. 헤더 자동 검출 (거래일·입금·출금·잔액 키워드).
+    회사·계좌는 한 파일 = 한 통장 기준으로 외부 지정. 여러 통장이면 차례로 업로드 — 결과 누적.
+  </p>
+  <div class="row" style="margin-bottom: 8px;">
+    <input id="bankCompany" placeholder="회사코드 (예: CP01)" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 12px; width: 140px;" />
+    <input id="bankAccount" placeholder="계좌 (예: 신한 110-...)" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 12px; width: 240px;" />
+    <label class="bank-file-btn" style="background: var(--brand); color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+      📂 엑셀 파일 선택
+      <input type="file" id="bankFile" accept=".xlsx,.xls,.csv" style="display: none;" onchange="loadBankFile(event)" />
+    </label>
+    <button class="secondary" onclick="resetAccumulated()">누적 초기화</button>
+    <span class="hint" id="bankInfo"></span>
+  </div>
+  <div id="loadedBatches" class="hint"></div>
+</div>
+
+<div class="card">
+  <h3 style="margin: 0 0 8px 0; font-size: 13px;">② 또는 TSV 직접 붙여넣기 (자금일보 영역 복사 등)</h3>
+  <p class="hint" style="margin-bottom: 6px;">
+    컬럼: <strong>회사·계좌·거래일·입금·출금·계정과목·적요·내용</strong> (한 줄에 한 행, 탭 구분)
   </p>
   <textarea id="inputData" placeholder="회사	계좌	거래일시	입금	출금	계정과목	적요	상대
-CP01	신한 110-490-539641	2026-03-30	1070000		대여료	자동이체	정유라
-CP01	신한 110-490-539641	2026-03-30		38000		BZ뱅크	2718관리비카벨"></textarea>
+CP01	신한 110-490-539641	2026-03-30	1070000		대여료	자동이체	정유라"></textarea>
   <div class="row">
-    <button onclick="analyze()">집계</button>
+    <button onclick="analyze()">집계 (붙여넣기)</button>
     <button class="secondary" onclick="clearAll()">초기화</button>
     <button class="secondary" onclick="pasteSample()">샘플 채우기</button>
     <span class="hint" id="parseInfo"></span>
@@ -110,6 +126,117 @@ CP01	신한 110-490-539641	2026-03-30		38000		BZ뱅크	2718관리비카벨"></te
 
 <script>
 const W = (n) => '₩' + (Math.round(n || 0)).toLocaleString('ko-KR');
+
+// ─── 누적 데이터 — 여러 통장 업로드 시 합치기 ───
+const accumulated = []; // [{ company, account, deposit, withdraw, subject, matched }]
+
+function loadBankFile(ev) {
+  const file = ev.target.files[0];
+  ev.target.value = '';  // 같은 파일 재선택 가능
+  if (!file) return;
+
+  const company = document.getElementById('bankCompany').value.trim();
+  const account = document.getElementById('bankAccount').value.trim();
+  const info = document.getElementById('bankInfo');
+
+  if (!company || !account) {
+    info.innerHTML = '<span class="red">회사코드·계좌를 먼저 입력하세요</span>';
+    return;
+  }
+
+  info.innerHTML = '<span class="dim">읽는 중…</span>';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: false });
+      const result = parseBankRows(rows, { company, account });
+      if (result.entries.length === 0) {
+        info.innerHTML = '<span class="red">' + (result.detected ? '인식된 거래 0건 — 헤더는 찾았으나 데이터 없음' : '헤더 검출 실패 — 거래일·입금·출금·잔액 키워드 확인') + '</span>';
+        return;
+      }
+      accumulated.push(...result.entries);
+      info.innerHTML = '<span class="green">✓ ' + result.entries.length + '건 추가 — 총 ' + accumulated.length + '건</span>';
+      renderBatches();
+      analyzeAccumulated();
+    } catch (err) {
+      info.innerHTML = '<span class="red">에러: ' + err.message + '</span>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderBatches() {
+  // 회사·계좌별 batch 요약
+  const groups = new Map();
+  for (const e of accumulated) {
+    const k = e.company + '|' + e.account;
+    const g = groups.get(k) || { company: e.company, account: e.account, count: 0 };
+    g.count++;
+    groups.set(k, g);
+  }
+  const list = Array.from(groups.values());
+  if (list.length === 0) {
+    document.getElementById('loadedBatches').innerHTML = '';
+    return;
+  }
+  const tags = list.map(g => `<span style="display:inline-block;padding:2px 8px;background:var(--bg-stripe);border:1px solid var(--border);border-radius:10px;margin-right:4px;margin-top:4px;font-size:11px;">${g.company} · ${g.account} <strong>(${g.count})</strong></span>`).join('');
+  document.getElementById('loadedBatches').innerHTML = '<div style="margin-top:6px;">불러옴: ' + tags + '</div>';
+}
+
+function resetAccumulated() {
+  if (accumulated.length === 0) return;
+  if (!confirm('누적된 ' + accumulated.length + '건 데이터를 모두 지울까요?')) return;
+  accumulated.length = 0;
+  document.getElementById('bankInfo').textContent = '';
+  document.getElementById('loadedBatches').innerHTML = '';
+  document.getElementById('results').innerHTML = '';
+}
+
+function parseBankRows(rows, ctx) {
+  const headerIdx = detectHeaderRow(rows);
+  if (headerIdx < 0) return { entries: [], detected: false };
+  const headers = rows[headerIdx].map(s => String(s ?? '').trim());
+  const cols = {
+    txDate:   findCol(headers, ['거래일시', '거래일자', '거래일']),
+    deposit:  findCol(headers, ['입금액', '입금']),
+    withdraw: findCol(headers, ['출금액', '출금']),
+    memo:     findCol(headers, ['적요']),
+    counterparty: findCol(headers, ['내용', '거래내용', '상대']),
+  };
+  if (cols.deposit < 0 && cols.withdraw < 0) return { entries: [], detected: true };
+
+  const entries = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.length === 0) continue;
+    const deposit = parseNumber(r[cols.deposit]);
+    const withdraw = parseNumber(r[cols.withdraw]);
+    if (deposit === 0 && withdraw === 0) continue;
+    entries.push({
+      company: ctx.company,
+      account: ctx.account,
+      txDate: String(r[cols.txDate] ?? ''),
+      deposit, withdraw,
+      memo: String(r[cols.memo] ?? ''),
+      counterparty: String(r[cols.counterparty] ?? ''),
+      subject: '',     // 은행 엑셀엔 계정과목 없음 → 모두 미분개 (가수금 후보)
+      matched: '',
+    });
+  }
+  return { entries, detected: true };
+}
+
+function analyzeAccumulated() {
+  if (accumulated.length === 0) {
+    document.getElementById('results').innerHTML = '';
+    return;
+  }
+  renderResults(accumulated);
+}
 
 function detectHeaderRow(rows) {
   const kws = ['회사', '계좌', '거래일', '입금', '출금', '계정', '적요', '상대', '내용'];
@@ -140,11 +267,10 @@ function parseNumber(s) {
 function analyze() {
   const raw = document.getElementById('inputData').value;
   const info = document.getElementById('parseInfo');
-  const results = document.getElementById('results');
 
   if (!raw.trim()) {
     info.textContent = '데이터를 붙여넣어주세요';
-    results.innerHTML = '';
+    document.getElementById('results').innerHTML = '';
     return;
   }
 
@@ -161,7 +287,7 @@ function analyze() {
   const headerIdx = detectHeaderRow(rows);
   if (headerIdx < 0) {
     info.innerHTML = '<span class="red">헤더 검출 실패 — 회사·계좌·입금·출금 등 키워드 필요</span>';
-    results.innerHTML = '';
+    document.getElementById('results').innerHTML = '';
     return;
   }
 
@@ -173,62 +299,58 @@ function analyze() {
     withdraw: findCol(headers, ['출금액', '출금']),
     subject: findCol(headers, ['계정과목', '계정']),
     matched: findCol(headers, ['차량번호', '매칭계약', '계약번호', '임차인']),
-    txDate: findCol(headers, ['거래일시', '거래일자', '거래일']),
-    memo: findCol(headers, ['적요']),
-    counterparty: findCol(headers, ['상대', '내용', '거래처']),
   };
 
-  const dataRows = rows.slice(headerIdx + 1).filter(r => r.length >= 2);
-
-  // 회사·계좌별 그룹
-  const groups = new Map();
-  let totalTx = 0, totalDep = 0, totalWd = 0;
-
-  for (const r of dataRows) {
+  const entries = [];
+  for (const r of rows.slice(headerIdx + 1).filter(r => r.length >= 2)) {
     const company = (cols.company >= 0 ? r[cols.company] : '').trim() || '(미지정)';
     const account = (cols.account >= 0 ? r[cols.account] : '').trim() || '(미지정)';
     const deposit = parseNumber(cols.deposit >= 0 ? r[cols.deposit] : '');
     const withdraw = parseNumber(cols.withdraw >= 0 ? r[cols.withdraw] : '');
     if (deposit === 0 && withdraw === 0) continue;
+    entries.push({
+      company, account, deposit, withdraw,
+      subject: (cols.subject >= 0 ? r[cols.subject] : '').trim(),
+      matched: (cols.matched >= 0 ? r[cols.matched] : '').trim(),
+    });
+  }
 
-    const subject = (cols.subject >= 0 ? r[cols.subject] : '').trim();
-    const matched = (cols.matched >= 0 ? r[cols.matched] : '').trim();
+  if (entries.length === 0) {
+    info.innerHTML = '<span class="red">인식된 거래 없음</span>';
+    return;
+  }
+  info.innerHTML = '<span class="green">✓ 인식 ' + entries.length + '건</span>';
+  renderResults(entries);
+}
 
-    const key = company + '|' + account;
+function renderResults(entries) {
+  // 회사·계좌별 그룹
+  const groups = new Map();
+  let totalTx = 0, totalDep = 0, totalWd = 0;
+  for (const e of entries) {
+    const key = e.company + '|' + e.account;
     let g = groups.get(key);
     if (!g) {
       g = {
-        company, account,
+        company: e.company, account: e.account,
         txCount: 0, deposit: 0, withdraw: 0,
-        unpostedCount: 0, unpostedDep: 0,  // 계정과목 없음 = 미분개
-        unmatchedCount: 0, unmatchedDep: 0, // 차량/계약 매칭 없음
+        unpostedCount: 0, unpostedDep: 0,
+        unmatchedCount: 0, unmatchedDep: 0,
       };
       groups.set(key, g);
     }
     g.txCount++;
-    g.deposit += deposit;
-    g.withdraw += withdraw;
-    if (!subject) {
-      g.unpostedCount++;
-      g.unpostedDep += deposit;
-    }
-    if (deposit > 0 && !matched) {
-      g.unmatchedCount++;
-      g.unmatchedDep += deposit;
-    }
-    totalTx++;
-    totalDep += deposit;
-    totalWd += withdraw;
+    g.deposit += e.deposit;
+    g.withdraw += e.withdraw;
+    if (!e.subject) { g.unpostedCount++; g.unpostedDep += e.deposit; }
+    if (e.deposit > 0 && !e.matched) { g.unmatchedCount++; g.unmatchedDep += e.deposit; }
+    totalTx++; totalDep += e.deposit; totalWd += e.withdraw;
   }
-
   const list = Array.from(groups.values()).sort((a, b) => {
     if (a.company !== b.company) return a.company.localeCompare(b.company);
     return a.account.localeCompare(b.account);
   });
 
-  info.innerHTML = `<span class="green">✓ 인식 ${totalTx}건 / 회사·계좌 ${list.length} 묶음</span>`;
-
-  // 결과 렌더
   let html = `
     <div class="card">
       <div class="stat-row">
@@ -290,7 +412,7 @@ function analyze() {
       <strong class="amber">미매칭 입금</strong> = 차량/계약 연결 안 됨 — 회사 수입은 분류됐지만 어느 손님 수납인지 미상
     </p>`;
 
-  results.innerHTML = html;
+  document.getElementById('results').innerHTML = html;
 }
 
 function clearAll() {
