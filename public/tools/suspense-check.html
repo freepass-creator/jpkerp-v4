@@ -135,14 +135,10 @@ function loadBankFile(ev) {
   ev.target.value = '';  // 같은 파일 재선택 가능
   if (!file) return;
 
-  const company = document.getElementById('bankCompany').value.trim();
-  const account = document.getElementById('bankAccount').value.trim();
+  const company = document.getElementById('bankCompany').value.trim() || '(미지정)';
+  // 계좌 미입력 시 파일명으로 fallback — 그래도 여러 통장 분리 식별 가능
+  const account = document.getElementById('bankAccount').value.trim() || file.name.replace(/\.(xlsx|xls|csv)$/i, '');
   const info = document.getElementById('bankInfo');
-
-  if (!company || !account) {
-    info.innerHTML = '<span class="red">회사코드·계좌를 먼저 입력하세요</span>';
-    return;
-  }
 
   info.innerHTML = '<span class="dim">읽는 중…</span>';
 
@@ -299,6 +295,9 @@ function analyze() {
     withdraw: findCol(headers, ['출금액', '출금']),
     subject: findCol(headers, ['계정과목', '계정']),
     matched: findCol(headers, ['차량번호', '매칭계약', '계약번호', '임차인']),
+    txDate: findCol(headers, ['거래일시', '거래일자', '거래일']),
+    memo: findCol(headers, ['적요']),
+    counterparty: findCol(headers, ['상대', '내용', '거래처', '예금주']),
   };
 
   const entries = [];
@@ -312,6 +311,9 @@ function analyze() {
       company, account, deposit, withdraw,
       subject: (cols.subject >= 0 ? r[cols.subject] : '').trim(),
       matched: (cols.matched >= 0 ? r[cols.matched] : '').trim(),
+      txDate: (cols.txDate >= 0 ? r[cols.txDate] : '').trim(),
+      memo: (cols.memo >= 0 ? r[cols.memo] : '').trim(),
+      counterparty: (cols.counterparty >= 0 ? r[cols.counterparty] : '').trim(),
     });
   }
 
@@ -324,31 +326,26 @@ function analyze() {
 }
 
 function renderResults(entries) {
-  // 회사·계좌별 그룹
+  // 거래처(예금주)별 그룹 — "누구한테 얼마 들어오고 얼마 나갔는지"
   const groups = new Map();
   let totalTx = 0, totalDep = 0, totalWd = 0;
   for (const e of entries) {
-    const key = e.company + '|' + e.account;
-    let g = groups.get(key);
+    const cp = (e.counterparty || e.memo || '(미상)').trim() || '(미상)';
+    let g = groups.get(cp);
     if (!g) {
-      g = {
-        company: e.company, account: e.account,
-        txCount: 0, deposit: 0, withdraw: 0,
-        unpostedCount: 0, unpostedDep: 0,
-        unmatchedCount: 0, unmatchedDep: 0,
-      };
-      groups.set(key, g);
+      g = { counterparty: cp, txCount: 0, deposit: 0, withdraw: 0, lastDate: '', memos: new Set() };
+      groups.set(cp, g);
     }
     g.txCount++;
     g.deposit += e.deposit;
     g.withdraw += e.withdraw;
-    if (!e.subject) { g.unpostedCount++; g.unpostedDep += e.deposit; }
-    if (e.deposit > 0 && !e.matched) { g.unmatchedCount++; g.unmatchedDep += e.deposit; }
+    if (e.txDate && e.txDate > g.lastDate) g.lastDate = e.txDate;
+    if (e.memo) g.memos.add(e.memo);
     totalTx++; totalDep += e.deposit; totalWd += e.withdraw;
   }
+  // 차액 큰 순서로 정렬 (입금이 많거나 출금이 많은 거래처 먼저)
   const list = Array.from(groups.values()).sort((a, b) => {
-    if (a.company !== b.company) return a.company.localeCompare(b.company);
-    return a.account.localeCompare(b.account);
+    return Math.abs(b.deposit - b.withdraw) - Math.abs(a.deposit - a.withdraw);
   });
 
   let html = `
@@ -362,44 +359,41 @@ function renderResults(entries) {
       <table>
         <thead>
           <tr>
-            <th style="width:90px">회사</th>
-            <th style="width:180px">계좌</th>
+            <th style="width:200px">거래처 (예금주)</th>
             <th class="num" style="width:60px">거래</th>
-            <th class="num" style="width:130px">입금합계</th>
-            <th class="num" style="width:130px">출금합계</th>
-            <th class="num" style="width:130px">차액</th>
-            <th class="num" style="width:130px">미분개 입금</th>
-            <th class="num" style="width:130px">미매칭 입금</th>
+            <th class="num" style="width:140px">받은 돈 (입금)</th>
+            <th class="num" style="width:140px">보낸 돈 (출금)</th>
+            <th class="num" style="width:140px">차액</th>
+            <th style="width:100px">최근일</th>
+            <th>적요</th>
           </tr>
         </thead>
         <tbody>`;
 
   for (const g of list) {
     const net = g.deposit - g.withdraw;
+    const memosArr = Array.from(g.memos);
+    const memosText = memosArr.slice(0, 3).join(', ') + (memosArr.length > 3 ? ` 외 ${memosArr.length - 3}건` : '');
     html += `
       <tr>
-        <td class="mono">${g.company}</td>
-        <td class="mono">${g.account}</td>
+        <td><strong>${g.counterparty}</strong></td>
         <td class="num">${g.txCount}</td>
-        <td class="num">${W(g.deposit)}</td>
-        <td class="num">${W(g.withdraw)}</td>
+        <td class="num ${g.deposit>0?'pos':''}">${g.deposit>0 ? W(g.deposit) : '<span class="dim">-</span>'}</td>
+        <td class="num ${g.withdraw>0?'neg':''}">${g.withdraw>0 ? W(g.withdraw) : '<span class="dim">-</span>'}</td>
         <td class="num ${net>=0?'pos':'neg'}">${net>=0?'+':''}${W(net)}</td>
-        <td class="num ${g.unpostedDep>0?'red':''}">${g.unpostedDep>0?(W(g.unpostedDep)+' ('+g.unpostedCount+'건)'):'<span class="dim">-</span>'}</td>
-        <td class="num ${g.unmatchedDep>0?'amber':''}">${g.unmatchedDep>0?(W(g.unmatchedDep)+' ('+g.unmatchedCount+'건)'):'<span class="dim">-</span>'}</td>
+        <td class="dim" style="font-size:11px">${g.lastDate ? g.lastDate.slice(0, 10) : '-'}</td>
+        <td class="dim" style="font-size:11px">${memosText}</td>
       </tr>`;
   }
   // 총계 행
-  const unpostedT = list.reduce((s, g) => s + g.unpostedDep, 0);
-  const unmatchedT = list.reduce((s, g) => s + g.unmatchedDep, 0);
   html += `
         <tr class="total-row">
-          <td colspan="2">합계</td>
+          <td>합계</td>
           <td class="num">${totalTx}</td>
           <td class="num">${W(totalDep)}</td>
           <td class="num">${W(totalWd)}</td>
           <td class="num ${totalDep-totalWd>=0?'pos':'neg'}">${totalDep-totalWd>=0?'+':''}${W(totalDep-totalWd)}</td>
-          <td class="num ${unpostedT>0?'red':''}">${W(unpostedT)}</td>
-          <td class="num ${unmatchedT>0?'amber':''}">${W(unmatchedT)}</td>
+          <td colspan="2"></td>
         </tr>`;
 
   html += `
@@ -407,9 +401,7 @@ function renderResults(entries) {
       </table>
     </div>
     <p class="hint" style="padding:0 4px">
-      <strong class="red">미분개 입금</strong> = 계정과목 미부여 — 가수금(어디서 들어왔는지 분류 안 된 돈)
-      &nbsp; · &nbsp;
-      <strong class="amber">미매칭 입금</strong> = 차량/계약 연결 안 됨 — 회사 수입은 분류됐지만 어느 손님 수납인지 미상
+      거래처(예금주)별 합계 — 받은 돈 많은 순서. 같은 사람이 입금·출금 둘 다 있으면 차액으로 표시.
     </p>`;
 
   document.getElementById('results').innerHTML = html;
