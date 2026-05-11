@@ -4,22 +4,23 @@ import { useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile as fbUpdateProfile,
   sendPasswordResetEmail,
   signOut as fbSignOut,
   type User,
 } from 'firebase/auth';
-import { getFirebaseAuth } from './firebase/client';
+import { ref, set } from 'firebase/database';
+import { getFirebaseAuth, getRtdb } from './firebase/client';
 import { pushAuditLog } from './audit-log';
 
 /**
- * Firebase Auth 훅 — 이메일/비밀번호 로그인 (jpkerp3 패턴 동일).
+ * Firebase Auth 훅 — 이메일/비밀번호 로그인·가입 (jpkerp3 패턴).
  *
  *  const { user, loading } = useAuth();
  *  await login(email, password);
+ *  await signup({ email, password, displayName, ... });
  *  await logout();
- *
- * 계정은 Firebase Console → Authentication → Users 에서 관리자가 추가.
- * 신규 가입 폼은 별도 (운영 안정 후 구현).
  */
 
 let cache: User | null = null;
@@ -80,4 +81,55 @@ export async function logout(): Promise<void> {
 /** 비밀번호 재설정 메일 발송. 등록된 이메일이면 메일이 가고, 미등록이면 Firebase가 silently 처리 (보안). */
 export async function resetPassword(email: string): Promise<void> {
   await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
+}
+
+/**
+ * 신규 가입 — Firebase Auth user 생성 + displayName 설정 + RTDB users/{uid}/profile 푸시.
+ *
+ * 가입 후 자동 로그인 상태 (Firebase 기본 동작). AuthGate 가 children 으로 전환.
+ * RTDB rules 가 `/users/{uid}` 본인 write 만 허용해야 함 (보안).
+ */
+export type SignupInput = {
+  email: string;
+  password: string;
+  displayName: string;
+  companyName?: string;
+  department?: string;
+  role?: string;
+  phone?: string;
+};
+
+export async function signup(input: SignupInput): Promise<void> {
+  const cred = await createUserWithEmailAndPassword(
+    getFirebaseAuth(),
+    input.email.trim(),
+    input.password,
+  );
+  const u = cred.user;
+  await fbUpdateProfile(u, { displayName: input.displayName.trim() });
+
+  // RTDB users/{uid}/profile 초기 push
+  const profile = {
+    companyName:      input.companyName?.trim() ?? '',
+    displayName:      input.displayName.trim(),
+    role:             input.role?.trim() ?? '',
+    department:       input.department?.trim() ?? '',
+    email:            u.email ?? input.email.trim(),
+    phone:            input.phone?.trim() ?? '',
+    officePhone:      '',
+    fax:              '',
+    workplace:        '',
+    workplaceAddress: '',
+  };
+  try {
+    await set(ref(getRtdb(), `users/${u.uid}/profile`), profile);
+  } catch (e) {
+    // 프로필 저장 실패는 가입 자체를 막지 않음 — 사용자가 설정 페이지에서 수정 가능
+    console.error('[auth] signup profile save failed', e);
+  }
+
+  pushAuditLog(
+    { uid: u.uid, email: u.email ?? undefined, name: u.displayName ?? undefined },
+    { action: 'create', entityType: 'auth', entityId: u.uid, label: `회원가입 — ${u.email}` },
+  );
 }
