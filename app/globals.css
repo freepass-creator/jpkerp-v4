@@ -33,11 +33,12 @@
 /* ── Design tokens ── */
 :root {
   /* Typography
-     영문/숫자 = Consolas, 한글 = 굴림체 (GulimChe 명시).
-     Consolas는 한글이 없어 굴림체로 자동 fallback — 굴림체를 명시해서 보장.
+     Default = Consolas (영문/숫자) + Pretendard (한글).
+     Consolas는 한글 없음 → Pretendard 글리프로 fallback.
+     사용자가 설정에서 다른 폰트 선택 시 use-settings.ts 가 override.
      A안 — 영문 가독성 + 한국 ERP 한글 톤 둘 다 챙김. */
-  --font: Consolas, 'GulimChe', '굴림체', 'Segoe UI', sans-serif;
-  --font-mono: Consolas, 'GulimChe', '굴림체', 'Menlo', monospace;
+  --font: Consolas, 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --font-mono: Consolas, 'JetBrains Mono', 'Menlo', monospace;
   --font-size: 12px;
   --line-height: 1.5;
   /* 굵기 단일화 — 모든 텍스트 400. 위계는 색상으로만. */
