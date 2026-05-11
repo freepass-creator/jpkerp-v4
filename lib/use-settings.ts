@@ -18,8 +18,9 @@ import { useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark' | 'auto';
 export type FontFamily =
-  | 'mono'           // Consolas + 굴림체 — ERP 기본
-  | 'pretendard'     // Pretendard Variable
+  | 'pretendard'     // Pretendard Variable — 기본 (한글·영문·숫자 통일)
+  | 'pretendard-mono'// Pretendard 한글 + Consolas 영문/숫자 (등폭)
+  | 'mono'           // Consolas + 굴림체 — 전통 ERP
   | 'noto'           // Noto Sans KR
   | 'spoqa'          // Spoqa Han Sans Neo
   | 'nanum'          // 나눔고딕
@@ -71,14 +72,19 @@ function ensureFontLoaded(family: FontFamily) {
 const STORAGE_KEY = 'jpkerp-v4:settings';
 
 const FONT_STACKS: Record<FontFamily, { font: string; mono: string }> = {
+  pretendard: {
+    // 기본 — 영문·숫자·한글 모두 Pretendard 일관. 숫자 등폭은 font-feature-settings: 'tnum' 으로 처리.
+    font: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', Consolas, monospace",
+  },
+  'pretendard-mono': {
+    // Pretendard 한글 + Consolas 영문/숫자 (등폭). 영문 코드·차량번호 가독성 좋아짐.
+    font: "Consolas, 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    mono: "Consolas, 'JetBrains Mono', 'Pretendard Variable', Pretendard, 'Menlo', monospace",
+  },
   mono: {
     font: "Consolas, 'GulimChe', '굴림체', 'Segoe UI', sans-serif",
     mono: "Consolas, 'GulimChe', '굴림체', 'Menlo', monospace",
-  },
-  pretendard: {
-    // 영문·숫자·한글 모두 Pretendard 일관. 숫자 등폭은 font-feature-settings: 'tnum' 으로 처리.
-    font: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
-    mono: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', Consolas, monospace",
   },
   noto: {
     font: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",

@@ -214,15 +214,16 @@ function SystemFields({
             value={settings.fontFamily}
             wrap
             options={[
-              { value: 'mono',         label: 'Consolas + 굴림체' },
-              { value: 'pretendard',   label: 'Pretendard' },
-              { value: 'noto',         label: 'Noto Sans KR' },
-              { value: 'spoqa',        label: 'Spoqa Han Sans' },
-              { value: 'nanum',        label: '나눔고딕' },
-              { value: 'nanum-square', label: '나눔스퀘어' },
-              { value: 'ibm-plex',     label: 'IBM Plex KR' },
-              { value: 'gowun',        label: '고운돋움' },
-              { value: 'system',       label: '시스템 기본' },
+              { value: 'pretendard',      label: 'Pretendard (기본)' },
+              { value: 'pretendard-mono', label: 'Pretendard + 영문Consolas' },
+              { value: 'mono',            label: 'Consolas + 굴림체' },
+              { value: 'noto',            label: 'Noto Sans KR' },
+              { value: 'spoqa',           label: 'Spoqa Han Sans' },
+              { value: 'nanum',           label: '나눔고딕' },
+              { value: 'nanum-square',    label: '나눔스퀘어' },
+              { value: 'ibm-plex',        label: 'IBM Plex KR' },
+              { value: 'gowun',           label: '고운돋움' },
+              { value: 'system',          label: '시스템 기본' },
             ]}
             onChange={(v) => update({ fontFamily: v as FontFamily })}
           />
