@@ -17,8 +17,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <head>
-        {/* 한글 웹폰트는 강제 로드하지 않음 — 시스템 폰트가 기본.
-            사용자가 설정에서 다른 폰트 선택 시 use-settings.ts 가 동적으로 <link> 주입. */}
+        {/* Pretendard Variable — Default 폰트라 SSR 시점부터 정적 로드 (굴림체 fallback 방지).
+            다른 폰트는 use-settings.ts 가 선택 시 동적으로 <link> 주입. */}
+        <link
+          rel="preconnect"
+          href="https://cdn.jsdelivr.net"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css"
+        />
       </head>
       <body>{children}</body>
     </html>
