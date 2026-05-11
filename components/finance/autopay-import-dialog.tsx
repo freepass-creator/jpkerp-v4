@@ -67,48 +67,48 @@ export function AutopayImportDialog({ onCreate, companies, open, onOpenChange }:
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent title="자동이체·카드 결제 등록" size="lg">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* 회사·계좌 — 모든 탭 공통 */}
-          <div className="form-grid">
-            <label className="block col-span-2">
-              <span className="label">회사 *</span>
-              <select
-                className="input w-full"
-                value={companyCode}
-                onChange={(e) => setCompanyCode(e.target.value)}
-                disabled={activeList.length === 0}
-              >
-                <option value="">{activeList.length === 0 ? '등록된 회사 없음' : '선택'}</option>
-                {activeList.map((c) => (
-                  <option key={c.code} value={c.code}>{c.code} · {c.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block col-span-2">
-              <span className="label">계좌 *</span>
-              <select
-                className="input w-full"
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                disabled={!selectedCompany || accountOptions.length === 0}
-              >
-                <option value="">
-                  {!selectedCompany ? '회사 선택 후' : accountOptions.length === 0 ? '계좌 없음 — 회사정보에 등록' : '선택'}
-                </option>
-                {accountOptions.map((a, i) => (
-                  <option key={i} value={formatAccount(a)}>
-                    {formatAccount(a)}{a.alias ? ` · ${a.alias}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
           <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
             <TabsList>
               <TabsTrigger value="excel"><FileXls size={12} weight="bold" /> 엑셀</TabsTrigger>
               <TabsTrigger value="sheet">시트</TabsTrigger>
               <TabsTrigger value="manual"><Plus size={12} weight="bold" /> 단건</TabsTrigger>
             </TabsList>
+
+            {/* 회사·계좌 — 탭 아래 / 본문 위. 모든 탭 공통, 탭 전환해도 유지. */}
+            <div className="form-grid" style={{ marginTop: 8 }}>
+              <label className="block col-span-2">
+                <span className="label">회사 *</span>
+                <select
+                  className="input w-full"
+                  value={companyCode}
+                  onChange={(e) => setCompanyCode(e.target.value)}
+                  disabled={activeList.length === 0}
+                >
+                  <option value="">{activeList.length === 0 ? '등록된 회사 없음' : '선택'}</option>
+                  {activeList.map((c) => (
+                    <option key={c.code} value={c.code}>{c.code} · {c.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block col-span-2">
+                <span className="label">계좌 *</span>
+                <select
+                  className="input w-full"
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  disabled={!selectedCompany || accountOptions.length === 0}
+                >
+                  <option value="">
+                    {!selectedCompany ? '회사 선택 후' : accountOptions.length === 0 ? '계좌 없음 — 회사정보에 등록' : '선택'}
+                  </option>
+                  {accountOptions.map((a, i) => (
+                    <option key={i} value={formatAccount(a)}>
+                      {formatAccount(a)}{a.alias ? ` · ${a.alias}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <TabsContent value="excel">
               <ExcelTab

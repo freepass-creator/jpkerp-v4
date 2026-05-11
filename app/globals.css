@@ -1034,8 +1034,10 @@ input[type="checkbox"], input[type="radio"] {
   display: flex; flex-direction: column; overflow: hidden;
   z-index: calc(var(--z-modal) + 1);
 }
-.modal-lg { width: 640px; }
-.modal-xl { width: 820px; }
+/* 큰 다이얼로그 (등록·import) — min-height 으로 탭 본문 변동 시에도 모달 크기 고정.
+   탭 전환 시 dialog 가 짧아지면서 중앙 정렬 흔들리는 문제 방지. */
+.modal-lg { width: 640px; min-height: min(580px, calc(100vh - 64px)); }
+.modal-xl { width: 820px; min-height: min(640px, calc(100vh - 64px)); }
 
 .modal-header {
   padding: 10px 14px;
