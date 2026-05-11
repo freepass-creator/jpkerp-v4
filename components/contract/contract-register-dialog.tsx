@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Upload, Pencil, FileXls, Plus, X, CheckCircle, CircleNotch, Warning, ArrowCounterClockwise, FilePdf, DownloadSimple, UploadSimple, FileArrowDown } from '@phosphor-icons/react';
 import { useRef } from 'react';
-import { parseContractExcel, CONTRACT_EXCEL_HEADERS, type ContractImportResult } from '@/lib/contract-import';
+import { parseContractExcel, CONTRACT_EXCEL_HEADERS, CONTRACT_EXCEL_REQUIRED, CONTRACT_EXCEL_OPTIONAL, type ContractImportResult } from '@/lib/contract-import';
 import { Dialog, DialogTrigger, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OcrUploadStage } from '@/components/ui/ocr-upload-stage';
@@ -956,23 +956,31 @@ function ContractExcelTab({
     try {
       const XLSX = await import('xlsx');
       const today = new Date().toISOString().slice(0, 10);
+      const sample: Record<string, string | number> = {
+        '회사코드 *': 'CP01',
+        '차량번호 *': '12가1234',
+        '임차인 *': '홍길동',
+        '신분 *': '개인',
+        '고객등록번호 *': '900101-1234567',
+        '연락처 *': '010-1234-5678',
+        '시작일 *': today,
+        '만기일 *': '2027-12-31',
+        '월대여료 *': 1100000,
+        '보증금 *': 0,
+        '계약번호': '(비우면 자동발급)',
+        '결제방법': '자동이체',
+        '결제일': 25,
+        '운전자범위': '본인한정',
+        '연령제한': '만 26세 이상',
+        '주행한도': 30000,
+        '비고': '예시 행 — 작성 후 삭제',
+      };
       const aoa: (string | number)[][] = [
         [...CONTRACT_EXCEL_HEADERS],
-        // 예시 한 행 — 흐릿한 placeholder. 사용자가 지우거나 위에 덮어 씀
-        [
-          'CP01', '', '12가1234',
-          '홍길동', '개인', '900101-1234567', '010-1234-5678',
-          today, '2027-12-31',
-          1100000, 0, 0,
-          '자동이체', 25,
-          '', '', '',
-          '', '',
-          '본인한정', '만 26세 이상', 30000,
-          '예시 행 — 작성 후 삭제',
-        ],
+        CONTRACT_EXCEL_HEADERS.map((h) => sample[h] ?? ''),
       ];
       const sheet = XLSX.utils.aoa_to_sheet(aoa);
-      sheet['!cols'] = CONTRACT_EXCEL_HEADERS.map((h) => ({ wch: h.length > 5 ? 14 : 10 }));
+      sheet['!cols'] = CONTRACT_EXCEL_HEADERS.map((h) => ({ wch: Math.max(h.length + 2, 10) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, '계약');
       XLSX.writeFile(wb, `계약_양식_${today.replace(/-/g, '')}.xlsx`);
@@ -1018,7 +1026,7 @@ function ContractExcelTab({
     <div className="space-y-3" style={{ paddingTop: 8 }}>
       <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
         <strong>엑셀 일괄 등록</strong>
-        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 계약 작성 (예시 행 참고)
+        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 계약 작성. 헤더 <strong>「*」 표시는 필수입력</strong>, 나머지는 부가입력 (빈칸 허용)
         <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 필수항목 검증
         <br />· ③ 미리보기에서 <strong>체크박스로 등록할 행 선별</strong> → [등록]
       </div>
@@ -1027,7 +1035,9 @@ function ContractExcelTab({
         <button type="button" className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
           <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드'}
         </button>
-        <span className="text-weak text-xs">컬럼: {CONTRACT_EXCEL_HEADERS.slice(0, 10).join(' · ')} … 외 {CONTRACT_EXCEL_HEADERS.length - 10}</span>
+        <span className="text-weak text-xs">
+          필수 <strong>{CONTRACT_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{CONTRACT_EXCEL_OPTIONAL.length}</strong> (총 {CONTRACT_EXCEL_HEADERS.length} 컬럼)
+        </span>
       </div>
 
       <div

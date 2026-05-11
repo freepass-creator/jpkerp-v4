@@ -17,7 +17,7 @@ import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
 import { matchAgainstIndex, buildKeyIndex } from '@/lib/dedup';
 import { fileToImageDataUrl, pdfFirstPageToJpegFile } from '@/lib/pdf-to-image';
 import { normalizeKoreanDate } from '@/lib/parsers/date';
-import { parseAssetExcel, ASSET_EXCEL_HEADERS, type AssetImportResult } from '@/lib/asset-import';
+import { parseAssetExcel, ASSET_EXCEL_HEADERS, ASSET_EXCEL_REQUIRED, ASSET_EXCEL_OPTIONAL, type AssetImportResult } from '@/lib/asset-import';
 import { todayStr } from '@/lib/date-utils';
 
 type DuplicateReason = 'plate' | 'vin' | null;
@@ -408,6 +408,7 @@ function AssetExcelTab({
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
+  const [checked, setChecked] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function loadFile(file: File) {
@@ -415,7 +416,10 @@ function AssetExcelTab({
     try {
       const r = await parseAssetExcel(file, { defaultCompanyCode });
       setResult(r);
-      if (!r.detected) setError('헤더(차량번호·차대번호·차명 등)를 찾지 못했습니다.');
+      const init = new Set<number>();
+      r.rows.forEach((row, i) => { if (row.errors.length === 0) init.add(i); });
+      setChecked(init);
+      if (!r.detected) setError('헤더(차량번호·차대번호·차명 등)를 찾지 못했습니다. 양식을 그대로 사용하세요.');
       else if (!r.rows.length) setError(`인식된 자산이 없습니다. (전체 ${r.total} / 건너뜀 ${r.skipped})`);
     } catch (e) {
       setError((e as Error).message);
@@ -428,12 +432,26 @@ function AssetExcelTab({
     setDownloading(true);
     try {
       const XLSX = await import('xlsx');
+      // 예시 한 행 — 필수 8 + 부가 ~몇 개. 사용자가 덮어쓰거나 지움.
+      const sample: Record<string, string | number> = {
+        '회사코드 *': 'CP01',
+        '차량번호 *': '12가1234',
+        '차대번호 *': 'KMHE0000000000000',
+        '차종 *': '승용자동차',
+        '용도 *': '자가용',
+        '차명 *': '쏘렌토 MQ4',
+        '성명(명칭) *': '회사명 또는 소유자',
+        '최초등록일 *': '2024-01-15',
+        '제조사': '기아', '모델명': '쏘렌토', '세부모델': 'MQ4', '세부트림': '4WD 시그니처',
+        '제작연월': '2024-01', '연료종류': '하이브리드', '구동방식': '4륜', '외부색상': '검정', '내부색상': '베이지',
+        '선택옵션': '파노라마선루프, 하이패스, 어라운드뷰',
+      };
       const aoa: (string | number)[][] = [
         [...ASSET_EXCEL_HEADERS],
-        ['CP01', '12가1234', 'KMHE0000000000000', '쏘렌토 MQ4', '승용자동차', '자가용', '회사명 또는 소유자', '2024-01-15', '기아', '쏘렌토', '검정', '하이브리드'],
+        ASSET_EXCEL_HEADERS.map((h) => sample[h] ?? ''),
       ];
       const sheet = XLSX.utils.aoa_to_sheet(aoa);
-      sheet['!cols'] = ASSET_EXCEL_HEADERS.map((h) => ({ wch: h.length > 6 ? 16 : 12 }));
+      sheet['!cols'] = ASSET_EXCEL_HEADERS.map((h) => ({ wch: Math.max(h.length + 2, 10) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, '자산');
       XLSX.writeFile(wb, `자산_양식_${todayStr()}.xlsx`);
@@ -446,21 +464,51 @@ function AssetExcelTab({
 
   const okCount = result?.rows.filter((r) => r.errors.length === 0).length ?? 0;
   const errCount = result?.rows.filter((r) => r.errors.length > 0).length ?? 0;
+  const allChecked = result && result.rows.length > 0 && checked.size === result.rows.length;
+  const someChecked = checked.size > 0 && !allChecked;
+
+  function toggleAll() {
+    if (!result) return;
+    if (allChecked) setChecked(new Set());
+    else setChecked(new Set(result.rows.map((_, i) => i)));
+  }
+  function toggleRow(i: number) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+  function commit() {
+    if (!result) return;
+    const selectedRows = [...checked].map((i) => result.rows[i]).filter(Boolean);
+    if (selectedRows.length === 0) {
+      alert('등록할 행을 체크박스로 선택하세요.');
+      return;
+    }
+    const bad = selectedRows.filter((r) => r.errors.length > 0);
+    if (bad.length > 0) {
+      if (!confirm(`오류 ${bad.length}건 포함됨 — 그래도 등록할까요?\n(오류 행은 등록 후 수정 필요)`)) return;
+    }
+    onSubmit(selectedRows);
+  }
 
   return (
     <div className="space-y-3" style={{ paddingTop: 8 }}>
       <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
         <strong>엑셀 일괄 등록</strong>
-        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 자산 작성 (자동차등록증 항목)
-        <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 차량번호 형식 검증
-        <br />· ③ 미리보기 후 [등록] — 회사별 자산코드 자동 부여
+        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 자산 작성. 헤더 <strong>「*」 표시는 필수입력</strong>, 나머지는 부가입력 (빈칸 허용)
+        <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 차량번호 형식·필수항목 검증
+        <br />· ③ 미리보기에서 <strong>체크박스로 등록할 행 선별</strong> → [등록]
       </div>
 
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
+        <button type="button" className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
           <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드'}
         </button>
-        <span className="text-weak text-xs">컬럼: {ASSET_EXCEL_HEADERS.join(' · ')}</span>
+        <span className="text-weak text-xs">
+          필수 <strong>{ASSET_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{ASSET_EXCEL_OPTIONAL.length}</strong> (총 {ASSET_EXCEL_HEADERS.length} 컬럼)
+        </span>
       </div>
 
       <div
@@ -473,7 +521,7 @@ function AssetExcelTab({
         }}
       >
         <UploadSimple size={24} weight="bold" />
-        <div style={{ marginTop: 6 }}>{busy ? '읽는 중...' : '엑셀 파일을 드롭하거나 클릭하여 선택'}</div>
+        <div style={{ marginTop: 6 }}>{busy ? '읽는 중...' : '② 엑셀 파일을 드롭하거나 클릭하여 선택'}</div>
         <div className="text-weak text-xs" style={{ marginTop: 4 }}>.xlsx / .xls / .csv</div>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void loadFile(f); }} />
@@ -485,58 +533,82 @@ function AssetExcelTab({
         </div>
       )}
 
+      {/* 미리보기 표 — 업로드 전에도 헤더 + 체크박스 미리 표시 (계좌내역 패턴) */}
+      <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border)' }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="center" style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={!!allChecked}
+                  ref={(el) => { if (el) el.indeterminate = !!someChecked; }}
+                  onChange={toggleAll}
+                  disabled={!result || result.rows.length === 0}
+                />
+              </th>
+              <th style={{ width: 60 }}>상태</th>
+              <th style={{ width: 70 }}>회사</th>
+              <th style={{ width: 100 }}>차량번호</th>
+              <th style={{ width: 150 }}>차대번호</th>
+              <th style={{ width: 110 }}>차명</th>
+              <th style={{ width: 80 }}>차종</th>
+              <th style={{ width: 60 }}>용도</th>
+              <th style={{ width: 100 }}>성명(명칭)</th>
+              <th style={{ width: 95 }}>최초등록일</th>
+              <th>오류</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!result || result.rows.length === 0 ? (
+              <tr><td colSpan={11} className="jpk-table-empty">엑셀 업로드 시 행이 채워집니다.</td></tr>
+            ) : result.rows.slice(0, 100).map((r, i) => (
+              <tr key={i} className={checked.has(i) ? 'is-checked' : undefined}>
+                <td className="center" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={checked.has(i)} onChange={() => toggleRow(i)} />
+                </td>
+                <td>
+                  {r.errors.length > 0
+                    ? <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />}>오류</StatusBadge>
+                    : <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>}
+                </td>
+                <td className="mono">{r.data.companyCode || <span className="dim">-</span>}</td>
+                <td className="mono">{r.data.plate || '-'}</td>
+                <td className="mono text-xs">{r.data.vin || '-'}</td>
+                <td>{r.data.vehicleName || '-'}</td>
+                <td className="dim">{r.data.vehicleClass || '-'}</td>
+                <td className="dim">{r.data.usage || '-'}</td>
+                <td>{r.data.ownerName || '-'}</td>
+                <td className="date">{r.data.firstRegistDate || '-'}</td>
+                <td style={{ color: 'var(--alert-red-text)', fontSize: 11 }}>{r.errors.join(', ') || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {result && result.rows.length > 100 && (
+          <div className="text-weak text-xs" style={{ padding: 6, textAlign: 'center' }}>... 외 {result.rows.length - 100}건</div>
+        )}
+      </div>
+
       {result && result.rows.length > 0 && (
-        <>
-          <div className="text-xs" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--success-green-bg, #e7f5ea)', borderRadius: 4 }}>
-            <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
-            <span>
-              <strong>{result.rows.length}건</strong> · 등록 가능 <strong>{okCount}</strong>
-              {errCount > 0 && <> · 오류 <span className="text-red">{errCount}건 제외</span></>}
-              {result.skipped > 0 && <span className="dim"> · 건너뜀 {result.skipped}</span>}
-            </span>
-          </div>
-          <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid var(--border)' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 60 }}>상태</th>
-                  <th style={{ width: 80 }}>회사</th>
-                  <th style={{ width: 100 }}>차량</th>
-                  <th style={{ width: 160 }}>차대번호</th>
-                  <th>차명</th>
-                  <th>오류</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.slice(0, 30).map((r, i) => (
-                  <tr key={i}>
-                    <td>
-                      {r.errors.length > 0
-                        ? <StatusBadge tone="red" icon={<Warning size={11} weight="fill" />}>오류</StatusBadge>
-                        : <StatusBadge tone="green" icon={<CheckCircle size={11} weight="fill" />}>신규</StatusBadge>}
-                    </td>
-                    <td className="mono">{r.data.companyCode || <span className="dim">-</span>}</td>
-                    <td className="mono">{r.data.plate || '-'}</td>
-                    <td className="mono text-xs">{r.data.vin || '-'}</td>
-                    <td>{r.data.vehicleName || '-'}</td>
-                    <td className="text-red text-xs">{r.errors.join(', ')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {result.rows.length > 30 && (
-              <div className="text-weak text-xs" style={{ padding: 6, textAlign: 'center' }}>... 외 {result.rows.length - 30}건</div>
-            )}
-          </div>
-        </>
+        <div className="text-xs" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--success-green-bg, #e7f5ea)', borderRadius: 4 }}>
+          <CheckCircle size={14} weight="fill" style={{ color: 'var(--success-green, #2a9d3a)' }} />
+          <span>
+            전체 <strong>{result.rows.length}</strong> · 선택 <strong>{checked.size}</strong>
+            · 정상 <strong>{okCount}</strong>
+            {errCount > 0 && <> · 오류 <span className="text-red">{errCount}</span></>}
+            {result.skipped > 0 && <span className="dim"> · 건너뜀 {result.skipped}</span>}
+          </span>
+        </div>
       )}
 
       <button
+        type="button"
         className="btn btn-primary"
-        disabled={!result || okCount === 0 || busy}
-        onClick={() => result && onSubmit(result.rows)}
+        disabled={!result || checked.size === 0 || busy}
+        onClick={commit}
       >
-        {okCount > 0 ? `${okCount}건 등록` : '등록'}
+        선택 {checked.size}건 등록
       </button>
     </div>
   );

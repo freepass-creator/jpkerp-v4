@@ -144,14 +144,40 @@ export async function parseContractExcel(file: File, ctx: ContractImportContext)
   return rowsToContracts(rows, ctx);
 }
 
-export const CONTRACT_EXCEL_HEADERS = [
-  '회사코드', '계약번호', '차량번호',
-  '임차인', '신분', '고객등록번호', '연락처',
-  '시작일', '만기일',
-  '월대여료', '보증금', '선수금',
-  '결제방법', '결제일',
-  '면허번호', '이메일', '주소',
-  '비상연락처', '비상관계',
-  '운전자범위', '연령제한', '주행한도',
+/** 필수 입력 — 양식 헤더에 ` *` 접미 표시. */
+export const CONTRACT_EXCEL_REQUIRED = [
+  '회사코드',
+  '차량번호',
+  '임차인',
+  '신분',
+  '고객등록번호',
+  '연락처',
+  '시작일',
+  '만기일',
+  '월대여료',
+  '보증금',
+] as const;
+
+/** 부가 입력 — 빈칸 허용. */
+export const CONTRACT_EXCEL_OPTIONAL = [
+  '계약번호',     // 비우면 자동발급
+  '계약일',
+  '선수금',
+  '결제방법',
+  '결제일',
+  '면허번호',
+  '이메일',
+  '주소',
+  '비상연락처',
+  '비상관계',
+  '운전자범위',
+  '연령제한',
+  '주행한도',
   '비고',
 ] as const;
+
+/** 양식에 들어가는 최종 헤더 — 필수에 ` *` 표시. mapColumns 는 `*` 무시. */
+export const CONTRACT_EXCEL_HEADERS: string[] = [
+  ...CONTRACT_EXCEL_REQUIRED.map((h) => `${h} *`),
+  ...CONTRACT_EXCEL_OPTIONAL,
+];
