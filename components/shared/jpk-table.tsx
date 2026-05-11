@@ -477,6 +477,9 @@ function JpkTableRowInner<T>({
   return (
     <tr
       onClick={() => {
+        // 텍스트 드래그 선택 중이면 진입 안 함 — 직원이 셀 내용 긁어 복사하는 케이스 보호
+        const sel = typeof window !== 'undefined' ? window.getSelection?.()?.toString() : '';
+        if (sel && sel.length > 0) return;
         onSelectInternal?.(rowKey);
         onRowClick?.(row, rowIndex);
       }}
