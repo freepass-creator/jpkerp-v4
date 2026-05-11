@@ -201,8 +201,9 @@ function parseBankRows(rows, ctx) {
     deposit:  findCol(headers, ['입금액', '입금']),
     withdraw: findCol(headers, ['출금액', '출금']),
     balance:  findCol(headers, ['잔액', '거래후잔액']),
-    memo:     findCol(headers, ['적요']),
-    counterparty: findCol(headers, ['내용', '거래내용', '상대', '예금주']),
+    method:   findCol(headers, ['적요']),        // 거래방법 — BZ뱅크/타행IB/대체 등
+    memo:     findCol(headers, ['내용', '거래내용']),  // 통장에 찍히는 텍스트
+    counterparty: findCol(headers, ['상대', '예금주']),  // 명시적 송금인/수취인 (있을 때만)
     branch:   findCol(headers, ['거래점']),
   };
   if (cols.deposit < 0 && cols.withdraw < 0) return { entries: [], detected: true };
