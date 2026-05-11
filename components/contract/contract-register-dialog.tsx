@@ -415,7 +415,7 @@ export function ContractRegisterDialog({ onCreate, open: openProp, onOpenChange,
               <textarea
                 className="input"
                 rows={8}
-                style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 12 }}
                 placeholder={'CP01\t01도1234\t홍길동\t개인\t900101-1234567\t010-1234-5678\t2025-01-01\t2026-12-31\t500000\t1000000'}
                 value={sheetText}
                 onChange={(e) => setSheetText(e.target.value)}

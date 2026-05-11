@@ -497,7 +497,7 @@ export function ContractsImportPanel() {
       <textarea
         className="input"
         rows={8}
-        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+        style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 12 }}
         value={text}
         placeholder={'양식 다운로드 → 엑셀에서 편집 → 파일 업로드. 또는 구글시트에서 직접 복사붙여넣기 (탭 구분).'}
         onChange={(e) => { setText(e.target.value); if (fileName) setFileName(null); }}

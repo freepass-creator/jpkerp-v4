@@ -39,7 +39,7 @@ export type Settings = {
 
 const DEFAULTS: Settings = {
   theme: 'light',
-  fontFamily: 'system',     // 시스템 폰트 기본 — 강제 웹폰트 로드 X
+  fontFamily: 'pretendard', // Pretendard 한글 + Consolas 영문/숫자 — 일관성 우선
   fontSize: 12,
   density: 'compact',
 };
@@ -76,7 +76,8 @@ const FONT_STACKS: Record<FontFamily, { font: string; mono: string }> = {
     mono: "Consolas, 'GulimChe', '굴림체', 'Menlo', monospace",
   },
   pretendard: {
-    font: "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+    // Consolas 우선 → 영문/숫자/기호는 Consolas 글리프 (라틴), 한글은 Pretendard fallback
+    font: "Consolas, 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
     mono: "Consolas, 'JetBrains Mono', 'Menlo', monospace",
   },
   noto: {
