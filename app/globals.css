@@ -1402,7 +1402,8 @@ input[type="checkbox"], input[type="radio"] {
   gap: 24px;
   padding: 40px 16px;
   background: #f8f9fa;
-  font-family: 'Pretendard', system-ui, -apple-system, sans-serif;
+  /* 본문과 동일 폰트 스택 — globals.css default --font (Pretendard Variable). */
+  font-family: var(--font);
   letter-spacing: -0.01em;
   -webkit-user-select: none;
   user-select: none;
