@@ -1,21 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, MagnifyingGlass, ArrowSquareOut, CircleNotch, Warning } from '@phosphor-icons/react';
+import { CheckCircle, MagnifyingGlass, CircleNotch, Warning } from '@phosphor-icons/react';
 import { Dialog, DialogContent, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
 /**
- * 차종 카탈로그 선택 — freepasserp3 의 catalog 데이터를 직접 fetch 해서 자체 UI 구현.
+ * 차종 카탈로그 선택 — 외부 카탈로그 데이터를 직접 fetch 해서 자체 UI 구현.
  *
- * 데이터 source: https://freepasserp3.vercel.app/data/car-master/
- *   · _index.json   — 모든 catalog 메타 (한 번만 fetch + 메모리 캐시)
- *   · {id}.json     — 개별 catalog (trims + options) — 선택된 모델만 lazy fetch
+ * 데이터 source (CORS 허용 정적 파일):
+ *   · _index.json   — 모든 catalog 메타 (1회 fetch + 메모리 캐시)
+ *   · {id}.json     — 개별 catalog (trims + select_groups) — 선택된 모델만 lazy fetch
  *
- * 선택 흐름: 메이커 → 모델 → 세부트림 → 옵션 체크 → [매칭 결과 사용]
- *   결과 = { maker, model, trim, year?, options[], catalogId, basePrice? }
- *
- * CORS: freepasserp3.vercel.app 의 정적 파일은 access-control-allow-origin: * 로 응답 (확인됨).
- * 데이터 갱신: freepasserp3 에서 git push → Vercel 자동 배포 → v4 fetch 시 자동 반영.
+ * 선택 흐름: 제조사 → 모델 → 세부모델 → 세부트림 → 패키지 체크 → [매칭 결과 사용]
+ * 노출 정책: 가공·필터 최소화. 데이터에 있는 그대로 표시.
  */
 const DATA_BASE = 'https://freepasserp3.vercel.app/data/car-master';
 
@@ -283,7 +280,7 @@ export function CatalogSelectorDialog({
     onPick(sel);
   }
 
-  // 트림의 select_groups (패키지 묶음) — freepasserp3 카탈로그가 정확한 데이터 제공.
+  // 트림의 select_groups (패키지 묶음) — 카탈로그 데이터에 있는 그대로 사용.
   const selectGroups: SelectGroup[] = useMemo(() => {
     if (!detail || !trimName) return [];
     return detail.trims?.[trimName]?.select_groups ?? [];
@@ -331,18 +328,6 @@ export function CatalogSelectorDialog({
                 중고 (10년 이내)
               </button>
             </div>
-            <span className="text-weak text-xs" style={{ marginLeft: 'auto' }}>
-              freepasserp3 매트릭스 데이터
-              <a
-                href={`${DATA_BASE}/_index.json`}
-                target="_blank"
-                rel="noreferrer"
-                className="dim"
-                style={{ marginLeft: 6 }}
-              >
-                <ArrowSquareOut size={11} weight="bold" /> 원본
-              </a>
-            </span>
           </div>
 
           {/* 1·2·3·4 단계: 제조사 / 모델 / 세부모델 / 세부트림 */}
