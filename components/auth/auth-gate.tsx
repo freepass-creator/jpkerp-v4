@@ -147,6 +147,7 @@ function SignupScreen({ onBack }: { onBack: () => void }) {
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [companyBizNo, setCompanyBizNo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -166,7 +167,7 @@ function SignupScreen({ onBack }: { onBack: () => void }) {
     if (v) { setError(v); return; }
     setBusy(true);
     try {
-      await signup({ email, password, displayName, companyName, phone });
+      await signup({ email, password, displayName, companyName, companyBizNo, phone });
       setInfo('가입 완료 — 관리자 승인 후 사용 가능합니다.');
     } catch (err) {
       const msg = (err as Error).message;
@@ -222,6 +223,11 @@ function SignupScreen({ onBack }: { onBack: () => void }) {
             <label htmlFor="su-company">소속 회사명 (참고)</label>
             <input id="su-company" type="text" placeholder="회사명"
               value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="su-bizno">사업자등록번호 (참고)</label>
+            <input id="su-bizno" type="text" placeholder="000-00-00000"
+              value={companyBizNo} onChange={(e) => setCompanyBizNo(e.target.value)} />
           </div>
           {error && <p className="auth-message" role="alert">{error}</p>}
           {info && <p className="auth-message" style={{ color: 'var(--alert-green-text, #137333)' }}>{info}</p>}

@@ -94,6 +94,7 @@ export type SignupInput = {
   password: string;
   displayName: string;
   companyName?: string;
+  companyBizNo?: string;   // 소속 회사 사업자등록번호 — 관리자 승인 시 회사 마스터 매칭에 사용
   department?: string;
   role?: string;
   phone?: string;
@@ -111,6 +112,7 @@ export async function signup(input: SignupInput): Promise<void> {
   // RTDB users/{uid}/profile 초기 push
   const profile = {
     companyName:      input.companyName?.trim() ?? '',
+    companyBizNo:     input.companyBizNo?.trim() ?? '',
     displayName:      input.displayName.trim(),
     role:             input.role?.trim() ?? '',
     department:       input.department?.trim() ?? '',
