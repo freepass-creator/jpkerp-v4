@@ -62,6 +62,8 @@ const COLUMN_MAP = {
   mileageLimitKm:     ['주행한도', '주행거리한도'],
   paymentMethod:      ['결제방법', '결제수단'],
   paymentDay:         ['결제일', '이체일'],
+  /** 미수회차 — auto / all-paid / "3,5" / "5-" 같은 자유표기. events 자동생성 시 회차 상태 결정. */
+  overdueCycles:      ['미수회차', '미납회차'],
   note:               ['비고', '메모'],
 };
 
@@ -105,7 +107,7 @@ function rowsToContracts(rows: unknown[][], ctx: ContractImportContext): Contrac
     const monthlyAmount = cellToNumber(row[cols.monthlyAmount]) ?? 0;
     if (monthlyAmount <= 0) errors.push('월대여료 누락/0');
 
-    const data: Partial<Contract> = {
+    const data: Partial<Contract> & { overdueCycles?: string } = {
       companyCode,
       contractNo: cellToString(row[cols.contractNo]).trim() || undefined,    // 비우면 자동발급
       plate,
@@ -129,6 +131,8 @@ function rowsToContracts(rows: unknown[][], ctx: ContractImportContext): Contrac
       mileageLimitKm: cellToNumber(row[cols.mileageLimitKm]) ?? undefined,
       paymentMethod: cellToString(row[cols.paymentMethod]).trim() || undefined,
       paymentDay: cellToNumber(row[cols.paymentDay]) ?? undefined,
+      // 등록 시 page handleCreate → fromDraft 에서 buildEventsWithOverdue 호출 시 활용.
+      overdueCycles: cellToString(row[cols.overdueCycles]).trim() || undefined,
       status: '운행중',
       events: [],
     };
@@ -165,6 +169,14 @@ export const CONTRACT_EXCEL_OPTIONAL = [
   '선수금',
   '결제방법',
   '결제일',
+  /**
+   * 미수회차 — 수납 스케줄 생성 시 어느 회차를 「지연」으로 둘지.
+   *   "all-paid" — 모든 도래 회차 완료
+   *   "3,5"      — 3·5회차만 미수, 나머지 도래 완료
+   *   "5-"       — 5회차부터 모두 미수
+   *   비우면 auto — 도래 회차 완료, 미래 예정
+   */
+  '미수회차',
   '면허번호',
   '이메일',
   '주소',

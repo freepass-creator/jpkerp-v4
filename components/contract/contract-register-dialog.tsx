@@ -28,7 +28,16 @@ import { normalizeKoreanDate } from '@/lib/parsers/date';
  *   회사코드 · 차량번호 · 고객명 · 신분 · 고객등록번호 · 연락처 · 시작일 · 만기일 · 월대여료 · 보증금
  */
 
-type ContractDraft = Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'>;
+/**
+ * 등록 전 단계 draft.
+ *   - id/contractNo: 등록 시 발급
+ *   - status: 항상 '운행중' default
+ *   - events: 등록 시 buildEventsWithOverdue 로 자동 생성
+ *   - overdueCycles (선택): 미수회차 지정 — 엑셀 일괄 마이그레이션·과거 계약 import 용
+ */
+type ContractDraft = Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'> & {
+  overdueCycles?: string;
+};
 
 type ContractWorkItem = OcrBatchItem & {
   data: Partial<ContractDraft>;
