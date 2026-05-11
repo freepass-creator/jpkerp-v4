@@ -23,6 +23,38 @@ import { useDialogShortcuts, countChanges } from '@/lib/use-dialog-shortcuts';
 
 export type CompanyDialogMode = 'view' | 'edit' | 'create' | 'duplicate';
 
+/**
+ * 은행 옵션 — 한국 운영자 인기순.
+ * 1군(시중) → 2군(인터넷전문) → 3군(특수은행·외은) → 4군(지방은행) → 기타.
+ */
+const BANK_OPTIONS: [string, string][] = [
+  ['', '- 은행 선택 -'],
+  ['신한', '신한'],
+  ['KB국민', 'KB국민'],
+  ['하나', '하나'],
+  ['우리', '우리'],
+  ['NH농협', 'NH농협'],
+  ['IBK기업', 'IBK기업'],
+  ['카카오뱅크', '카카오뱅크'],
+  ['토스뱅크', '토스뱅크'],
+  ['케이뱅크', '케이뱅크'],
+  ['새마을금고', '새마을금고'],
+  ['신협', '신협'],
+  ['SC제일', 'SC제일'],
+  ['한국씨티', '한국씨티'],
+  ['우체국', '우체국'],
+  ['KDB산업', 'KDB산업'],
+  ['수출입', '수출입'],
+  ['부산', '부산'],
+  ['대구', '대구'],
+  ['경남', '경남'],
+  ['광주', '광주'],
+  ['전북', '전북'],
+  ['제주', '제주'],
+  ['HSBC', 'HSBC'],
+  ['기타', '기타'],
+];
+
 const MODE_DOT: Record<CompanyDialogMode, string> = {
   view: '#9ca3af',       // 회색
   edit: '#f59e0b',       // 황색
@@ -499,10 +531,10 @@ function CompanyForm({
         onRemove={(i) => set('accounts', form.accounts.filter((_, idx) => idx !== i))}
         renderItem={(item, i) => (
           <>
-            <Input label="은행" value={item.bank} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, bank: v }))} placeholder="신한" colSpan={1} />
+            <Select label="은행" value={item.bank} options={BANK_OPTIONS} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, bank: v }))} colSpan={1} />
             <Input label="계좌번호" value={item.accountNo} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, accountNo: v }))} placeholder="110-123-456789" colSpan={2} />
             <Input label="예금주 (다를 때)" value={item.holder ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, holder: v }))} colSpan={1} />
-            <Input label="용도/별칭" value={item.alias ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, alias: v }))} placeholder="운영비, 자동이체" colSpan={3} />
+            <Input label="용도/별칭" value={item.alias ?? ''} onChange={(v) => set('accounts', updateAt(form.accounts, i, { ...item, alias: v }))} placeholder="운영비, 자동이체" colSpan={4} />
           </>
         )}
       />
