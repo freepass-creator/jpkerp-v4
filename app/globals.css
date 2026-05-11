@@ -193,7 +193,8 @@ a { color: var(--text-link); text-decoration: none; }
 
 .mono, code, kbd, .num, .plate, .date,
 td.num, td.date, th.num, th.date {
-  font-family: var(--font-mono);
+  /* 폰트 강제 안 함 — 본문 폰트 (Pretendard) 그대로 따라감.
+     숫자 등폭 정렬은 font-feature-settings: 'tnum' 으로 보장. */
   font-feature-settings: 'tnum' 1;
   letter-spacing: -0.2px;
 }
