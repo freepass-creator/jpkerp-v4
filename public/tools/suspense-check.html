@@ -200,8 +200,10 @@ function parseBankRows(rows, ctx) {
     txDate:   findCol(headers, ['거래일시', '거래일자', '거래일']),
     deposit:  findCol(headers, ['입금액', '입금']),
     withdraw: findCol(headers, ['출금액', '출금']),
+    balance:  findCol(headers, ['잔액', '거래후잔액']),
     memo:     findCol(headers, ['적요']),
-    counterparty: findCol(headers, ['내용', '거래내용', '상대']),
+    counterparty: findCol(headers, ['내용', '거래내용', '상대', '예금주']),
+    branch:   findCol(headers, ['거래점']),
   };
   if (cols.deposit < 0 && cols.withdraw < 0) return { entries: [], detected: true };
 
@@ -217,10 +219,13 @@ function parseBankRows(rows, ctx) {
       account: ctx.account,
       txDate: String(r[cols.txDate] ?? ''),
       deposit, withdraw,
+      balance: cols.balance >= 0 ? parseNumber(r[cols.balance]) : null,
       memo: String(r[cols.memo] ?? ''),
       counterparty: String(r[cols.counterparty] ?? ''),
+      branch: cols.branch >= 0 ? String(r[cols.branch] ?? '').trim() : '',
       subject: '',     // 은행 엑셀엔 계정과목 없음 → 모두 미분개 (가수금 후보)
       matched: '',
+      note: '',
     });
   }
   return { entries, detected: true };
@@ -290,30 +295,41 @@ function analyze() {
   const headers = rows[headerIdx].map(s => s.trim());
   const cols = {
     company: findCol(headers, ['회사코드', '회사']),
-    account: findCol(headers, ['계좌', '거래점']),
+    account: findCol(headers, ['계좌']),
+    branch:  findCol(headers, ['거래점']),
     deposit: findCol(headers, ['입금액', '입금']),
     withdraw: findCol(headers, ['출금액', '출금']),
+    balance: findCol(headers, ['잔액']),
     subject: findCol(headers, ['계정과목', '계정']),
-    matched: findCol(headers, ['차량번호', '매칭계약', '계약번호', '임차인']),
+    matched: findCol(headers, ['차량번호', '매칭계약', '계약번호']),
+    matchedCustomer: findCol(headers, ['임차인']),
+    matchedModel: findCol(headers, ['세부차종', '차명', '모델']),
     txDate: findCol(headers, ['거래일시', '거래일자', '거래일']),
     memo: findCol(headers, ['적요']),
-    counterparty: findCol(headers, ['상대', '내용', '거래처', '예금주']),
+    counterparty: findCol(headers, ['내용', '상대', '거래처', '예금주']),
+    note: findCol(headers, ['비고', '메모']),
   };
 
   const entries = [];
   for (const r of rows.slice(headerIdx + 1).filter(r => r.length >= 2)) {
-    const company = (cols.company >= 0 ? r[cols.company] : '').trim() || '(미지정)';
-    const account = (cols.account >= 0 ? r[cols.account] : '').trim() || '(미지정)';
+    const company = (cols.company >= 0 ? String(r[cols.company]) : '').trim() || '(미지정)';
+    const account = (cols.account >= 0 ? String(r[cols.account]) : '').trim() || '(미지정)';
     const deposit = parseNumber(cols.deposit >= 0 ? r[cols.deposit] : '');
     const withdraw = parseNumber(cols.withdraw >= 0 ? r[cols.withdraw] : '');
     if (deposit === 0 && withdraw === 0) continue;
     entries.push({
       company, account, deposit, withdraw,
-      subject: (cols.subject >= 0 ? r[cols.subject] : '').trim(),
-      matched: (cols.matched >= 0 ? r[cols.matched] : '').trim(),
-      txDate: (cols.txDate >= 0 ? r[cols.txDate] : '').trim(),
-      memo: (cols.memo >= 0 ? r[cols.memo] : '').trim(),
-      counterparty: (cols.counterparty >= 0 ? r[cols.counterparty] : '').trim(),
+      balance: cols.balance >= 0 ? parseNumber(r[cols.balance]) : null,
+      subject: (cols.subject >= 0 ? String(r[cols.subject]) : '').trim(),
+      matched: (cols.matched >= 0 ? String(r[cols.matched]) : '').trim(),
+      matchedPlate: (cols.matched >= 0 ? String(r[cols.matched]) : '').trim(),
+      matchedCustomer: (cols.matchedCustomer >= 0 ? String(r[cols.matchedCustomer]) : '').trim(),
+      matchedModel: (cols.matchedModel >= 0 ? String(r[cols.matchedModel]) : '').trim(),
+      txDate: (cols.txDate >= 0 ? String(r[cols.txDate]) : '').trim(),
+      memo: (cols.memo >= 0 ? String(r[cols.memo]) : '').trim(),
+      counterparty: (cols.counterparty >= 0 ? String(r[cols.counterparty]) : '').trim(),
+      branch: (cols.branch >= 0 ? String(r[cols.branch]) : '').trim(),
+      note: (cols.note >= 0 ? String(r[cols.note]) : '').trim(),
     });
   }
 
@@ -326,54 +342,105 @@ function analyze() {
 }
 
 function renderResults(entries) {
-  // 거래처(예금주)별 그룹 — "누구한테 얼마 들어오고 얼마 나갔는지"
+  // 거래처(예금주)별 집계 (상단 요약)
   const groups = new Map();
   let totalTx = 0, totalDep = 0, totalWd = 0;
   for (const e of entries) {
     const cp = (e.counterparty || e.memo || '(미상)').trim() || '(미상)';
     let g = groups.get(cp);
-    if (!g) {
-      g = { counterparty: cp, txCount: 0, deposit: 0, withdraw: 0, lastDate: '', memos: new Set() };
-      groups.set(cp, g);
-    }
+    if (!g) g = { counterparty: cp, txCount: 0, deposit: 0, withdraw: 0 };
     g.txCount++;
     g.deposit += e.deposit;
     g.withdraw += e.withdraw;
-    if (e.txDate && e.txDate > g.lastDate) g.lastDate = e.txDate;
-    if (e.memo) g.memos.add(e.memo);
+    groups.set(cp, g);
     totalTx++; totalDep += e.deposit; totalWd += e.withdraw;
   }
-  // 차액 큰 순서로 정렬 (입금이 많거나 출금이 많은 거래처 먼저)
-  const list = Array.from(groups.values()).sort((a, b) => {
-    return Math.abs(b.deposit - b.withdraw) - Math.abs(a.deposit - a.withdraw);
-  });
+  const cpList = Array.from(groups.values()).sort((a, b) => b.deposit - a.deposit);
 
+  // 통계 + 거래처 요약 카드
   let html = `
     <div class="card">
       <div class="stat-row">
         <div class="stat"><span class="stat-label">총 거래</span> <span class="stat-value">${totalTx}</span></div>
-        <div class="stat"><span class="stat-label">입금합계</span> <span class="stat-value">${W(totalDep)}</span></div>
-        <div class="stat"><span class="stat-label">출금합계</span> <span class="stat-value">${W(totalWd)}</span></div>
-        <div class="stat"><span class="stat-label">차액(입금-출금)</span> <span class="stat-value ${totalDep-totalWd>=0?'pos':'neg'}">${(totalDep-totalWd>=0?'+':'')}${W(totalDep-totalWd)}</span></div>
+        <div class="stat"><span class="stat-label">입금합계</span> <span class="stat-value pos">${W(totalDep)}</span></div>
+        <div class="stat"><span class="stat-label">출금합계</span> <span class="stat-value neg">${W(totalWd)}</span></div>
+        <div class="stat"><span class="stat-label">차액</span> <span class="stat-value ${totalDep-totalWd>=0?'pos':'neg'}">${(totalDep-totalWd>=0?'+':'')}${W(totalDep-totalWd)}</span></div>
+        <div class="stat"><span class="stat-label">거래처</span> <span class="stat-value">${cpList.length}</span></div>
       </div>
+    </div>`;
+
+  // 자금일보 형태 — per-transaction (시간순 정렬)
+  const sorted = [...entries].sort((a, b) => (a.txDate || '').localeCompare(b.txDate || ''));
+  html += `
+    <div class="card" style="overflow-x: auto;">
+      <h3 style="margin: 0 0 8px 0; font-size: 13px;">자금일보 — 거래내역 (${entries.length}건)</h3>
       <table>
         <thead>
           <tr>
-            <th style="width:200px">거래처 (예금주)</th>
-            <th class="num" style="width:60px">거래</th>
-            <th class="num" style="width:140px">받은 돈 (입금)</th>
-            <th class="num" style="width:140px">보낸 돈 (출금)</th>
-            <th class="num" style="width:140px">차액</th>
-            <th style="width:100px">최근일</th>
-            <th>적요</th>
+            <th class="num" style="width:40px">No.</th>
+            <th style="width:140px">거래일시</th>
+            <th style="width:80px">적요</th>
+            <th class="num" style="width:110px">입금액</th>
+            <th class="num" style="width:110px">출금액</th>
+            <th>내용</th>
+            <th class="num" style="width:120px">잔액</th>
+            <th style="width:100px">거래점</th>
+            <th style="width:100px">계정과목</th>
+            <th style="width:100px">차량번호</th>
+            <th style="width:100px">임차인</th>
+            <th style="width:120px">세부차종</th>
+            <th>비고</th>
+            <th class="center" style="width:70px">구분</th>
           </tr>
         </thead>
         <tbody>`;
 
-  for (const g of list) {
+  sorted.forEach((e, idx) => {
+    const subject = e.subject || '';
+    const matched = e.matched || '';
+    const status = subject && matched ? '<span style="color:var(--success)">마감</span>'
+                 : subject ? '<span style="color:var(--alert-amber)">분개</span>'
+                 : '<span style="color:var(--alert-red)">미분개</span>';
+    html += `
+      <tr>
+        <td class="num dim">${idx + 1}</td>
+        <td class="dim" style="font-size:11px">${e.txDate || '-'}</td>
+        <td>${e.memo || '<span class="dim">-</span>'}</td>
+        <td class="num ${e.deposit>0?'pos':''}">${e.deposit>0 ? W(e.deposit) : '<span class="dim">-</span>'}</td>
+        <td class="num ${e.withdraw>0?'neg':''}">${e.withdraw>0 ? W(e.withdraw) : '<span class="dim">-</span>'}</td>
+        <td><strong>${e.counterparty || '<span class="dim">-</span>'}</strong></td>
+        <td class="num dim">${e.balance != null && e.balance !== '' ? W(e.balance) : '-'}</td>
+        <td class="dim" style="font-size:11px">${e.branch || e.account || '-'}</td>
+        <td class="dim">${subject || '<span class="dim">-</span>'}</td>
+        <td class="mono dim">${e.matchedPlate || '<span class="dim">-</span>'}</td>
+        <td class="dim">${e.matchedCustomer || '<span class="dim">-</span>'}</td>
+        <td class="dim">${e.matchedModel || '<span class="dim">-</span>'}</td>
+        <td class="dim" style="font-size:11px">${e.note || ''}</td>
+        <td class="center">${status}</td>
+      </tr>`;
+  });
+  html += `
+        </tbody>
+      </table>
+    </div>`;
+
+  // 거래처별 요약 (collapsible)
+  html += `
+    <details class="card" open>
+      <summary style="cursor:pointer;font-weight:500;font-size:13px;">📊 거래처별 집계 — 누가 보냈는지 (${cpList.length}건, 받은 돈 순)</summary>
+      <table style="margin-top:8px">
+        <thead>
+          <tr>
+            <th>거래처 (예금주)</th>
+            <th class="num" style="width:60px">건수</th>
+            <th class="num" style="width:140px">받은 돈</th>
+            <th class="num" style="width:140px">보낸 돈</th>
+            <th class="num" style="width:140px">차액</th>
+          </tr>
+        </thead>
+        <tbody>`;
+  for (const g of cpList) {
     const net = g.deposit - g.withdraw;
-    const memosArr = Array.from(g.memos);
-    const memosText = memosArr.slice(0, 3).join(', ') + (memosArr.length > 3 ? ` 외 ${memosArr.length - 3}건` : '');
     html += `
       <tr>
         <td><strong>${g.counterparty}</strong></td>
@@ -381,28 +448,12 @@ function renderResults(entries) {
         <td class="num ${g.deposit>0?'pos':''}">${g.deposit>0 ? W(g.deposit) : '<span class="dim">-</span>'}</td>
         <td class="num ${g.withdraw>0?'neg':''}">${g.withdraw>0 ? W(g.withdraw) : '<span class="dim">-</span>'}</td>
         <td class="num ${net>=0?'pos':'neg'}">${net>=0?'+':''}${W(net)}</td>
-        <td class="dim" style="font-size:11px">${g.lastDate ? g.lastDate.slice(0, 10) : '-'}</td>
-        <td class="dim" style="font-size:11px">${memosText}</td>
       </tr>`;
   }
-  // 총계 행
-  html += `
-        <tr class="total-row">
-          <td>합계</td>
-          <td class="num">${totalTx}</td>
-          <td class="num">${W(totalDep)}</td>
-          <td class="num">${W(totalWd)}</td>
-          <td class="num ${totalDep-totalWd>=0?'pos':'neg'}">${totalDep-totalWd>=0?'+':''}${W(totalDep-totalWd)}</td>
-          <td colspan="2"></td>
-        </tr>`;
-
   html += `
         </tbody>
       </table>
-    </div>
-    <p class="hint" style="padding:0 4px">
-      거래처(예금주)별 합계 — 받은 돈 많은 순서. 같은 사람이 입금·출금 둘 다 있으면 차액으로 표시.
-    </p>`;
+    </details>`;
 
   document.getElementById('results').innerHTML = html;
 }
