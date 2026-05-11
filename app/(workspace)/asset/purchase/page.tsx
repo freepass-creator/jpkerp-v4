@@ -95,6 +95,7 @@ export default function PurchaseListPage() {
                 <th style={{ width: 80 }} className="num">진행률</th>
                 <th style={{ width: 110 }}>출고예정일</th>
                 <th style={{ width: 120 }}>구매결정</th>
+                <th style={{ width: 70 }} className="center">상세</th>
               </tr>
             </thead>
             <tbody>
@@ -103,66 +104,59 @@ export default function PurchaseListPage() {
                 const expectedDelivery = asset.purchase?.expectedDeliveryDate;
                 const dueIn = expectedDelivery ? daysFromToday(expectedDelivery) : null;
                 return (
-                  <tr key={asset.id} style={{ cursor: 'pointer' }}>
+                  <tr key={asset.id}>
                     <td className="mono">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {placeholder ? (
-                          <span className="text-amber" title="placeholder — 상품화·등록 단계에서 실제값 입력">
-                            <Warning size={11} weight="fill" /> {asset.plate}
-                          </span>
-                        ) : (
-                          asset.plate
-                        )}
-                      </Link>
+                      {placeholder ? (
+                        <span className="text-amber" title="placeholder — 상품화·등록 단계에서 실제값 입력">
+                          <Warning size={11} weight="fill" /> {asset.plate}
+                        </span>
+                      ) : (
+                        asset.plate
+                      )}
                     </td>
                     <td className="text-xs">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {asset.purchase?.vehicleSpecMemo || asset.vehicleName || <span className="dim">-</span>}
-                        {asset.purchase?.exteriorColor && <span className="dim"> · {asset.purchase.exteriorColor}</span>}
-                      </Link>
+                      {asset.purchase?.vehicleSpecMemo || asset.vehicleName || <span className="dim">-</span>}
+                      {asset.purchase?.exteriorColor && <span className="dim"> · {asset.purchase.exteriorColor}</span>}
                     </td>
                     <td className="text-xs">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {contract
-                          ? <><span className="mono">{contract.contractNo}</span> · {contract.customerName}</>
-                          : <span className="dim">선도(재고)</span>}
-                      </Link>
+                      {contract
+                        ? <><span className="mono">{contract.contractNo}</span> · {contract.customerName}</>
+                        : <span className="dim">선도(재고)</span>}
                     </td>
                     <td>
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {stage ? (
-                          <span className="badge badge-blue">{PURCHASE_STAGE_LABEL[stage]}</span>
-                        ) : (
-                          <span className="badge badge-green">
-                            <CheckCircle size={11} weight="fill" /> 완료
-                          </span>
-                        )}
-                      </Link>
+                      {stage ? (
+                        <span className="badge badge-blue">{PURCHASE_STAGE_LABEL[stage]}</span>
+                      ) : (
+                        <span className="badge badge-green">
+                          <CheckCircle size={11} weight="fill" /> 완료
+                        </span>
+                      )}
                     </td>
-                    <td className="num text-xs">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {progress.done}/{progress.total}
-                      </Link>
+                    <td className="num text-xs">{progress.done}/{progress.total}</td>
+                    <td className="text-xs">
+                      {expectedDelivery ? (
+                        <span className={dueIn !== null && dueIn <= 2 && dueIn >= 0 ? 'text-amber' : ''}>
+                          {expectedDelivery}
+                          {dueIn !== null && dueIn >= 0 && dueIn <= 7 && (
+                            <span className="dim"> · D{dueIn === 0 ? '-Day' : `-${dueIn}`}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="dim">-</span>
+                      )}
                     </td>
                     <td className="text-xs">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {expectedDelivery ? (
-                          <span className={dueIn !== null && dueIn <= 2 && dueIn >= 0 ? 'text-amber' : ''}>
-                            {expectedDelivery}
-                            {dueIn !== null && dueIn >= 0 && dueIn <= 7 && (
-                              <span className="dim"> · D{dueIn === 0 ? '-Day' : `-${dueIn}`}</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="dim">-</span>
-                        )}
-                      </Link>
+                      {asset.purchase?.decidedAt?.slice(0, 10) ?? '-'}
+                      <br />
+                      <span className="dim">{actorDisplayName(asset.purchase?.decidedBy)}</span>
                     </td>
-                    <td className="text-xs">
-                      <Link href={`/asset/purchase/${asset.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {asset.purchase?.decidedAt?.slice(0, 10) ?? '-'}
-                        <br />
-                        <span className="dim">{actorDisplayName(asset.purchase?.decidedBy)}</span>
+                    <td className="center">
+                      <Link
+                        href={`/asset/purchase/${asset.id}`}
+                        className="btn btn-sm"
+                        style={{ padding: '2px 6px', textDecoration: 'none' }}
+                      >
+                        상세
                       </Link>
                     </td>
                   </tr>

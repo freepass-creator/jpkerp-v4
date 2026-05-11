@@ -79,10 +79,7 @@ export default function ContractScheduleMasterPage() {
             {summaries.map((s) => {
               const c = s.contract;
               return (
-                <tr
-                  key={c.id}
-                  onClick={() => router.push(`/contract/schedule/${c.contractNo}`)}
-                >
+                <tr key={c.id}>
                   <td className="plate">{c.companyCode}</td>
                   <td className="mono text-medium">{c.contractNo}</td>
                   <td className="plate">{c.plate}</td>
@@ -101,7 +98,17 @@ export default function ContractScheduleMasterPage() {
                     {s.nextEvent ? `${s.nextEvent.dueDate} · ${s.nextEvent.type}` : '-'}
                   </td>
                   <td className="center"><StatusBadge status={c.status} /></td>
-                  <td className="center text-weak"><CaretRight size={11} /></td>
+                  <td className="center">
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => router.push(`/contract/schedule/${c.contractNo}`)}
+                      title="회차별 처리 상세"
+                      style={{ padding: '2px 6px' }}
+                    >
+                      상세 <CaretRight size={11} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
