@@ -10,13 +10,16 @@
 import type { PenaltyParsed } from './parsers/penalty';
 import type { Company } from './sample-companies';
 import type { IssueContext, ConfirmationArgs } from './penalty-templates';
+import type { AuditFields } from './audit-fields';
 
-export interface PenaltyWorkItem extends PenaltyParsed {
+export interface PenaltyWorkItem extends PenaltyParsed, AuditFields {
   id: string;
   fileName: string;
   fileDataUrl: string;
   fileSize?: number;
   pageNumber?: number;
+  /** 소프트 삭제. 통지번호는 영구 보존 (재발급 금지). */
+  deletedAt?: string;
   _company?: Company | null;
   _asset?: {
     manufacturer?: string;

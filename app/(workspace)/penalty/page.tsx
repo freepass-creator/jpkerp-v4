@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { FileArrowDown, Trash, X, PencilSimple, CheckCircle, Warning, FileXls, Eye, FileZip, CircleNotch, FileText, User } from '@phosphor-icons/react';
 import { PageShell } from '@/components/layout/page-shell';
 import { downloadPenaltyZip, previewPenaltyItem, type PenaltyWorkItem } from '@/lib/penalty-pdf';
+import { usePenaltyStore } from '@/lib/use-penalty-store';
 import { dedupPenalties, describeDuplicate } from '@/lib/penalty-dedup';
 import { EntityFormDialog, type FieldDef } from '@/components/ui/entity-form-dialog';
 import { findCompany } from '@/lib/sample-companies';
@@ -68,7 +69,8 @@ export default function PenaltyPage() {
     email: user?.email ?? '',
   }), [user?.displayName, user?.email]);
 
-  const [items, setItems] = useState<PenaltyWorkItem[]>([]);
+  const [allItems, setItems] = usePenaltyStore();
+  const items = useMemo(() => allItems.filter((p) => !p.deletedAt), [allItems]);
   const [busy, setBusy] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

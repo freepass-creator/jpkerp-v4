@@ -68,6 +68,7 @@ const KNOWN_NODES = [
   'card_usages',
   'expenses',
   'taxbills',
+  'penalties',
   'audit_logs',
   'event_uploads',
   'sms_logs',

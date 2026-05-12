@@ -37,12 +37,17 @@ type Options<T> = {
   sortBy?: (a: T, b: T) => number;
   /** read 후 항목별 정규화 (예: nested 객체→배열). 없으면 그대로. */
   normalizeItem?: (item: T) => T;
+  /**
+   * write 직전 항목별 직렬화 (예: 런타임 hydration `_*` 필드 strip).
+   * undefined 반환하면 그대로 (스킵 X).
+   */
+  serializeItem?: (item: T) => T;
   /** write 실패 시 alert 메시지 prefix. */
   alertLabel?: string;
 };
 
 export function createKeyedStore<T>(opts: Options<T>) {
-  const { path, getKey, storeName, sortBy, normalizeItem, alertLabel } = opts;
+  const { path, getKey, storeName, sortBy, normalizeItem, serializeItem, alertLabel } = opts;
 
   let cache: T[] = [];
   const listeners = new Set<(v: T[]) => void>();
@@ -61,7 +66,7 @@ export function createKeyedStore<T>(opts: Options<T>) {
     const out: Record<string, T> = {};
     for (const item of arr) {
       const k = getKey(item);
-      if (k) out[k] = item;
+      if (k) out[k] = serializeItem ? serializeItem(item) : item;
     }
     return out;
   }
