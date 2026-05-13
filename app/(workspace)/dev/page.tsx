@@ -267,32 +267,19 @@ function DevPage() {
         contractsCount={contracts.length}
         contracts={contracts}
         onReceiptBatchApply={(patches) => {
-          const byContract = new Map(patches.map((p) => [p.contractId, p.eventPatches]));
+          // 계약별 events 통째 교체 (buildEventsWithOutstanding 결과)
+          const byContract = new Map(patches.map((p) => [p.contractId, p.events]));
           setContracts((prev) => prev.map((c) => {
-            const list = byContract.get(c.id);
-            if (!list) return c;
-            const eventMap = new Map(list.map((p) => [p.eventId, p]));
-            return {
-              ...c,
-              events: c.events.map((e) => {
-                const p = eventMap.get(e.id);
-                if (!p) return e;
-                return {
-                  ...e,
-                  status: p.status,
-                  doneDate: p.doneDate ?? (p.status === '완료' ? e.doneDate : undefined),
-                  note: p.note ?? e.note,
-                };
-              }),
-            };
+            const newEvents = byContract.get(c.id);
+            return newEvents ? { ...c, events: newEvents } : c;
           }));
-          const totalUpdates = patches.reduce((s, p) => s + p.eventPatches.length, 0);
+          const totalEvents = patches.reduce((s, p) => s + p.events.length, 0);
           audit.log({
             action: 'update', entityType: 'contract', entityId: 'batch',
-            label: `[/dev] 수납 일괄 마이그레이션 ${patches.length}계약 / ${totalUpdates}회차`,
-            after: { contracts: patches.length, events: totalUpdates },
+            label: `[/dev] 수납 일괄 마이그레이션 ${patches.length}계약 / ${totalEvents}회차 재생성`,
+            after: { contracts: patches.length, events: totalEvents },
           });
-          alert(`${patches.length}개 계약 / ${totalUpdates}건 회차 적용 완료.`);
+          alert(`${patches.length}개 계약 events 재생성 완료.`);
         }}
       />}
       {section === 'other' && <OtherSection nodes={otherNodes} />}
@@ -477,7 +464,7 @@ function SeedSection({
   onSeedDeliveries: () => void;
   contractsCount: number;
   contracts: Contract[];
-  onReceiptBatchApply: (patches: { contractId: string; eventPatches: { eventId: string; status: ScheduleEvent['status']; doneDate?: string; note?: string }[] }[]) => void;
+  onReceiptBatchApply: (patches: { contractId: string; events: ScheduleEvent[] }[]) => void;
 }) {
   return (
     <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>

@@ -113,8 +113,8 @@ function rowsToContracts(rows: unknown[][], ctx: ContractImportContext): Contrac
     const monthlyAmount = cellToNumber(row[cols.monthlyAmount]) ?? 0;
     if (monthlyAmount <= 0) errors.push('월대여료 누락/0');
 
+    // 미수금액은 선택 — 비우면 도래 회차 자동 완료 (수납일괄 마이그레이션에서 별도 처리)
     const outstandingAmountCell = cellToNumber(row[cols.outstandingAmount]);
-    if (outstandingAmountCell == null) errors.push('미수금액 누락 (신규는 0 입력)');
 
     const data: Partial<Contract> & { outstandingAmount?: number; overdueCycles?: string } = {
       outstandingAmount: outstandingAmountCell ?? undefined,
@@ -169,13 +169,6 @@ export const CONTRACT_EXCEL_REQUIRED = [
   '만기일',
   '월대여료',
   '보증금',
-  /**
-   * 미수금액 — 현재 누적 미수금(원). 필수.
-   *   · 신규 계약 = 0
-   *   · 마이그레이션 = 실제 잔액 (예: 30만, 130만)
-   * 시스템이 최근 도래 회차부터 거꾸로 차감해 자동 분배.
-   */
-  '미수금액',
 ] as const;
 
 /** 부가 입력 — 빈칸 허용. */
@@ -185,6 +178,13 @@ export const CONTRACT_EXCEL_OPTIONAL = [
   '선수금',
   '결제방법',
   '결제일',
+  /**
+   * 미수금액 — 선택. 비우면 도래 회차 자동 완료 (auto).
+   *   · 마이그레이션 1단계: 계약 정보만 등록 (미수금액 빈칸)
+   *   · 마이그레이션 2단계: /dev → 수납 일괄 마이그레이션으로 미수금액만 별도 처리
+   *   · 한 번에 처리하려면 여기에 직접 입력 가능
+   */
+  '미수금액',
   '면허번호',
   '이메일',
   '주소',
