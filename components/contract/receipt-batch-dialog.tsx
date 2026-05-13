@@ -268,9 +268,13 @@ export function ReceiptBatchDialog({
 
           <TabsContent value="excel">
             <div className="space-y-3" style={{ paddingTop: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+                <FileXls size={18} weight="bold" />
+                <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>수납 일괄 처리</h3>
+                <span className="text-weak text-xs">— 계약 회차 status/doneDate 일괄 갱신</span>
+              </div>
               <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
-                <strong>수납 일괄 처리</strong>
-                <br />· ① <strong>양식 다운로드</strong> — 활성 계약의 미완료(예정/지연) 수납 회차가 자동 채워짐
+                · ① <strong>양식 다운로드</strong> — 활성 계약의 미완료(예정/지연) 수납 회차가 자동 채워짐
                 <br />· ② 엑셀에서 「상태」 = 완료/지연/취소 마킹 + 완료 시 「입금일」 기입
                 <br />· ③ 업로드 → 미리보기에서 적용할 행 체크 → [선택 N건 적용]
                 <br />· 필수 <strong>{RECEIPT_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{RECEIPT_EXCEL_OPTIONAL.length}</strong> (총 {RECEIPT_EXCEL_HEADERS.length} 컬럼)

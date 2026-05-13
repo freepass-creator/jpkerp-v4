@@ -1052,9 +1052,13 @@ function ContractExcelTab({
 
   return (
     <div className="space-y-3" style={{ paddingTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+        <FileXls size={18} weight="bold" />
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>계약 엑셀 일괄 등록</h3>
+        <span className="text-weak text-xs">— 미수금액 입력 시 회차 자동 분배</span>
+      </div>
       <div className="text-xs" style={{ background: 'var(--bg-card)', padding: 8, borderRadius: 4 }}>
-        <strong>엑셀 일괄 등록</strong>
-        <br />· ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 계약 작성. 헤더 <strong>「*」 표시는 필수입력</strong>, 나머지는 부가입력 (빈칸 허용)
+        · ① <strong>양식 다운로드</strong> → 엑셀에서 행마다 계약 작성. 헤더 <strong>「*」 표시는 필수입력</strong>, 나머지는 부가입력 (빈칸 허용)
         <br />· ② <strong>파일 드롭/선택</strong> → 헤더 자동검출 + 필수항목 검증
         <br />· ③ 미리보기에서 <strong>체크박스로 등록할 행 선별</strong> → [등록]
       </div>
