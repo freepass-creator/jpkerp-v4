@@ -19,7 +19,9 @@ const RTDB_PATH = 'ledger';
 
 let cache: LedgerEntry[] = [];
 const listeners = new Set<(v: LedgerEntry[]) => void>();
+const readyListeners = new Set<() => void>();
 let subscribed = false;
+let initialized = false;
 /** RTDB 가 자체 write 를 echo 로 다시 fire 하는 걸 거르기 위한 직렬화 캐시 */
 let lastSerialized = '';
 
@@ -50,19 +52,25 @@ function ensureSubscription() {
     lastSerialized = json;
     const v = fromRtdb(snap.val());
     cache = v;
+    initialized = true;
     listeners.forEach((l) => l(v));
+    readyListeners.forEach((fn) => fn());
   });
 }
 
 export function useLedgerStore() {
   const [entries, setLocal] = useState<LedgerEntry[]>(() => cache);
+  const [ready, setReady] = useState<boolean>(() => initialized);
 
   useEffect(() => {
     ensureSubscription();
     const fn = (v: LedgerEntry[]) => setLocal(v);
+    const readyFn = () => setReady(true);
     listeners.add(fn);
+    readyListeners.add(readyFn);
     setLocal(cache);
-    return () => { listeners.delete(fn); };
+    if (initialized) setReady(true);
+    return () => { listeners.delete(fn); readyListeners.delete(readyFn); };
   }, []);
 
   const setEntries = useCallback((updater: LedgerEntry[] | ((prev: LedgerEntry[]) => LedgerEntry[])) => {
@@ -79,5 +87,5 @@ export function useLedgerStore() {
     });
   }, []);
 
-  return [entries, setEntries] as const;
+  return [entries, setEntries, ready] as const;
 }

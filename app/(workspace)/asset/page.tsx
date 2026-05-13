@@ -34,7 +34,7 @@ import Link from 'next/link';
 import { Buildings } from '@phosphor-icons/react';
 
 export default function AssetListPage() {
-  const [allAssets, setAssets] = useAssetStore();
+  const [allAssets, setAssets, assetsReady] = useAssetStore();
   const [allCompanies] = useCompanyStore();
   // active 자산만 — 소프트 삭제된 자산은 목록·집계에서 제외 (자산코드는 영구 보존)
   const assets = useMemo(() => activeAssets(allAssets), [allAssets]);
@@ -331,7 +331,11 @@ export default function AssetListPage() {
           </>
         }
       >
-        {assets.length === 0 ? (
+        {!assetsReady ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-weak)', fontSize: 12 }}>
+            데이터 로딩 중...
+          </div>
+        ) : assets.length === 0 ? (
           !hasCompany ? (
             <EmptyState
               icon={Buildings}

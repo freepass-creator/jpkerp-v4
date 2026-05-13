@@ -154,7 +154,7 @@ const CONTRACT_DUPLICATE_SECTIONS: FieldSection[] = CONTRACT_BASE_SECTIONS.map((
 });
 
 export default function ContractListPage() {
-  const [allContracts, setContracts] = useContractStore();
+  const [allContracts, setContracts, contractsReady] = useContractStore();
   const [allAssets, setAssets] = useAssetStore();
   const [customers, setCustomers] = useCustomerStore();
   // active 만 — 소프트 삭제는 목록·집계에서 제외 (코드는 영구 보존)
@@ -644,7 +644,11 @@ export default function ContractListPage() {
           </>
         }
       >
-        {visibleContracts.length === 0 ? (
+        {!contractsReady ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-weak)', fontSize: 12 }}>
+            데이터 로딩 중...
+          </div>
+        ) : visibleContracts.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="등록된 계약 없음"

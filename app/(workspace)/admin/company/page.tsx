@@ -18,7 +18,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { cn } from '@/lib/cn';
 
 export default function AdminCompanyPage() {
-  const [companies, setCompanies] = useCompanyStore();
+  const [companies, setCompanies, companiesReady] = useCompanyStore();
   const [selected, setSelected] = useState<Company | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -80,7 +80,11 @@ export default function AdminCompanyPage() {
           </>
         }
       >
-        {companies.length === 0 ? (
+        {!companiesReady ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-weak)', fontSize: 12 }}>
+            데이터 로딩 중...
+          </div>
+        ) : companies.length === 0 ? (
           <EmptyState
             icon={Buildings}
             title="등록된 회사 없음"

@@ -87,12 +87,14 @@ export function createKeyedStore<T>(opts: Options<T>) {
 
   function useStore() {
     const [items, setLocal] = useState<T[]>(() => cache);
+    const [ready, setReady] = useState<boolean>(() => initialized);
 
     useEffect(() => {
       ensureSubscription();
-      const fn = (v: T[]) => setLocal(v);
+      const fn = (v: T[]) => { setLocal(v); setReady(true); };
       listeners.add(fn);
       setLocal(cache);
+      if (initialized) setReady(true);
       return () => { listeners.delete(fn); };
     }, []);
 
@@ -121,7 +123,7 @@ export function createKeyedStore<T>(opts: Options<T>) {
         });
     }, []);
 
-    return [items, setItems] as const;
+    return [items, setItems, ready] as const;
   }
 
   return { useStore, getCache: () => cache };
