@@ -111,9 +111,11 @@ export function ReceiptBatchDialog({
         '회차금액': 1100000, '회차예정일': todayStr(),
         '입금일': todayStr(), '비고': '예시 행 — 작성 후 삭제',
       } : dataRows[0];
-      const { buildTemplate } = await import('@/lib/excel-template');
-      const XLSX = await import('xlsx-js-style');
-      const wb = await buildTemplate({
+      const ExcelJS = (await import('exceljs')).default;
+      const { populateSheet } = await import('@/lib/excel-template');
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('수납일괄');
+      const layout = populateSheet(ws, {
         sheetName: '수납일괄',
         title: '수납 일괄 처리 양식',
         description: [
@@ -135,52 +137,55 @@ export function ReceiptBatchDialog({
         },
       });
       // 첫 페이지에 예시 1행만 들어가있으니 나머지 dataRows 를 push (있을 때만)
-      if (!isEmpty && dataRows.length > 0) {
-        const ws = wb.Sheets['수납일괄'];
-        // buildTemplate 와 동일 계산 — 제목 1줄 + 설명 N줄 + 헤더 1줄 후 데이터 시작
-        const descCount = isEmpty ? 1 : 6;     // 위 description 배열 길이와 동기화
-        const headerRow = 1 + descCount;       // 0-based
-        const sampleRow = headerRow + 1;       // 0-based — 이미 dataRows[0] 가 차있음
-        // 나머지 1번부터 추가
+      if (!isEmpty && dataRows.length > 1) {
+        // 상태 컬럼 인덱스 — 드롭다운 영역 확장
+        const statusColIdx = RECEIPT_EXCEL_HEADERS.findIndex((h) => h === '상태' || h === '상태 *');
+        const statusCol = statusColIdx >= 0 ? String.fromCharCode(65 + statusColIdx) : '';
+        // dataRows[0] 는 이미 sample 로 들어가 있음. 1~끝 추가.
         for (let i = 1; i < dataRows.length; i++) {
           const r = dataRows[i];
-          const rowIdx = sampleRow + i + 1;    // A1 표기는 +1
+          const rowIdx = layout.sampleRow + i;     // 1-based — sampleRow 는 A1 표기 (예: 9)
           RECEIPT_EXCEL_HEADERS.forEach((h, c) => {
             const v = r[h] ?? '';
-            const colLetter = String.fromCharCode(65 + c);
-            const ref = `${colLetter}${rowIdx}`;
             const isAmount = h.includes('금액');
+            const cell = ws.getCell(`${String.fromCharCode(65 + c)}${rowIdx}`);
             if (typeof v === 'number') {
-              ws[ref] = {
-                t: 'n', v, z: isAmount ? '#,##0' : undefined,
-                s: { font: { name: '맑은 고딕', sz: 10 }, alignment: { horizontal: 'right', vertical: 'center' } },
-              };
+              cell.value = v;
+              if (isAmount) cell.numFmt = '#,##0';
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
             } else {
-              ws[ref] = {
-                t: 's', v: String(v),
-                s: { font: { name: '맑은 고딕', sz: 10 }, alignment: { horizontal: isAmount ? 'right' : 'left', vertical: 'center' } },
+              cell.value = String(v);
+              cell.alignment = { horizontal: isAmount ? 'right' : 'left', vertical: 'middle' };
+            }
+            cell.font = { name: '맑은 고딕', size: 9 };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFBBBBBB' } },
+              bottom: { style: 'thin', color: { argb: 'FFBBBBBB' } },
+              left: { style: 'thin', color: { argb: 'FFBBBBBB' } },
+              right: { style: 'thin', color: { argb: 'FFBBBBBB' } },
+            };
+            // 상태 컬럼이면 드롭다운 추가
+            if (c === statusColIdx) {
+              cell.dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"완료,지연,취소,예정"'],
               };
             }
           });
-        }
-        const lastA1Row = sampleRow + dataRows.length;
-        ws['!ref'] = `A1:${String.fromCharCode(65 + RECEIPT_EXCEL_HEADERS.length - 1)}${lastA1Row}`;
-        // 상태 컬럼 드롭다운 영역도 확장 (이미 buildTemplate 가 sampleRow ~ lastRow 까지 설정했지만
-        // 우리가 lastRow 를 넘어서 행을 추가했으므로 재설정)
-        const statusColIdx = RECEIPT_EXCEL_HEADERS.findIndex((h) => h === '상태' || h === '상태 *');
-        if (statusColIdx >= 0) {
-          const col = String.fromCharCode(65 + statusColIdx);
-          const dv = (ws as unknown as { '!dataValidation'?: Array<{ sqref: string; type: string; formula1: string; allowBlank?: boolean }> })['!dataValidation'];
-          if (dv) {
-            for (const v of dv) {
-              if (v.sqref.startsWith(col)) {
-                v.sqref = `${col}${sampleRow + 1}:${col}${lastA1Row}`;
-              }
-            }
-          }
+          ws.getRow(rowIdx).height = 18;
         }
       }
-      XLSX.writeFile(wb, `수납일괄_양식_${todayStr().replace(/-/g, '')}.xlsx`);
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `수납일괄_양식_${todayStr().replace(/-/g, '')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (e) {
       alert(`양식 다운로드 실패: ${(e as Error).message}`);
     } finally {
