@@ -276,10 +276,23 @@ export function ReceiptBatchDialog({
                 <br />· 필수 <strong>{RECEIPT_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{RECEIPT_EXCEL_OPTIONAL.length}</strong> (총 {RECEIPT_EXCEL_HEADERS.length} 컬럼)
               </div>
 
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
-                  <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드 (미완료 회차 prefill)'}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={downloadTemplate}
+                  disabled={downloading}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    padding: '6px 12px',
+                    gap: 6,
+                    fontWeight: 500,
+                  }}
+                >
+                  <DownloadSimple size={14} weight="bold" /> {downloading ? '양식 생성 중…' : '엑셀 양식 다운로드'}
                 </button>
+                <span className="text-weak text-xs">미완료 회차 자동 prefill</span>
               </div>
 
               <div

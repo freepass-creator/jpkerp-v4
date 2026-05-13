@@ -527,9 +527,21 @@ function AssetExcelTab({
         <br />· ③ 미리보기에서 <strong>체크박스로 등록할 행 선별</strong> → [등록]
       </div>
 
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-sm" onClick={downloadTemplate} disabled={downloading}>
-          <DownloadSimple size={12} weight="bold" /> {downloading ? '생성 중…' : '① 양식 다운로드'}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={downloadTemplate}
+          disabled={downloading}
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            padding: '6px 12px',
+            gap: 6,
+            fontWeight: 500,
+          }}
+        >
+          <DownloadSimple size={14} weight="bold" /> {downloading ? '양식 생성 중…' : '엑셀 양식 다운로드'}
         </button>
         <span className="text-weak text-xs">
           필수 <strong>{ASSET_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{ASSET_EXCEL_OPTIONAL.length}</strong> (총 {ASSET_EXCEL_HEADERS.length} 컬럼)
