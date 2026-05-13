@@ -7,6 +7,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { CONTRACT_SUBTABS } from '@/lib/contract-subtabs';
 import { summarizeContract } from '@/lib/sample-contracts';
 import { useContractStore } from '@/lib/use-contract-store';
+import { useAuditStamp } from '@/lib/audit-fields';
+import { ReceiptBatchDialog } from '@/components/contract/receipt-batch-dialog';
 import { cn } from '@/lib/cn';
 
 /**
@@ -16,8 +18,42 @@ import { cn } from '@/lib/cn';
  */
 export default function ContractScheduleMasterPage() {
   const router = useRouter();
-  const [contracts] = useContractStore();
+  const [contracts, setContracts] = useContractStore();
+  const audit = useAuditStamp();
   const summaries = contracts.map(summarizeContract);
+
+  /**
+   * 수납 일괄 다이얼로그에서 받은 patch 들 적용.
+   * 계약별 events 한꺼번에 갱신 — setContracts 한 번 호출로 RTDB write 1회.
+   */
+  function applyReceiptPatches(patches: { contractId: string; eventPatches: { eventId: string; status: '예정' | '완료' | '지연' | '취소'; doneDate?: string; note?: string }[] }[]) {
+    const byContract = new Map(patches.map((p) => [p.contractId, p.eventPatches]));
+    setContracts((prev) => prev.map((c) => {
+      const list = byContract.get(c.id);
+      if (!list) return c;
+      const eventMap = new Map(list.map((p) => [p.eventId, p]));
+      return {
+        ...c,
+        events: c.events.map((e) => {
+          const p = eventMap.get(e.id);
+          if (!p) return e;
+          return {
+            ...e,
+            status: p.status,
+            doneDate: p.doneDate ?? (p.status === '완료' ? e.doneDate : undefined),
+            note: p.note ?? e.note,
+          };
+        }),
+      };
+    }));
+    const totalUpdates = patches.reduce((s, p) => s + p.eventPatches.length, 0);
+    audit.log({
+      action: 'update', entityType: 'contract', entityId: 'batch',
+      label: `수납 일괄 적용 ${patches.length}계약 / ${totalUpdates}회차`,
+      after: { contracts: patches.length, events: totalUpdates },
+    });
+    alert(`${patches.length}개 계약 / ${totalUpdates}건 회차 적용 완료.`);
+  }
 
   const totals = summaries.reduce(
     (acc, s) => {
@@ -46,7 +82,12 @@ export default function ContractScheduleMasterPage() {
           {totals.overdue > 0 && <span className="stat-item alert">미수 <strong>{totals.overdue}</strong></span>}
         </>
       }
-      footerRight={<button className="btn">엑셀</button>}
+      footerRight={
+        <>
+          <ReceiptBatchDialog contracts={contracts} onApply={applyReceiptPatches} />
+          <button className="btn">엑셀</button>
+        </>
+      }
     >
       {summaries.length === 0 ? (
         <EmptyState
