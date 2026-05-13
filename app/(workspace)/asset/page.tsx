@@ -119,6 +119,36 @@ export default function AssetListPage() {
     audit.log({ action: 'create', entityType: 'asset', entityId: next.id, label: next.plate, after: next });
   }
 
+  /**
+   * 일괄 등록 — 엑셀/OCR 다건. RTDB write 1회 + audit 1건으로 성능 N배 개선.
+   * 행별 중복 검증·검사는 다이얼로그 측에서 미리 처리됨 (assetCode 발급 완료 상태).
+   */
+  function handleCreateBatch(partials: Partial<Asset>[]) {
+    if (partials.length === 0) return;
+    const stamp = audit.create();
+    const next: Asset[] = partials.map((p) => ({
+      id: p.assetCode || genId('a'),
+      companyCode: p.companyCode ?? '',
+      plate: p.plate ?? '',
+      firstRegistDate: p.firstRegistDate ?? '',
+      vehicleClass: p.vehicleClass ?? '',
+      usage: p.usage ?? '자가용',
+      vehicleName: p.vehicleName ?? '',
+      vin: p.vin ?? '',
+      ownerName: p.ownerName ?? '',
+      ...p,
+      assetCode: p.assetCode,
+      status: p.status ?? '등록예정',
+      ...stamp,
+    } as Asset));
+    setAssets((prev) => [...next, ...prev]);
+    audit.log({
+      action: 'create', entityType: 'asset', entityId: 'batch',
+      label: `자산 일괄 등록 ${next.length}건`,
+      after: { count: next.length, plates: next.slice(0, 10).map((a) => a.plate) },
+    });
+  }
+
   function handleUpdate(partial: Partial<Asset>) {
     if (!selected) return;
     // 중복 검사 — 자기 자신 제외 후 plate/VIN 다른 자산과 충돌 검사
@@ -243,6 +273,7 @@ export default function AssetListPage() {
             </button>
             <AssetRegisterDialog
               onCreate={handleCreate}
+              onCreateBatch={handleCreateBatch}
               open={registerOpen}
               onOpenChange={setRegisterOpen}
             />

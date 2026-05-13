@@ -75,12 +75,17 @@ function mapVehicleRegToAsset(
 
 type Props = {
   onCreate: (asset: Partial<Asset>) => void;
+  /**
+   * 일괄 등록 (엑셀·OCR 다건). 있으면 onCreate 대신 한 번에 호출 → RTDB write/audit_logs N→1 절약.
+   * 없으면 fallback 으로 onCreate 를 행별로 N번 호출 (호환).
+   */
+  onCreateBatch?: (assets: Partial<Asset>[]) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
 };
 
-export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, showTrigger = true }: Props) {
+export function AssetRegisterDialog({ onCreate, onCreateBatch, open: openProp, onOpenChange, showTrigger = true }: Props) {
   const [companies] = useCompanyStore();
   const [assets] = useAssetStore();
   const [openInner, setOpenInner] = useState(false);
@@ -148,19 +153,20 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
       alert('등록 가능한 항목이 없습니다. 차량번호·회사 누락 항목은 행에서 직접 입력 후 등록하세요.');
       return;
     }
-    // 배치 등록 — 각 항목에 assetCode 미리 발급해서 forEach 중 중복 방지.
-    // (forEach 안에서 onCreate→setAssets 가 React state 갱신 전이라
-    //  store 의 allAssets 가 아직 안 바뀐 상태로 다음 iteration 이 같은 코드 발급 받음)
+    // 배치 등록 — 각 항목에 assetCode 미리 발급. onCreateBatch 있으면 1회 호출 (write 효율).
     const baseExisting = assets.map((a) => a.assetCode).filter((c): c is string => !!c);
     const issuedThisBatch: string[] = [];
+    const batch: Partial<Asset>[] = [];
     registerableItems.forEach((i) => {
       const companyCode = i.data.companyCode;
       if (!companyCode) return;
       const allCodes = [...baseExisting, ...issuedThisBatch];
       const assetCode = nextCompanyScopedCode('VH', companyCode, allCodes, { pad: 4 });
       issuedThisBatch.push(assetCode);
-      onCreate({ ...i.data, assetCode });
+      batch.push({ ...i.data, assetCode });
     });
+    if (onCreateBatch) onCreateBatch(batch);
+    else batch.forEach((a) => onCreate(a));
     setOpen(false);
     setTimeout(ocr.reset, 100);
   }
@@ -223,19 +229,23 @@ export function AssetRegisterDialog({ onCreate, open: openProp, onOpenChange, sh
             <AssetExcelTab
               defaultCompanyCode={defaultCompanyCode}
               onSubmit={(rows) => {
-                // 일괄 등록 — 회사별 자산코드 생성
+                // 일괄 등록 — 회사별 자산코드 발급 후 1회 batch write
                 const newCodes = new Set<string>();
+                const batch: Partial<Asset>[] = [];
+                const existingCodes = assets.map((a) => a.assetCode ?? '').filter(Boolean);
                 for (const r of rows) {
                   if (r.errors.length > 0 || !r.data.companyCode || !r.data.plate) continue;
-                  const allCodes = [...assets.map((a) => a.assetCode ?? ''), ...newCodes];
+                  const allCodes = [...existingCodes, ...newCodes];
                   const code = nextCompanyScopedCode('VH', r.data.companyCode, allCodes, { pad: 4 });
                   newCodes.add(code);
-                  onCreate({
-                    ...r.data,
-                    assetCode: code,
-                    id: code,
-                  } as Asset);
+                  batch.push({ ...r.data, assetCode: code, id: code } as Asset);
                 }
+                if (batch.length === 0) {
+                  alert('등록 가능한 행이 없습니다.');
+                  return;
+                }
+                if (onCreateBatch) onCreateBatch(batch);
+                else batch.forEach((a) => onCreate(a));   // fallback
                 setOpen(false);
               }}
             />
