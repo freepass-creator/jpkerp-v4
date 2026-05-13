@@ -192,8 +192,11 @@ export function AssetRegisterDialog({ onCreate, onCreateBatch, open: openProp, o
       )}
 
       <DialogContent title="자산 등록 (자동차등록증 기준)" size="xl">
-        <Tabs defaultValue="excel">
+        <Tabs defaultValue="ocr">
           <TabsList>
+            <TabsTrigger value="ocr">
+              <Upload size={14} className="mr-1.5 inline" /> OCR (등록증)
+            </TabsTrigger>
             <TabsTrigger value="excel">
               <FileXls size={14} className="mr-1.5 inline" /> 엑셀
             </TabsTrigger>
@@ -202,9 +205,6 @@ export function AssetRegisterDialog({ onCreate, onCreateBatch, open: openProp, o
             </TabsTrigger>
             <TabsTrigger value="manual">
               <Pencil size={14} className="mr-1.5 inline" /> 단건
-            </TabsTrigger>
-            <TabsTrigger value="ocr">
-              <Upload size={14} className="mr-1.5 inline" /> OCR
             </TabsTrigger>
           </TabsList>
 

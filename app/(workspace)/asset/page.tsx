@@ -141,7 +141,28 @@ export default function AssetListPage() {
       status: p.status ?? '등록예정',
       ...stamp,
     } as Asset));
-    setAssets((prev) => [...next, ...prev]);
+
+    // assetCode 누락/중복 진단 — getKey 가 keyed object 라 같은 키는 덮어씀
+    const codes = next.map((a) => a.assetCode).filter((c): c is string => !!c);
+    const codeSet = new Set(codes);
+    const missing = next.filter((a) => !a.assetCode).length;
+    const dupCount = codes.length - codeSet.size;
+    if (missing > 0 || dupCount > 0) {
+      console.warn('[asset-batch] 진단:', { total: next.length, missing, dupCount, codes });
+      alert(
+        `⚠ 일괄 등록 중 ${missing > 0 ? `${missing}건 자산코드 누락 / ` : ''}${dupCount > 0 ? `${dupCount}건 자산코드 중복 ` : ''}— ` +
+        `RTDB 에 ${codeSet.size}건만 저장됩니다.`,
+      );
+    }
+
+    setAssets((prev) => {
+      // 기존 cache 와 새 자산 합치되, 같은 assetCode 가 있으면 새 것이 이김 (마이그레이션 재실행 안전)
+      const newByKey = new Map(next.map((a) => [a.assetCode ?? a.id, a]));
+      const filteredPrev = prev.filter((a) => !newByKey.has(a.assetCode ?? a.id));
+      console.log(`[asset-batch] cache prev=${prev.length}, 신규=${next.length}, 덮어쓴 기존=${prev.length - filteredPrev.length}, 최종=${filteredPrev.length + next.length}`);
+      return [...next, ...filteredPrev];
+    });
+
     audit.log({
       action: 'create', entityType: 'asset', entityId: 'batch',
       label: `자산 일괄 등록 ${next.length}건`,
