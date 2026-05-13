@@ -24,6 +24,7 @@ import { useAssetStore } from '@/lib/use-asset-store';
 import { useCompanyStore } from '@/lib/use-company-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { useConfirmWithEmail } from '@/lib/confirm-with-email';
+import { uploadDataUrl } from '@/lib/firebase/storage';
 import { nextCompanyScopedCode } from '@/lib/code-gen';
 import { genId } from '@/lib/ids';
 import { assetKeyFn, describeAssetDuplicate } from '@/lib/asset-dedup';
@@ -72,7 +73,7 @@ export default function AssetListPage() {
     return items;
   }, [subTabPending]);
 
-  function handleCreate(partial: Partial<Asset>) {
+  async function handleCreate(partial: Partial<Asset>) {
     if (!partial.companyCode) {
       alert('회사코드 누락 — 자산 등록 전 [일반관리 → 회사정보] 에서 회사를 먼저 등록하세요.');
       return;
@@ -99,6 +100,16 @@ export default function AssetListPage() {
       allAssets.map((a) => a.assetCode).filter((c): c is string => !!c),
       { pad: 4 },
     );
+    // fileDataUrl base64 → Storage 업로드 (RTDB write 한계 회피)
+    let fileDataUrl = partial.fileDataUrl;
+    if (fileDataUrl && fileDataUrl.startsWith('data:')) {
+      try {
+        fileDataUrl = await uploadDataUrl(`assets/${assetCode}/cert`, fileDataUrl);
+      } catch (e) {
+        console.error('[asset-create] Storage upload 실패', assetCode, e);
+        fileDataUrl = undefined;
+      }
+    }
     const next: Asset = {
       id: genId('a'),
       companyCode,
@@ -110,6 +121,7 @@ export default function AssetListPage() {
       vin: partial.vin ?? '',
       ownerName: partial.ownerName ?? '',
       ...partial,
+      fileDataUrl,
       assetCode,
       status: partial.status ?? '등록예정',
       ...audit.create(),
@@ -122,11 +134,29 @@ export default function AssetListPage() {
   /**
    * 일괄 등록 — 엑셀/OCR 다건. RTDB write 1회 + audit 1건으로 성능 N배 개선.
    * 행별 중복 검증·검사는 다이얼로그 측에서 미리 처리됨 (assetCode 발급 완료 상태).
+   *
+   * OCR 결과의 fileDataUrl(base64 이미지) 은 RTDB write size 한계를 피하기 위해
+   * 먼저 Firebase Storage 로 업로드 후 downloadURL 로 치환.
    */
-  function handleCreateBatch(partials: Partial<Asset>[]) {
+  async function handleCreateBatch(partials: Partial<Asset>[]) {
     if (partials.length === 0) return;
+    // 0) fileDataUrl base64 → Storage 업로드 → URL 치환 (병렬)
+    const uploadedPartials = await Promise.all(partials.map(async (p) => {
+      if (p.fileDataUrl && p.fileDataUrl.startsWith('data:')) {
+        try {
+          const url = await uploadDataUrl(`assets/${p.assetCode}/cert`, p.fileDataUrl);
+          return { ...p, fileDataUrl: url };
+        } catch (e) {
+          console.error('[asset-batch] Storage upload 실패 — base64 drop', p.assetCode, e);
+          // Storage 업로드 실패 시 base64 drop (RTDB write 한계 방지)
+          // 등록증 이미지 없이 메타데이터만 저장
+          return { ...p, fileDataUrl: undefined };
+        }
+      }
+      return p;
+    }));
     const stamp = audit.create();
-    const next: Asset[] = partials.map((p) => ({
+    const next: Asset[] = uploadedPartials.map((p) => ({
       id: p.assetCode || genId('a'),
       companyCode: p.companyCode ?? '',
       plate: p.plate ?? '',
