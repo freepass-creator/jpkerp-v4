@@ -16,7 +16,7 @@ import { findCustomerMatch, type Customer } from '@/lib/sample-customers';
 import { SmsSendDialog } from '@/components/sms/sms-send-dialog';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { activeContracts, type Contract, type CustomerKind } from '@/lib/sample-contracts';
-import { buildEventsWithOverdue } from '@/lib/contract-events';
+import { buildEventsWithOverdue, buildEventsWithOutstanding } from '@/lib/contract-events';
 import { activeAssets } from '@/lib/sample-assets';
 import { EntityFormDialog, type FieldSection, type EntityDialogMode } from '@/components/ui/entity-form-dialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu';
@@ -198,21 +198,24 @@ export default function ContractListPage() {
   /**
    * ContractDraft → Contract 완성 + 수납 스케줄 자동 생성.
    *
-   * 엑셀 import 등에서 `overdueCycles` (예: "5-" / "3,5" / "all-paid") 전달 시
-   * 해당 회차는 '지연' 으로, 도래된 다른 회차는 '완료' 로 자동 마킹.
-   * 단순 신규 계약 (overdueCycles 미지정) 은 generateContractSchedule 와 동일 동작.
+   * 우선순위:
+   *   1) outstandingAmount (현재 미수금) → buildEventsWithOutstanding
+   *      가장 최근 도래 회차부터 거꾸로 차감 — 부분납입 회차에 자동 note 부여
+   *   2) overdueCycles (legacy 자유표기 "5-" / "3,5") → buildEventsWithOverdue
+   *   3) 둘 다 없으면 도래 회차 모두 완료 (auto)
    */
-  function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'> & { overdueCycles?: string }): Contract {
-    const { overdueCycles, ...rest } = draft;
+  function fromDraft(draft: Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'> & { outstandingAmount?: number; overdueCycles?: string }): Contract {
+    const { outstandingAmount, overdueCycles, ...rest } = draft;
+    const opts = { autopayDay: rest.paymentDay, engineOilService: rest.engineOilService };
+    const events = outstandingAmount != null && outstandingAmount > 0
+      ? buildEventsWithOutstanding(rest.startDate, rest.endDate, rest.monthlyAmount, outstandingAmount, opts)
+      : buildEventsWithOverdue(rest.startDate, rest.endDate, rest.monthlyAmount, overdueCycles, opts);
     return {
       id: genId('c'),
       contractNo: nextDateScopedCode('C', contracts.map((c) => c.contractNo), { date: rest.startDate || undefined }),
       ...rest,
       status: '운행중',
-      events: buildEventsWithOverdue(rest.startDate, rest.endDate, rest.monthlyAmount, overdueCycles, {
-        autopayDay: rest.paymentDay,
-        engineOilService: rest.engineOilService,
-      }),
+      events,
     };
   }
 

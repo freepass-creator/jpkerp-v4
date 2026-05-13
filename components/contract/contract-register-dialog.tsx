@@ -32,10 +32,12 @@ import { normalizeKoreanDate } from '@/lib/parsers/date';
  * 등록 전 단계 draft.
  *   - id/contractNo: 등록 시 발급
  *   - status: 항상 '운행중' default
- *   - events: 등록 시 buildEventsWithOverdue 로 자동 생성
- *   - overdueCycles (선택): 미수회차 지정 — 엑셀 일괄 마이그레이션·과거 계약 import 용
+ *   - events: 등록 시 자동 생성 (buildEventsWithOutstanding · buildEventsWithOverdue)
+ *   - outstandingAmount (선택): 현재 미수금 — 엑셀 일괄 마이그레이션 시 최근 회차부터 거꾸로 분배
+ *   - overdueCycles  (선택, legacy): 미수회차 자유표기 — 호환용 (outstandingAmount 우선)
  */
 type ContractDraft = Omit<Contract, 'id' | 'contractNo' | 'status' | 'events'> & {
+  outstandingAmount?: number;
   overdueCycles?: string;
 };
 
@@ -979,6 +981,7 @@ function ContractExcelTab({
         '계약번호': '(비우면 자동발급)',
         '결제방법': '자동이체',
         '결제일': 25,
+        '미수금액': 300000,
         '운전자범위': '본인한정',
         '연령제한': '만 26세 이상',
         '주행한도': 30000,
