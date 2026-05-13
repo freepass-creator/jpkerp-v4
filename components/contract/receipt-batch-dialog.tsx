@@ -116,42 +116,69 @@ export function ReceiptBatchDialog({
       const wb = await buildTemplate({
         sheetName: '수납일괄',
         title: '수납 일괄 처리 양식',
-        description:
+        description: [
           isEmpty
-            ? '활성 계약의 미완료 수납 회차가 없습니다. 아래 예시 행 참고해서 작성하세요.'
-            : '활성 계약의 미완료 회차가 자동 채워져 있습니다. ' +
-              '「상태」를 완료/지연/취소 중 하나로 마킹 + 완료 시 「입금일」 기입 → 업로드.',
+            ? '⚠ 활성 계약의 미완료 수납 회차가 없습니다. 아래 예시 행 참고해서 작성하세요.'
+            : '활성 계약의 미완료(예정/지연) 수납 회차가 자동 채워져 있습니다.',
+          '· 계약번호·회차·차량번호·임차인·회차금액·회차예정일 = 시스템 prefill — 수정 금지 (수정 시 매칭 실패)',
+          '· 상태 (필수) = 드롭다운에서 [완료 / 지연 / 취소 / 예정] 중 선택',
+          '· 입금일 = 완료 처리 시 YYYY-MM-DD 형식 (예: 2026-05-13). 비우면 회차 예정일로 자동 fallback',
+          '· 비고 = 미수 사유·메모 등 자유 입력',
+          '· 회차금액은 천단위 콤마 자동',
+        ],
         headers: RECEIPT_EXCEL_HEADERS,
         requiredCount: RECEIPT_EXCEL_REQUIRED.length,
         sample,
         numberCols: ['회차', '회차금액'],
+        dropdowns: {
+          '상태': ['완료', '지연', '취소', '예정'],
+        },
       });
       // 첫 페이지에 예시 1행만 들어가있으니 나머지 dataRows 를 push (있을 때만)
       if (!isEmpty && dataRows.length > 0) {
         const ws = wb.Sheets['수납일괄'];
-        // 예시 행을 dataRows[0] 로 이미 썼으니 나머지 1번부터
+        // buildTemplate 와 동일 계산 — 제목 1줄 + 설명 N줄 + 헤더 1줄 후 데이터 시작
+        const descCount = isEmpty ? 1 : 6;     // 위 description 배열 길이와 동기화
+        const headerRow = 1 + descCount;       // 0-based
+        const sampleRow = headerRow + 1;       // 0-based — 이미 dataRows[0] 가 차있음
+        // 나머지 1번부터 추가
         for (let i = 1; i < dataRows.length; i++) {
           const r = dataRows[i];
-          const rowIdx = 4 + i;     // 1=title, 2=desc, 3=header, 4=첫데이터
+          const rowIdx = sampleRow + i + 1;    // A1 표기는 +1
           RECEIPT_EXCEL_HEADERS.forEach((h, c) => {
             const v = r[h] ?? '';
             const colLetter = String.fromCharCode(65 + c);
             const ref = `${colLetter}${rowIdx}`;
+            const isAmount = h.includes('금액');
             if (typeof v === 'number') {
               ws[ref] = {
-                t: 'n', v, z: h.includes('금액') ? '#,##0' : undefined,
-                s: { font: { name: '맑은 고딕', sz: 12 }, alignment: { horizontal: 'right', vertical: 'center' } },
+                t: 'n', v, z: isAmount ? '#,##0' : undefined,
+                s: { font: { name: '맑은 고딕', sz: 10 }, alignment: { horizontal: 'right', vertical: 'center' } },
               };
             } else {
               ws[ref] = {
                 t: 's', v: String(v),
-                s: { font: { name: '맑은 고딕', sz: 12 }, alignment: { horizontal: 'left', vertical: 'center' } },
+                s: { font: { name: '맑은 고딕', sz: 10 }, alignment: { horizontal: isAmount ? 'right' : 'left', vertical: 'center' } },
               };
             }
           });
         }
-        const lastRow = 3 + dataRows.length;
-        ws['!ref'] = `A1:${String.fromCharCode(65 + RECEIPT_EXCEL_HEADERS.length - 1)}${lastRow}`;
+        const lastA1Row = sampleRow + dataRows.length;
+        ws['!ref'] = `A1:${String.fromCharCode(65 + RECEIPT_EXCEL_HEADERS.length - 1)}${lastA1Row}`;
+        // 상태 컬럼 드롭다운 영역도 확장 (이미 buildTemplate 가 sampleRow ~ lastRow 까지 설정했지만
+        // 우리가 lastRow 를 넘어서 행을 추가했으므로 재설정)
+        const statusColIdx = RECEIPT_EXCEL_HEADERS.findIndex((h) => h === '상태' || h === '상태 *');
+        if (statusColIdx >= 0) {
+          const col = String.fromCharCode(65 + statusColIdx);
+          const dv = (ws as unknown as { '!dataValidation'?: Array<{ sqref: string; type: string; formula1: string; allowBlank?: boolean }> })['!dataValidation'];
+          if (dv) {
+            for (const v of dv) {
+              if (v.sqref.startsWith(col)) {
+                v.sqref = `${col}${sampleRow + 1}:${col}${lastA1Row}`;
+              }
+            }
+          }
+        }
       }
       XLSX.writeFile(wb, `수납일괄_양식_${todayStr().replace(/-/g, '')}.xlsx`);
     } catch (e) {

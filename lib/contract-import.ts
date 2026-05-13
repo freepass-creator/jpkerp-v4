@@ -113,7 +113,11 @@ function rowsToContracts(rows: unknown[][], ctx: ContractImportContext): Contrac
     const monthlyAmount = cellToNumber(row[cols.monthlyAmount]) ?? 0;
     if (monthlyAmount <= 0) errors.push('월대여료 누락/0');
 
+    const outstandingAmountCell = cellToNumber(row[cols.outstandingAmount]);
+    if (outstandingAmountCell == null) errors.push('미수금액 누락 (신규는 0 입력)');
+
     const data: Partial<Contract> & { outstandingAmount?: number; overdueCycles?: string } = {
+      outstandingAmount: outstandingAmountCell ?? undefined,
       companyCode,
       contractNo: cellToString(row[cols.contractNo]).trim() || undefined,    // 비우면 자동발급
       plate,
@@ -137,8 +141,7 @@ function rowsToContracts(rows: unknown[][], ctx: ContractImportContext): Contrac
       mileageLimitKm: cellToNumber(row[cols.mileageLimitKm]) ?? undefined,
       paymentMethod: cellToString(row[cols.paymentMethod]).trim() || undefined,
       paymentDay: cellToNumber(row[cols.paymentDay]) ?? undefined,
-      // 등록 시 page fromDraft 가 buildEventsWithOutstanding 호출 — 최근 회차부터 거꾸로 차감
-      outstandingAmount: cellToNumber(row[cols.outstandingAmount]) ?? undefined,
+      // outstandingAmount 는 data 상단에서 이미 설정 — page fromDraft 가 buildEventsWithOutstanding 호출
       status: '운행중',
       events: [],
     };
@@ -166,6 +169,13 @@ export const CONTRACT_EXCEL_REQUIRED = [
   '만기일',
   '월대여료',
   '보증금',
+  /**
+   * 미수금액 — 현재 누적 미수금(원). 필수.
+   *   · 신규 계약 = 0
+   *   · 마이그레이션 = 실제 잔액 (예: 30만, 130만)
+   * 시스템이 최근 도래 회차부터 거꾸로 차감해 자동 분배.
+   */
+  '미수금액',
 ] as const;
 
 /** 부가 입력 — 빈칸 허용. */
@@ -175,14 +185,6 @@ export const CONTRACT_EXCEL_OPTIONAL = [
   '선수금',
   '결제방법',
   '결제일',
-  /**
-   * 미수금액 — 현재 누적 미수금(원).
-   * 시스템이 최근 도래 회차부터 거꾸로 차감해 자동 분배:
-   *   · 30만 (월 50만) → 마지막 회차 부분납입 (입금 20만 / 미수 30만)
-   *   · 130만 (월 50만) → 마지막 회차 전체미수 50만 + 그 전 회차 전체미수 50만 + 그 전 회차 부분납입 (입금 20만 / 미수 30만)
-   *   · 비우면 도래 회차 모두 완료
-   */
-  '미수금액',
   '면허번호',
   '이메일',
   '주소',

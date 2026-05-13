@@ -25,8 +25,11 @@ export type TemplateOptions = {
   sheetName: string;
   /** 상단 표시 제목 (병합 행 1) */
   title: string;
-  /** 사용 안내 (병합 행 2~3, 2줄까지 자동 줄바꿈) */
-  description?: string;
+  /**
+   * 사용 안내 — string 이면 1줄, string[] 이면 각 element 가 한 행.
+   * 행마다 전 컬럼 병합. ERP 사용자 가이드 (회사코드/날짜/등록번호 형식 등) 풍부히 적기 좋음.
+   */
+  description?: string | string[];
   /** 헤더 순서. 필수는 `*` 표시 그대로 둠. */
   headers: readonly string[];
   /** 필수 컬럼 개수 — headers 의 앞 N개를 필수로 인식 (노란 배경). */
@@ -38,13 +41,20 @@ export type TemplateOptions = {
    * `*` 접미사 포함 가능 — includes 비교.
    */
   numberCols?: readonly string[];
+  /**
+   * 드롭다운 옵션 — 헤더 이름 → 선택 가능 값들.
+   * 예: { '신분': ['개인','개인사업자','법인'], '결제방법': ['자동이체','카드',...] }
+   * 데이터 행 전체에 Excel 데이터 유효성 검사 적용.
+   */
+  dropdowns?: Record<string, readonly string[]>;
 };
 
-/* xlsx-js 호환 셀 스타일 — write 시 cell.s/cell.z 가 그대로 반영. */
-const FONT_BASE = { name: '맑은 고딕', sz: 12 };
+/* xlsx-js 호환 셀 스타일 — write 시 cell.s/cell.z 가 그대로 반영.
+ * 폰트 사이즈는 ERP 화면 밀도(12px)와 비슷한 시각감 — Excel pt 기준 10pt 정도. */
+const FONT_BASE = { name: '맑은 고딕', sz: 10 };
 const FONT_BOLD = { ...FONT_BASE, bold: true };
-const FONT_TITLE = { ...FONT_BASE, sz: 14, bold: true };
-const FONT_NOTE = { ...FONT_BASE, sz: 11, color: { rgb: '666666' } };
+const FONT_TITLE = { ...FONT_BASE, sz: 12, bold: true };
+const FONT_NOTE = { ...FONT_BASE, sz: 9, color: { rgb: '666666' } };
 
 const FILL_REQUIRED = { patternType: 'solid', fgColor: { rgb: 'FFF4CC' } };  // 노란
 const FILL_OPTIONAL = { patternType: 'solid', fgColor: { rgb: 'F2F2F2' } };  // 회색
@@ -76,31 +86,44 @@ function colLetter(idx: number): string {
 
 export async function buildTemplate(opts: TemplateOptions): Promise<WorkBook> {
   const XLSX = await import('xlsx-js-style');
-  const { sheetName, title, description, headers, requiredCount, sample = {}, numberCols = [] } = opts;
+  const { sheetName, title, description, headers, requiredCount, sample = {}, numberCols = [], dropdowns = {} } = opts;
   const colCount = headers.length;
   const lastCol = colLetter(colCount - 1);
 
-  // 행 구성: 1=제목, 2=설명, 3=빈행, 4=헤더, 5=예시
-  // (row index 는 0-based 코드 내부, A1 표기는 1-based)
+  /* 행 구성 (dynamic):
+       row 0:                                 제목 (병합)
+       row 1 .. 1+descLines-1:                설명 N 줄 (각 행 병합)
+       row descLines+1:                       헤더
+       row descLines+2:                       예시 데이터
+       row descLines+3 .. descLines+8:        빈 입력 행 6개 (스타일만)
+     0-based row index 그대로 사용. A1 표기는 +1.                                  */
+  const descLines = Array.isArray(description) ? description : description ? [description] : ['필수항목 * 표시 / 부가항목은 빈칸 허용'];
+  const headerRow = 1 + descLines.length;    // 0-based
+  const sampleRow = headerRow + 1;
+  const emptyRows = 6;
+  const lastRow = sampleRow + emptyRows;     // 0-based 마지막 행 인덱스
+
   const ws: WorkSheet = {};
 
-  // 행 1 — 제목
+  // 행 0 — 제목
   ws['A1'] = { t: 's', v: title, s: { font: FONT_TITLE, fill: FILL_TITLE, alignment: ALIGN_CENTER, border: BORDER_THIN } } as CellObject;
   for (let c = 1; c < colCount; c++) {
     ws[`${colLetter(c)}1`] = { t: 's', v: '', s: { font: FONT_TITLE, fill: FILL_TITLE, alignment: ALIGN_CENTER, border: BORDER_THIN } } as CellObject;
   }
 
-  // 행 2 — 설명 (병합)
-  const desc = description ?? '필수항목 * 표시 / 부가항목은 빈칸 허용';
-  ws['A2'] = { t: 's', v: desc, s: { font: FONT_NOTE, alignment: ALIGN_LEFT_WRAP, border: BORDER_THIN } } as CellObject;
-  for (let c = 1; c < colCount; c++) {
-    ws[`${colLetter(c)}2`] = { t: 's', v: '', s: { font: FONT_NOTE, alignment: ALIGN_LEFT_WRAP, border: BORDER_THIN } } as CellObject;
-  }
+  // 행 1 ~ — 설명 라인들
+  descLines.forEach((line, i) => {
+    const r = 1 + i;     // 0-based
+    ws[`A${r + 1}`] = { t: 's', v: line, s: { font: FONT_NOTE, alignment: ALIGN_LEFT_WRAP, border: BORDER_THIN } } as CellObject;
+    for (let c = 1; c < colCount; c++) {
+      ws[`${colLetter(c)}${r + 1}`] = { t: 's', v: '', s: { font: FONT_NOTE, alignment: ALIGN_LEFT_WRAP, border: BORDER_THIN } } as CellObject;
+    }
+  });
 
-  // 행 3 — 헤더
+  // 헤더 행
   headers.forEach((h, c) => {
     const isReq = c < requiredCount;
-    ws[`${colLetter(c)}3`] = {
+    ws[`${colLetter(c)}${headerRow + 1}`] = {
       t: 's', v: h,
       s: {
         font: FONT_BOLD,
@@ -111,10 +134,10 @@ export async function buildTemplate(opts: TemplateOptions): Promise<WorkBook> {
     } as CellObject;
   });
 
-  // 행 4 — 예시 데이터
+  // 예시 데이터 행
   headers.forEach((h, c) => {
     const raw = sample[h];
-    const ref = `${colLetter(c)}4`;
+    const ref = `${colLetter(c)}${sampleRow + 1}`;
     const isNumberCol = numberCols.some((nc) => h.includes(nc));
     if (typeof raw === 'number') {
       ws[ref] = {
@@ -123,7 +146,6 @@ export async function buildTemplate(opts: TemplateOptions): Promise<WorkBook> {
         s: { font: FONT_BASE, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_THIN },
       } as CellObject;
     } else if (isNumberCol) {
-      // 숫자 컬럼인데 값 없음 — 포맷만 미리 적용 (사용자가 숫자 입력하면 자동 콤마)
       ws[ref] = {
         t: 's', v: raw ?? '',
         z: '#,##0',
@@ -137,8 +159,8 @@ export async function buildTemplate(opts: TemplateOptions): Promise<WorkBook> {
     }
   });
 
-  // 빈 데이터 행 추가 (행 5~10) — 사용자가 바로 입력하기 좋게 빈 스타일 셀
-  for (let r = 4; r < 10; r++) {
+  // 빈 입력 행들 (스타일만)
+  for (let r = sampleRow + 1; r <= lastRow; r++) {
     headers.forEach((h, c) => {
       const isNumberCol = numberCols.some((nc) => h.includes(nc));
       ws[`${colLetter(c)}${r + 1}`] = {
@@ -154,21 +176,41 @@ export async function buildTemplate(opts: TemplateOptions): Promise<WorkBook> {
   }
 
   // 시트 범위
-  ws['!ref'] = `A1:${lastCol}10`;
-  // 컬럼 폭 — 헤더 길이 기반 (한글 가중치 +2)
+  ws['!ref'] = `A1:${lastCol}${lastRow + 1}`;
+  // 컬럼 폭
   ws['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 4, 11) }));
-  // 행 높이 — 1행(제목) 24, 2행(설명) 32, 3행(헤더) 22, 그 외 18
+  // 행 높이 — 제목 22, 설명 라인마다 22, 헤더 20, 데이터 18
   ws['!rows'] = [
-    { hpx: 28 },
-    { hpx: 36 },
-    { hpx: 24 },
-    ...Array.from({ length: 6 }, () => ({ hpx: 22 })),
+    { hpx: 22 },
+    ...descLines.map(() => ({ hpx: 22 })),
+    { hpx: 20 },
+    ...Array.from({ length: emptyRows + 1 }, () => ({ hpx: 18 })),
   ];
-  // 1, 2행은 전 컬럼 병합
+  // 제목 + 설명 라인들 전 컬럼 병합
   ws['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } },
+    ...descLines.map((_, i) => ({ s: { r: 1 + i, c: 0 }, e: { r: 1 + i, c: colCount - 1 } })),
   ];
+
+  // 드롭다운 — Excel 데이터 유효성 검사 (data validation)
+  // sqref: 데이터 입력 영역 (예시 행 ~ 마지막 빈 행)
+  const dataValidations: Array<{ sqref: string; type: string; formula1: string; allowBlank?: boolean }> = [];
+  for (const [header, options] of Object.entries(dropdowns)) {
+    if (!options || options.length === 0) continue;
+    const colIdx = headers.findIndex((h) => h === header || h === `${header} *`);
+    if (colIdx < 0) continue;
+    const col = colLetter(colIdx);
+    const sqref = `${col}${sampleRow + 1}:${col}${lastRow + 1}`;
+    dataValidations.push({
+      sqref,
+      type: 'list',
+      formula1: `"${options.join(',')}"`,
+      allowBlank: true,
+    });
+  }
+  if (dataValidations.length > 0) {
+    (ws as unknown as { '!dataValidation': typeof dataValidations })['!dataValidation'] = dataValidations;
+  }
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
