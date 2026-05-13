@@ -965,7 +965,6 @@ function ContractExcelTab({
   async function downloadTemplate() {
     setDownloading(true);
     try {
-      const XLSX = await import('xlsx');
       const today = new Date().toISOString().slice(0, 10);
       const sample: Record<string, string | number> = {
         '회사코드 *': 'CP01',
@@ -987,15 +986,19 @@ function ContractExcelTab({
         '주행한도': 30000,
         '비고': '예시 행 — 작성 후 삭제',
       };
-      const aoa: (string | number)[][] = [
-        [...CONTRACT_EXCEL_HEADERS],
-        CONTRACT_EXCEL_HEADERS.map((h) => sample[h] ?? ''),
-      ];
-      const sheet = XLSX.utils.aoa_to_sheet(aoa);
-      sheet['!cols'] = CONTRACT_EXCEL_HEADERS.map((h) => ({ wch: Math.max(h.length + 2, 10) }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, sheet, '계약');
-      XLSX.writeFile(wb, `계약_양식_${today.replace(/-/g, '')}.xlsx`);
+      const { downloadTemplate: write } = await import('@/lib/excel-template');
+      await write({
+        sheetName: '계약',
+        title: '계약 일괄 등록 양식',
+        description:
+          '* 표시 컬럼은 필수. 미수금액 입력 시 시스템이 최근 회차부터 거꾸로 차감해 자동 분배 ' +
+          '(예: 월 50만, 미수 30만 → 마지막 도래 회차 부분납입 / 그 이전 완료).',
+        headers: CONTRACT_EXCEL_HEADERS,
+        requiredCount: CONTRACT_EXCEL_REQUIRED.length,
+        sample,
+        numberCols: ['월대여료', '보증금', '선수금', '미수금액', '주행한도'],
+        fileName: `계약_양식_${today.replace(/-/g, '')}.xlsx`,
+      });
     } catch (e) {
       alert(`양식 다운로드 실패: ${(e as Error).message}`);
     } finally {

@@ -83,32 +83,76 @@ export function ReceiptBatchDialog({
   async function downloadTemplate() {
     setDownloading(true);
     try {
-      const XLSX = await import('xlsx');
-      // 활성 계약의 미완료(예정/지연) 수납 회차를 자동으로 채워서 제공
-      const rows: (string | number)[][] = [[...RECEIPT_EXCEL_HEADERS]];
+      // 활성 계약의 미완료(예정/지연) 수납 회차를 자동으로 prefill — 사용자는 「상태/입금일」만 채움
+      type Row = Record<string, string | number>;
+      const dataRows: Row[] = [];
       for (const c of activeContracts(contracts)) {
         for (const ev of c.events) {
           if (ev.type !== '수납') continue;
-          if (ev.status === '완료' || ev.status === '취소') continue;     // 미완료만 노출
-          rows.push([
-            c.contractNo, ev.cycle ?? '', ev.status,                        // 필수 (상태=현재값 prefill)
-            c.plate, c.customerName, ev.amount ?? '', ev.dueDate,           // 참조
-            '', '',                                                         // 입금일·비고 (사용자 입력)
-          ]);
+          if (ev.status === '완료' || ev.status === '취소') continue;
+          dataRows.push({
+            '계약번호 *': c.contractNo,
+            '회차 *': ev.cycle ?? '',
+            '상태 *': ev.status,
+            '차량번호': c.plate,
+            '임차인': c.customerName,
+            '회차금액': ev.amount ?? '',
+            '회차예정일': ev.dueDate,
+            '입금일': '',
+            '비고': '',
+          });
         }
       }
-      if (rows.length === 1) {
-        // 활성 계약 미완료 회차 0 — 빈 양식이라도 헤더 + 예시 1행
-        rows.push([
-          'C2025-0001', 1, '완료',
-          '12가1234', '홍길동', 1100000, todayStr(),
-          todayStr(), '예시 행 — 작성 후 삭제',
-        ]);
+      const isEmpty = dataRows.length === 0;
+      // 활성 미완료 0 → 예시 1행
+      const sample: Row = isEmpty ? {
+        '계약번호 *': 'C2025-0001', '회차 *': 1, '상태 *': '완료',
+        '차량번호': '12가1234', '임차인': '홍길동',
+        '회차금액': 1100000, '회차예정일': todayStr(),
+        '입금일': todayStr(), '비고': '예시 행 — 작성 후 삭제',
+      } : dataRows[0];
+      const { buildTemplate } = await import('@/lib/excel-template');
+      const XLSX = await import('xlsx-js-style');
+      const wb = await buildTemplate({
+        sheetName: '수납일괄',
+        title: '수납 일괄 처리 양식',
+        description:
+          isEmpty
+            ? '활성 계약의 미완료 수납 회차가 없습니다. 아래 예시 행 참고해서 작성하세요.'
+            : '활성 계약의 미완료 회차가 자동 채워져 있습니다. ' +
+              '「상태」를 완료/지연/취소 중 하나로 마킹 + 완료 시 「입금일」 기입 → 업로드.',
+        headers: RECEIPT_EXCEL_HEADERS,
+        requiredCount: RECEIPT_EXCEL_REQUIRED.length,
+        sample,
+        numberCols: ['회차', '회차금액'],
+      });
+      // 첫 페이지에 예시 1행만 들어가있으니 나머지 dataRows 를 push (있을 때만)
+      if (!isEmpty && dataRows.length > 0) {
+        const ws = wb.Sheets['수납일괄'];
+        // 예시 행을 dataRows[0] 로 이미 썼으니 나머지 1번부터
+        for (let i = 1; i < dataRows.length; i++) {
+          const r = dataRows[i];
+          const rowIdx = 4 + i;     // 1=title, 2=desc, 3=header, 4=첫데이터
+          RECEIPT_EXCEL_HEADERS.forEach((h, c) => {
+            const v = r[h] ?? '';
+            const colLetter = String.fromCharCode(65 + c);
+            const ref = `${colLetter}${rowIdx}`;
+            if (typeof v === 'number') {
+              ws[ref] = {
+                t: 'n', v, z: h.includes('금액') ? '#,##0' : undefined,
+                s: { font: { name: '맑은 고딕', sz: 12 }, alignment: { horizontal: 'right', vertical: 'center' } },
+              };
+            } else {
+              ws[ref] = {
+                t: 's', v: String(v),
+                s: { font: { name: '맑은 고딕', sz: 12 }, alignment: { horizontal: 'left', vertical: 'center' } },
+              };
+            }
+          });
+        }
+        const lastRow = 3 + dataRows.length;
+        ws['!ref'] = `A1:${String.fromCharCode(65 + RECEIPT_EXCEL_HEADERS.length - 1)}${lastRow}`;
       }
-      const sheet = XLSX.utils.aoa_to_sheet(rows);
-      sheet['!cols'] = RECEIPT_EXCEL_HEADERS.map((h) => ({ wch: Math.max(h.length + 2, 11) }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, sheet, '수납일괄');
       XLSX.writeFile(wb, `수납일괄_양식_${todayStr().replace(/-/g, '')}.xlsx`);
     } catch (e) {
       alert(`양식 다운로드 실패: ${(e as Error).message}`);

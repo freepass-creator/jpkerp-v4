@@ -441,8 +441,6 @@ function AssetExcelTab({
   async function downloadTemplate() {
     setDownloading(true);
     try {
-      const XLSX = await import('xlsx');
-      // 예시 한 행 — 필수 8 + 부가 ~몇 개. 사용자가 덮어쓰거나 지움.
       const sample: Record<string, string | number> = {
         '회사코드 *': 'CP01',
         '차량번호 *': '12가1234',
@@ -455,16 +453,21 @@ function AssetExcelTab({
         '제조사': '기아', '모델명': '쏘렌토', '세부모델': 'MQ4', '세부트림': '4WD 시그니처',
         '제작연월': '2024-01', '연료종류': '하이브리드', '구동방식': '4륜', '외부색상': '검정', '내부색상': '베이지',
         '선택옵션': '파노라마선루프, 하이패스, 어라운드뷰',
+        '배기량': 1600, '승차정원': 5, '주행거리': 0, '출고가격': 38000000,
       };
-      const aoa: (string | number)[][] = [
-        [...ASSET_EXCEL_HEADERS],
-        ASSET_EXCEL_HEADERS.map((h) => sample[h] ?? ''),
-      ];
-      const sheet = XLSX.utils.aoa_to_sheet(aoa);
-      sheet['!cols'] = ASSET_EXCEL_HEADERS.map((h) => ({ wch: Math.max(h.length + 2, 10) }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, sheet, '자산');
-      XLSX.writeFile(wb, `자산_양식_${todayStr()}.xlsx`);
+      const { downloadTemplate: write } = await import('@/lib/excel-template');
+      await write({
+        sheetName: '자산',
+        title: '자산(차량) 일괄 등록 양식',
+        description:
+          '* 표시 컬럼은 필수 (회사·차량번호·차대번호·차종·용도·차명·성명·최초등록일). ' +
+          '부가 컬럼은 빈칸 가능 — 자동차등록증 ⑤~㉞ 항목 + 운영 메타(제조사·모델·색상·옵션 등).',
+        headers: ASSET_EXCEL_HEADERS,
+        requiredCount: ASSET_EXCEL_REQUIRED.length,
+        sample,
+        numberCols: ['배기량', '승차정원', '주행거리', '출고가격', '길이', '너비', '높이', '총중량', '최대적재량', '연료소비율'],
+        fileName: `자산_양식_${todayStr()}.xlsx`,
+      });
     } catch (e) {
       alert(`양식 다운로드 실패: ${(e as Error).message}`);
     } finally {
