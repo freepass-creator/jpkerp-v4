@@ -16,7 +16,8 @@ import { useInsuranceStore } from '@/lib/use-insurance-store';
 import { useJournalStore } from '@/lib/use-journal-store';
 import { useAuditStamp } from '@/lib/audit-fields';
 import { ContractsImportPanel } from '@/components/dev/contracts-import';
-import type { Contract } from '@/lib/sample-contracts';
+import { ReceiptBatchDialog } from '@/components/contract/receipt-batch-dialog';
+import type { Contract, ScheduleEvent } from '@/lib/sample-contracts';
 import { todayStr } from '@/lib/date-utils';
 import { cn } from '@/lib/cn';
 import { useIsAdmin } from '@/lib/admin-guard';
@@ -260,7 +261,40 @@ function DevPage() {
     >
       {section === 'inspect' && <InspectSection rows={deleteRows} />}
       {section === 'import' && <ImportSection />}
-      {section === 'seed' && <SeedSection onReceiptOpen={() => setReceiptOpen(true)} onSeedDeliveries={seedDeliveries} contractsCount={contracts.length} />}
+      {section === 'seed' && <SeedSection
+        onReceiptOpen={() => setReceiptOpen(true)}
+        onSeedDeliveries={seedDeliveries}
+        contractsCount={contracts.length}
+        contracts={contracts}
+        onReceiptBatchApply={(patches) => {
+          const byContract = new Map(patches.map((p) => [p.contractId, p.eventPatches]));
+          setContracts((prev) => prev.map((c) => {
+            const list = byContract.get(c.id);
+            if (!list) return c;
+            const eventMap = new Map(list.map((p) => [p.eventId, p]));
+            return {
+              ...c,
+              events: c.events.map((e) => {
+                const p = eventMap.get(e.id);
+                if (!p) return e;
+                return {
+                  ...e,
+                  status: p.status,
+                  doneDate: p.doneDate ?? (p.status === '완료' ? e.doneDate : undefined),
+                  note: p.note ?? e.note,
+                };
+              }),
+            };
+          }));
+          const totalUpdates = patches.reduce((s, p) => s + p.eventPatches.length, 0);
+          audit.log({
+            action: 'update', entityType: 'contract', entityId: 'batch',
+            label: `[/dev] 수납 일괄 마이그레이션 ${patches.length}계약 / ${totalUpdates}회차`,
+            after: { contracts: patches.length, events: totalUpdates },
+          });
+          alert(`${patches.length}개 계약 / ${totalUpdates}건 회차 적용 완료.`);
+        }}
+      />}
       {section === 'other' && <OtherSection nodes={otherNodes} />}
     </PageShell>
 
@@ -437,10 +471,13 @@ function ImportSection() {
 /* ─── 시드·시뮬레이션 섹션 ─── */
 function SeedSection({
   onReceiptOpen, onSeedDeliveries, contractsCount,
+  contracts, onReceiptBatchApply,
 }: {
   onReceiptOpen: () => void;
   onSeedDeliveries: () => void;
   contractsCount: number;
+  contracts: Contract[];
+  onReceiptBatchApply: (patches: { contractId: string; eventPatches: { eventId: string; status: ScheduleEvent['status']; doneDate?: string; note?: string }[] }[]) => void;
 }) {
   return (
     <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -460,7 +497,21 @@ function SeedSection({
       </div>
 
       <div className="dev-card">
-        <div className="dev-card-title">일괄 마이그레이션</div>
+        <div className="dev-card-title">수납생성 — 엑셀 일괄 마이그레이션</div>
+        <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
+          현재 운영 미수 현황을 엑셀로 한 번에 정렬. 양식 다운로드 시 <strong>미완료 회차 prefill</strong>
+          (계약·회차·금액·예정일까지 자동) → 「상태/입금일」 마킹 후 업로드.
+          <br />· 계약 events status/doneDate 일괄 patch
+          <br />· 마이그레이션 후엔 일상 운영(자동이체 결과·계좌내역 매칭)으로 진행
+        </p>
+        <ReceiptBatchDialog contracts={contracts} onApply={onReceiptBatchApply} />
+        {contractsCount === 0 && (
+          <div className="text-red text-xs" style={{ marginTop: 6 }}>계약 없음 — 먼저 계약 등록 필요</div>
+        )}
+      </div>
+
+      <div className="dev-card">
+        <div className="dev-card-title">계약 일괄 마이그레이션</div>
         <p className="text-weak text-xs" style={{ marginBottom: 10 }}>
           계약 + 출고여부 + 현재미수까지 한 번에 처리.
           → <strong>데이터 일괄등록</strong> 탭에서 양식 다운로드 → 엑셀 편집 → 업로드.
