@@ -1061,7 +1061,10 @@ function ContractExcelTab({
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="button" className="btn" onClick={downloadTemplate} disabled={downloading}>
-          <DownloadSimple size={14} weight="bold" /> {downloading ? '양식 생성 중…' : '엑셀 양식 다운로드'}
+          {downloading
+            ? <CircleNotch size={14} weight="bold" className="spin" />
+            : <DownloadSimple size={14} weight="bold" />}
+          엑셀 양식 다운로드
         </button>
         <span className="text-weak text-xs">
           필수 <strong>{CONTRACT_EXCEL_REQUIRED.length}</strong> · 부가 <strong>{CONTRACT_EXCEL_OPTIONAL.length}</strong> (총 {CONTRACT_EXCEL_HEADERS.length} 컬럼)

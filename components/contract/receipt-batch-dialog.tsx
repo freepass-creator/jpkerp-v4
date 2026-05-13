@@ -7,7 +7,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
-  DownloadSimple, UploadSimple, FileXls, Warning, CheckCircle, ArrowsClockwise,
+  DownloadSimple, UploadSimple, FileXls, Warning, CheckCircle, CircleNotch, ArrowsClockwise,
 } from '@phosphor-icons/react';
 import {
   parseReceiptExcel, RECEIPT_EXCEL_HEADERS, RECEIPT_EXCEL_REQUIRED, RECEIPT_EXCEL_OPTIONAL,
@@ -278,7 +278,10 @@ export function ReceiptBatchDialog({
 
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button type="button" className="btn" onClick={downloadTemplate} disabled={downloading}>
-                  <DownloadSimple size={14} weight="bold" /> {downloading ? '양식 생성 중…' : '엑셀 양식 다운로드'}
+                  {downloading
+                    ? <CircleNotch size={14} weight="bold" className="spin" />
+                    : <DownloadSimple size={14} weight="bold" />}
+                  엑셀 양식 다운로드
                 </button>
                 <span className="text-weak text-xs">미완료 회차 자동 prefill</span>
               </div>
