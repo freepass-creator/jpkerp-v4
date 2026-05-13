@@ -1060,19 +1060,7 @@ function ContractExcelTab({
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className="btn"
-          onClick={downloadTemplate}
-          disabled={downloading}
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            padding: '6px 12px',
-            gap: 6,
-            fontWeight: 500,
-          }}
-        >
+        <button type="button" className="btn" onClick={downloadTemplate} disabled={downloading}>
           <DownloadSimple size={14} weight="bold" /> {downloading ? '양식 생성 중…' : '엑셀 양식 다운로드'}
         </button>
         <span className="text-weak text-xs">
